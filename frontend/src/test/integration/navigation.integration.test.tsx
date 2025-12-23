@@ -76,7 +76,7 @@ describe('ナビゲーション統合テスト', () => {
     // Direct access to saved queries
     renderApp({ initialEntries: ['/saved'], initialToken: mockToken })
     await waitFor(() => {
-      expect(screen.getByText('Saved Queries')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Saved Queries' })).toBeInTheDocument()
     })
   })
 

@@ -85,6 +85,7 @@ export const mockDashboards: Dashboard[] = [
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     widgets: [],
+    my_permission: 'owner',
   },
 ]
 
@@ -400,6 +401,7 @@ export function resetMockData() {
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     widgets: [],
+    my_permission: 'owner',
   }
 
   // Reset widgets
