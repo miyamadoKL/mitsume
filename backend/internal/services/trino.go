@@ -1,0 +1,209 @@
+package services
+
+import (
+	"context"
+	"database/sql"
+	"errors"
+	"fmt"
+	"regexp"
+	"sync"
+	"time"
+
+	"github.com/mitsume/backend/internal/config"
+	"github.com/mitsume/backend/internal/models"
+
+	_ "github.com/trinodb/trino-go-client/trino"
+)
+
+type TrinoService struct {
+	cfg *config.TrinoConfig
+	dbs sync.Map
+}
+
+func NewTrinoService(cfg *config.TrinoConfig) *TrinoService {
+	return &TrinoService{cfg: cfg}
+}
+
+func (s *TrinoService) getConnectionString(catalog, schema string) string {
+	if catalog == "" {
+		catalog = s.cfg.Catalog
+	}
+	if schema == "" {
+		schema = s.cfg.Schema
+	}
+	return fmt.Sprintf("http://%s@%s:%s?catalog=%s&schema=%s",
+		s.cfg.User, s.cfg.Host, s.cfg.Port, catalog, schema)
+}
+
+func (s *TrinoService) ExecuteQuery(ctx context.Context, query, catalog, schema string) (*models.QueryResult, error) {
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	startTime := time.Now()
+
+	dsn := s.getConnectionString(catalog, schema)
+	db, err := s.getDB(dsn)
+	if err != nil {
+		return nil, err
+	}
+
+	rows, err := db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("query execution failed: %w", err)
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get columns: %w", err)
+	}
+
+	var result [][]interface{}
+
+	for rows.Next() {
+		values := make([]interface{}, len(columns))
+		valuePtrs := make([]interface{}, len(columns))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+
+		if err := rows.Scan(valuePtrs...); err != nil {
+			return nil, fmt.Errorf("failed to scan row: %w", err)
+		}
+
+		row := make([]interface{}, len(columns))
+		for i, v := range values {
+			row[i] = formatValue(v)
+		}
+		result = append(result, row)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("row iteration error: %w", err)
+	}
+
+	executionTime := time.Since(startTime).Milliseconds()
+
+	return &models.QueryResult{
+		Columns:         columns,
+		Rows:            result,
+		RowCount:        len(result),
+		ExecutionTimeMs: executionTime,
+	}, nil
+}
+
+func formatValue(v interface{}) interface{} {
+	if v == nil {
+		return nil
+	}
+
+	switch val := v.(type) {
+	case []byte:
+		return string(val)
+	case time.Time:
+		return val.Format(time.RFC3339)
+	default:
+		return val
+	}
+}
+
+func (s *TrinoService) GetCatalogs(ctx context.Context) ([]string, error) {
+	result, err := s.ExecuteQuery(ctx, "SHOW CATALOGS", "", "")
+	if err != nil {
+		return nil, err
+	}
+
+	catalogs := make([]string, len(result.Rows))
+	for i, row := range result.Rows {
+		if len(row) > 0 {
+			if catalog, ok := row[0].(string); ok {
+				catalogs[i] = catalog
+			}
+		}
+	}
+
+	return catalogs, nil
+}
+
+func (s *TrinoService) GetSchemas(ctx context.Context, catalog string) ([]string, error) {
+	if err := validateIdentifier(catalog); err != nil {
+		return nil, err
+	}
+
+	query := fmt.Sprintf("SHOW SCHEMAS FROM %s", catalog)
+	result, err := s.ExecuteQuery(ctx, query, catalog, "")
+	if err != nil {
+		return nil, err
+	}
+
+	schemas := make([]string, len(result.Rows))
+	for i, row := range result.Rows {
+		if len(row) > 0 {
+			if schema, ok := row[0].(string); ok {
+				schemas[i] = schema
+			}
+		}
+	}
+
+	return schemas, nil
+}
+
+func (s *TrinoService) GetTables(ctx context.Context, catalog, schema string) ([]string, error) {
+	if err := validateIdentifier(catalog); err != nil {
+		return nil, err
+	}
+	if err := validateIdentifier(schema); err != nil {
+		return nil, err
+	}
+
+	query := fmt.Sprintf("SHOW TABLES FROM %s.%s", catalog, schema)
+	result, err := s.ExecuteQuery(ctx, query, catalog, schema)
+	if err != nil {
+		return nil, err
+	}
+
+	tables := make([]string, len(result.Rows))
+	for i, row := range result.Rows {
+		if len(row) > 0 {
+			if table, ok := row[0].(string); ok {
+				tables[i] = table
+			}
+		}
+	}
+
+	return tables, nil
+}
+
+func (s *TrinoService) getDB(dsn string) (*sql.DB, error) {
+	if db, ok := s.dbs.Load(dsn); ok {
+		return db.(*sql.DB), nil
+	}
+
+	db, err := sql.Open("trino", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to Trino: %w", err)
+	}
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(time.Hour)
+
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to ping Trino: %w", err)
+	}
+
+	s.dbs.Store(dsn, db)
+	return db, nil
+}
+
+var identifierPattern = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+
+func validateIdentifier(identifier string) error {
+	if identifier == "" {
+		return errors.New("identifier is required")
+	}
+	if !identifierPattern.MatchString(identifier) {
+		return errors.New("invalid identifier")
+	}
+	return nil
+}

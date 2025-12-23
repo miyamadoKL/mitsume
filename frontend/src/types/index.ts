@@ -1,0 +1,333 @@
+export interface User {
+  id: string
+  email: string
+  name: string
+  auth_provider: string
+  created_at: string
+  updated_at: string
+}
+
+export interface AuthResponse {
+  token: string
+  user: User
+}
+
+export interface SavedQuery {
+  id: string
+  user_id: string
+  name: string
+  description: string | null
+  query_text: string
+  created_at: string
+  updated_at: string
+}
+
+export interface QueryHistory {
+  id: string
+  user_id: string
+  query_text: string
+  status: 'success' | 'error' | 'cancelled'
+  execution_time_ms: number | null
+  row_count: number | null
+  error_message: string | null
+  executed_at: string
+}
+
+export interface QueryResult {
+  columns: string[]
+  rows: unknown[][]
+  row_count: number
+  execution_time_ms: number
+}
+
+export type PermissionLevel = 'view' | 'edit' | 'owner' | ''
+
+export interface DashboardPermission {
+  id: string
+  dashboard_id: string
+  user_id?: string
+  role_id?: string
+  permission_level: PermissionLevel
+  granted_at: string
+  granted_by?: string
+  user_email?: string
+  user_name?: string
+  role_name?: string
+}
+
+export interface Dashboard {
+  id: string
+  user_id: string
+  name: string
+  description: string | null
+  layout: LayoutItem[]
+  is_public?: boolean
+  created_at: string
+  updated_at: string
+  widgets?: Widget[]
+  my_permission?: PermissionLevel
+  permissions?: DashboardPermission[]
+}
+
+export interface GrantPermissionRequest {
+  user_id?: string
+  role_id?: string
+  permission_level: 'view' | 'edit'
+}
+
+export interface UpdateVisibilityRequest {
+  is_public: boolean
+}
+
+export interface Widget {
+  id: string
+  dashboard_id: string
+  name: string
+  query_id: string | null
+  chart_type: ChartType
+  chart_config: ChartConfig
+  position: Position
+  created_at: string
+  updated_at: string
+}
+
+export interface Position {
+  x: number
+  y: number
+  w: number
+  h: number
+}
+
+export interface LayoutItem extends Position {
+  i: string
+}
+
+export type ChartType = 'bar' | 'line' | 'pie' | 'area' | 'scatter' | 'table' | 'markdown' | 'counter' | 'pivot'
+
+// Drilldown Types
+export interface ColumnLinkConfig {
+  column: string           // Target column name
+  targetDashboardId: string // Dashboard ID to navigate to
+  parameterMapping: Record<string, string>  // Param name → column name or "@" for current cell
+  textTemplate?: string    // Optional display text template (e.g., "View {{@}}")
+}
+
+export interface ChartDrilldownConfig {
+  targetDashboardId: string        // Dashboard ID to navigate to
+  parameterMapping: Record<string, string>  // Param name → "name"|"value"|"series"|column name
+}
+
+export interface ChartConfig {
+  xAxis?: string
+  yAxis?: string | string[]
+  series?: string[]
+  title?: string
+  legend?: boolean
+  content?: string  // Markdown content for markdown widget
+  // Counter widget config
+  valueColumn?: string  // Column to display as counter value
+  counterLabel?: string  // Label below the counter
+  counterPrefix?: string  // Prefix (e.g., "$")
+  counterSuffix?: string  // Suffix (e.g., "%")
+  // Pivot widget config
+  rowGroupColumn?: string  // Column for row grouping
+  colGroupColumn?: string  // Column for column grouping
+  valueAggColumn?: string  // Column to aggregate
+  aggregation?: 'sum' | 'count' | 'avg' | 'min' | 'max'  // Aggregation function
+  // Drilldown config
+  columnLinks?: ColumnLinkConfig[]     // Table column link settings
+  drilldown?: ChartDrilldownConfig     // Chart drilldown settings
+}
+
+export interface CreateDashboardRequest {
+  name: string
+  description?: string
+}
+
+export interface CreateWidgetRequest {
+  name: string
+  query_id?: string
+  chart_type: ChartType
+  chart_config: ChartConfig
+  position: Position
+}
+
+// Notification Types
+export type ChannelType = 'slack' | 'email' | 'google_chat'
+
+export interface NotificationChannel {
+  id: string
+  user_id: string
+  name: string
+  channel_type: ChannelType
+  config: SlackChannelConfig | EmailChannelConfig | GoogleChatChannelConfig
+  is_verified: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface SlackChannelConfig {
+  webhook_url: string
+}
+
+export interface EmailChannelConfig {
+  recipients: string[]
+}
+
+export interface GoogleChatChannelConfig {
+  webhook_url: string
+}
+
+export interface CreateNotificationChannelRequest {
+  name: string
+  channel_type: ChannelType
+  config: SlackChannelConfig | EmailChannelConfig | GoogleChatChannelConfig
+}
+
+export interface UpdateNotificationChannelRequest {
+  name?: string
+  config?: SlackChannelConfig | EmailChannelConfig | GoogleChatChannelConfig
+}
+
+// Alert Types
+export type ConditionOperator = 'gt' | 'lt' | 'eq' | 'gte' | 'lte' | 'neq' | 'contains'
+export type Aggregation = 'sum' | 'avg' | 'count' | 'min' | 'max' | 'first'
+
+export interface QueryAlert {
+  id: string
+  user_id: string
+  query_id: string
+  name: string
+  description: string | null
+  condition_column: string
+  condition_operator: ConditionOperator
+  condition_value: string
+  aggregation: Aggregation | null
+  check_interval_minutes: number
+  cooldown_minutes: number
+  is_active: boolean
+  last_checked_at: string | null
+  last_triggered_at: string | null
+  next_check_at: string | null
+  channel_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateAlertRequest {
+  query_id: string
+  name: string
+  description?: string
+  condition_column: string
+  condition_operator: ConditionOperator
+  condition_value: string
+  aggregation?: Aggregation
+  check_interval_minutes?: number
+  cooldown_minutes?: number
+  channel_ids: string[]
+}
+
+export interface UpdateAlertRequest {
+  name?: string
+  description?: string
+  condition_column?: string
+  condition_operator?: ConditionOperator
+  condition_value?: string
+  aggregation?: Aggregation
+  check_interval_minutes?: number
+  cooldown_minutes?: number
+  is_active?: boolean
+  channel_ids?: string[]
+}
+
+export interface AlertHistory {
+  id: string
+  alert_id: string
+  triggered_at: string
+  condition_met_value: string | null
+  notification_status: string
+  notification_details: Record<string, unknown> | null
+  error_message: string | null
+}
+
+export interface AlertTestResult {
+  triggered: boolean
+  actual_value: string
+  condition: {
+    column: string
+    operator: string
+    value: string
+  }
+  notification_sent?: boolean
+}
+
+// Subscription Types
+export interface DashboardSubscription {
+  id: string
+  user_id: string
+  dashboard_id: string
+  name: string
+  schedule_cron: string
+  timezone: string
+  format: 'pdf' | 'png'
+  is_active: boolean
+  last_sent_at: string | null
+  next_run_at: string | null
+  channel_ids: string[]
+  created_at: string
+  updated_at: string
+}
+
+export interface CreateSubscriptionRequest {
+  dashboard_id: string
+  name: string
+  schedule_cron: string
+  timezone?: string
+  format?: 'pdf' | 'png'
+  channel_ids: string[]
+}
+
+export interface UpdateSubscriptionRequest {
+  name?: string
+  schedule_cron?: string
+  timezone?: string
+  format?: 'pdf' | 'png'
+  is_active?: boolean
+  channel_ids?: string[]
+}
+
+// Role Types
+export interface Role {
+  id: string
+  name: string
+  description: string | null
+  is_system: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface RoleWithCatalogs extends Role {
+  catalogs: string[]
+}
+
+export interface UserWithRoles extends User {
+  roles: Role[]
+}
+
+export interface CreateRoleRequest {
+  name: string
+  description?: string
+}
+
+export interface UpdateRoleRequest {
+  name?: string
+  description?: string
+}
+
+export interface SetCatalogPermissionsRequest {
+  catalogs: string[]
+}
+
+export interface AssignRoleRequest {
+  role_id: string
+}

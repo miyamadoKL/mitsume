@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: mitsume-postgres
+    environment:
+      POSTGRES_USER: mitsume
+      POSTGRES_PASSWORD: mitsume
+      POSTGRES_DB: mitsume
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mitsume"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  trino:
+    image: trinodb/trino:latest
+    container_name: mitsume-trino
+    ports:
+      - "8090:8080"
+    volumes:
+      - ./trino/etc:/etc/trino
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/v1/info"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mitsume-backend
+    environment:
+      - SERVER_PORT=8080
+      - GIN_MODE=release
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=mitsume
+      - DB_PASSWORD=mitsume
+      - DB_NAME=mitsume
+      - DB_SSLMODE=disable
+      - TRINO_HOST=trino
+      - TRINO_PORT=8080
+      - TRINO_USER=mitsume
+      - TRINO_CATALOG=memory
+      - TRINO_SCHEMA=default
+      - JWT_SECRET=${JWT_SECRET:-your-production-secret-key}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_REDIRECT_URL=${GOOGLE_REDIRECT_URL:-http://localhost:8080/api/auth/google/callback}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      trino:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mitsume-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

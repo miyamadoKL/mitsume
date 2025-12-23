@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+dist/
+build/
+*.exe
+main
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# AI Agents
+.claude/
+.codex/
+todo.md
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+coverage/
+
+# Misc
+*.tmp
+*.temp
+.gocache/
