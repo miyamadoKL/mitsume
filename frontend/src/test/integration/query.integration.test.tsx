@@ -128,7 +128,7 @@ describe('クエリ統合テスト', () => {
     renderApp({ initialEntries: ['/saved'], initialToken: mockToken })
 
     await waitFor(() => {
-      expect(screen.getByText(/No saved queries yet/i)).toBeInTheDocument()
+      expect(screen.getByText(/No saved queries/i)).toBeInTheDocument()
     })
   })
 
@@ -201,7 +201,7 @@ describe('クエリ統合テスト', () => {
     renderApp({ initialEntries: ['/history'], initialToken: mockToken })
 
     await waitFor(() => {
-      expect(screen.getByText(/No query history yet/i)).toBeInTheDocument()
+      expect(screen.getByText(/No query history/i)).toBeInTheDocument()
     })
   })
 

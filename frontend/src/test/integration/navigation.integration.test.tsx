@@ -76,7 +76,7 @@ describe('ナビゲーション統合テスト', () => {
     // Direct access to saved queries
     renderApp({ initialEntries: ['/saved'], initialToken: mockToken })
     await waitFor(() => {
-      expect(screen.getByText('Saved Queries')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Saved Queries' })).toBeInTheDocument()
     })
   })
 
@@ -176,8 +176,9 @@ describe('ナビゲーション統合テスト', () => {
   it('ダッシュボード作成後に詳細ページに遷移する', async () => {
     renderApp({ initialEntries: ['/dashboards'], initialToken: mockToken })
 
+    // Wait for dashboard list to load and button to appear
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'Dashboards' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /new dashboard/i })).toBeInTheDocument()
     })
 
     // Create new dashboard
