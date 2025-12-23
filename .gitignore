@@ -18,6 +18,7 @@ main
 .claude/
 .codex/
 todo.md
+plan.md
 
 # Environment
 .env
@@ -39,3 +40,4 @@ coverage/
 *.tmp
 *.temp
 .gocache/
+.gomodcache/
