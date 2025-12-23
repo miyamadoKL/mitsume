@@ -57,7 +57,8 @@ describe('ダッシュボード統合テスト', () => {
   it('新規ダッシュボードを作成できる', async () => {
     renderApp({ initialEntries: ['/dashboards'], initialToken: mockToken })
 
-    await waitFor(() => expect(screen.getByRole('heading', { name: 'Dashboards' })).toBeInTheDocument())
+    // Wait for dashboard list to load and button to appear
+    await waitFor(() => expect(screen.getByRole('button', { name: /new dashboard/i })).toBeInTheDocument())
     fireEvent.click(screen.getByRole('button', { name: /new dashboard/i }))
     await userEvent.type(screen.getByPlaceholderText('Dashboard name'), 'New Dashboard')
     fireEvent.click(screen.getByRole('button', { name: /^Create$/i }))
