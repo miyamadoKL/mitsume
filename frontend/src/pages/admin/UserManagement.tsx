@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '@/components/ui/dialog'
@@ -12,6 +13,7 @@ import type { UserWithRoles, RoleWithCatalogs } from '@/types'
 import { useAuthStore } from '@/stores/authStore'
 
 export default function UserManagement() {
+  const { t } = useTranslation()
   const [users, setUsers] = useState<UserWithRoles[]>([])
   const [roles, setRoles] = useState<RoleWithCatalogs[]>([])
   const [loading, setLoading] = useState(true)
@@ -74,7 +76,7 @@ export default function UserManagement() {
       selectedUser?.id === currentUser?.id &&
       selectedRoleIds.includes(roleId)
     ) {
-      toast.error('Cannot remove admin role', 'You cannot remove your own admin role')
+      toast.error(t('admin.users.toast.cannotRemoveAdminRole'), t('admin.users.toast.cannotRemoveAdminRoleDesc'))
       return
     }
 
@@ -100,11 +102,11 @@ export default function UserManagement() {
         ...rolesToRemove.map((roleId) => adminApi.unassignRole(selectedUser.id, roleId)),
       ])
 
-      toast.success('Roles updated', `Roles for "${selectedUser.name}" have been updated`)
+      toast.success(t('admin.users.toast.rolesUpdated'), t('admin.users.toast.rolesUpdatedDesc', { name: selectedUser.name }))
       await loadData()
       handleCloseDialog()
     } catch (err) {
-      toast.error('Failed to save roles', getErrorMessage(err))
+      toast.error(t('admin.users.toast.saveFailed'), getErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -114,13 +116,13 @@ export default function UserManagement() {
     return (
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">User Management</h1>
+          <h1 className="text-2xl font-bold">{t('admin.users.title')}</h1>
         </div>
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Users
+              {t('nav.users')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -135,7 +137,7 @@ export default function UserManagement() {
     return (
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">User Management</h1>
+          <h1 className="text-2xl font-bold">{t('admin.users.title')}</h1>
         </div>
         <ErrorState
           message={getErrorMessage(error)}
@@ -150,14 +152,14 @@ export default function UserManagement() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">User Management</h1>
+        <h1 className="text-2xl font-bold">{t('admin.users.title')}</h1>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5" />
-            Users
+            {t('nav.users')}
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -165,11 +167,11 @@ export default function UserManagement() {
             <table className="w-full">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-3 px-4 font-medium">Name</th>
-                  <th className="text-left py-3 px-4 font-medium">Email</th>
-                  <th className="text-left py-3 px-4 font-medium">Auth Provider</th>
-                  <th className="text-left py-3 px-4 font-medium">Roles</th>
-                  <th className="text-left py-3 px-4 font-medium">Actions</th>
+                  <th className="text-left py-3 px-4 font-medium">{t('common.name')}</th>
+                  <th className="text-left py-3 px-4 font-medium">{t('auth.email')}</th>
+                  <th className="text-left py-3 px-4 font-medium">{t('admin.users.authProvider')}</th>
+                  <th className="text-left py-3 px-4 font-medium">{t('admin.users.roles')}</th>
+                  <th className="text-left py-3 px-4 font-medium">{t('common.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -180,7 +182,7 @@ export default function UserManagement() {
                         {user.name}
                         {user.id === currentUser?.id && (
                           <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">
-                            You
+                            {t('common.you')}
                           </span>
                         )}
                       </div>
@@ -208,13 +210,13 @@ export default function UserManagement() {
                             </span>
                           ))
                         ) : (
-                          <span className="text-muted-foreground text-sm">No roles</span>
+                          <span className="text-muted-foreground text-sm">{t('common.noRoles')}</span>
                         )}
                       </div>
                     </td>
                     <td className="py-3 px-4">
                       <Button variant="outline" size="sm" onClick={() => handleOpenDialog(user)}>
-                        <UserCog className="h-4 w-4 mr-1" /> Manage Roles
+                        <UserCog className="h-4 w-4 mr-1" /> {t('admin.users.manageRoles')}
                       </Button>
                     </td>
                   </tr>
@@ -229,14 +231,14 @@ export default function UserManagement() {
       <Dialog open={dialogOpen} onClose={handleCloseDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Manage Roles - {selectedUser?.name}</DialogTitle>
+            <DialogTitle>{t('admin.users.manageRolesTitle', { name: selectedUser?.name })}</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <p className="text-sm text-muted-foreground mb-4">
-              Select roles to assign to this user.
+              {t('admin.users.manageRolesDesc')}
             </p>
             {roles.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No roles available.</p>
+              <p className="text-sm text-muted-foreground">{t('admin.users.noRolesAvailable')}</p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {roles.map((role) => {
@@ -268,7 +270,7 @@ export default function UserManagement() {
                       <div>
                         <span className="font-medium">{role.name}</span>
                         {role.is_system && (
-                          <span className="text-xs text-amber-600 ml-2">(System)</span>
+                          <span className="text-xs text-amber-600 ml-2">({t('common.system')})</span>
                         )}
                         {role.description && (
                           <p className="text-xs text-muted-foreground">{role.description}</p>
@@ -282,11 +284,11 @@ export default function UserManagement() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseDialog}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleSaveRoles} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Save
+              {t('common.save')}
             </Button>
           </DialogFooter>
         </DialogContent>

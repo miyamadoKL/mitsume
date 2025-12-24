@@ -153,7 +153,12 @@ function calculateNodeValues(node: SunburstNode): number {
  * Build level-specific styles for sunburst
  */
 function buildLevelStyles(depth: number) {
-  const levels = [
+  const levels: Array<{
+    r0: string
+    r: string
+    itemStyle: { borderWidth: number }
+    label: { align: 'left' | 'center' | 'right' }
+  }> = [
     {
       // Root level
       r0: '15%',

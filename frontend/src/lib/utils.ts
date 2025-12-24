@@ -1,12 +1,14 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import { formatDateTime } from './dateUtils'
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+// Re-export formatDateTime as formatDate for backward compatibility
 export function formatDate(date: string): string {
-  return new Date(date).toLocaleString('ja-JP')
+  return formatDateTime(date)
 }
 
 export function formatDuration(ms: number): string {

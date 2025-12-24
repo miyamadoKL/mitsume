@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { dashboardApi } from '@/services/api'
 import type { Dashboard } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -15,28 +16,28 @@ import { ErrorState, getErrorVariant } from '@/components/ui/error-state'
 import { Plus, Trash2, LayoutDashboard, Eye, Edit, Globe, Crown } from 'lucide-react'
 import type { PermissionLevel } from '@/types'
 
-const getPermissionBadge = (permission: PermissionLevel, isPublic?: boolean) => {
+const getPermissionBadge = (permission: PermissionLevel, isPublic: boolean | undefined, t: (key: string) => string) => {
   const badges = []
 
   if (permission === 'owner') {
     badges.push(
       <span key="owner" className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-amber-100 text-amber-700">
         <Crown className="h-3 w-3" />
-        Owner
+        {t('dashboard.permissions.owner')}
       </span>
     )
   } else if (permission === 'edit') {
     badges.push(
       <span key="edit" className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-600">
         <Edit className="h-3 w-3" />
-        Can Edit
+        {t('dashboard.permissions.canEdit')}
       </span>
     )
   } else if (permission === 'view') {
     badges.push(
       <span key="view" className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
         <Eye className="h-3 w-3" />
-        View Only
+        {t('dashboard.permissions.viewOnly')}
       </span>
     )
   }
@@ -45,7 +46,7 @@ const getPermissionBadge = (permission: PermissionLevel, isPublic?: boolean) => 
     badges.push(
       <span key="public" className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-600">
         <Globe className="h-3 w-3" />
-        Public
+        {t('dashboard.permissions.public')}
       </span>
     )
   }
@@ -55,6 +56,7 @@ const getPermissionBadge = (permission: PermissionLevel, isPublic?: boolean) => 
 
 export const Dashboards: React.FC = () => {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const [dashboards, setDashboards] = useState<Dashboard[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
@@ -105,10 +107,10 @@ export const Dashboards: React.FC = () => {
       setCreateDialogOpen(false)
       setName('')
       setDescription('')
-      toast.success('Dashboard created', `"${dashboard.name}" has been created`)
+      toast.success(t('success.created'), `"${dashboard.name}"`)
       navigate(`/dashboards/${dashboard.id}`)
     } catch (err) {
-      toast.error('Failed to create dashboard', getErrorMessage(err))
+      toast.error(t('errors.saveFailed'), getErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -129,9 +131,9 @@ export const Dashboards: React.FC = () => {
       setDashboards(dashboards.filter(d => d.id !== dashboardToDelete.id))
       setDeleteDialogOpen(false)
       setDashboardToDelete(null)
-      toast.success('Dashboard deleted', `"${dashboardName}" has been deleted`)
+      toast.success(t('success.deleted'), `"${dashboardName}"`)
     } catch (err) {
-      toast.error('Failed to delete dashboard', getErrorMessage(err))
+      toast.error(t('errors.deleteFailed'), getErrorMessage(err))
     } finally {
       setDeleting(false)
     }
@@ -141,7 +143,7 @@ export const Dashboards: React.FC = () => {
     return (
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold">Dashboards</h1>
+          <h1 className="text-2xl font-semibold">{t('dashboard.title')}</h1>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
@@ -156,7 +158,7 @@ export const Dashboards: React.FC = () => {
     return (
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold">Dashboards</h1>
+          <h1 className="text-2xl font-semibold">{t('dashboard.title')}</h1>
         </div>
         <ErrorState
           message={getErrorMessage(error)}
@@ -171,20 +173,20 @@ export const Dashboards: React.FC = () => {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold">Dashboards</h1>
+        <h1 className="text-2xl font-semibold">{t('dashboard.title')}</h1>
         <Button onClick={() => setCreateDialogOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          New Dashboard
+          {t('dashboard.new')}
         </Button>
       </div>
 
       {dashboards.length === 0 ? (
         <EmptyState
-          title="No dashboards yet"
-          description="Create your first dashboard to visualize your data"
+          title={t('dashboard.empty')}
+          description={t('dashboard.emptyDescription')}
           icon={LayoutDashboard}
           action={{
-            label: 'New Dashboard',
+            label: t('dashboard.new'),
             onClick: () => setCreateDialogOpen(true),
           }}
         />
@@ -214,15 +216,15 @@ export const Dashboards: React.FC = () => {
                   )}
                 </div>
                 <div className="flex flex-wrap gap-1 mt-1">
-                  {getPermissionBadge(dashboard.my_permission || 'owner', dashboard.is_public)}
+                  {getPermissionBadge(dashboard.my_permission || 'owner', dashboard.is_public, t)}
                 </div>
                 <CardDescription>
-                  {dashboard.description || 'No description'}
+                  {dashboard.description || t('common.noDescription')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
                 <span className="text-xs text-muted-foreground">
-                  Updated {formatDate(dashboard.updated_at)}
+                  {t('common.updated', { date: formatDate(dashboard.updated_at) })}
                 </span>
               </CardContent>
             </Card>
@@ -232,51 +234,51 @@ export const Dashboards: React.FC = () => {
 
       <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)}>
         <DialogHeader>
-          <DialogTitle>Create Dashboard</DialogTitle>
+          <DialogTitle>{t('dashboard.createDialog.title')}</DialogTitle>
         </DialogHeader>
         <DialogContent>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Name</label>
+              <label className="text-sm font-medium">{t('dashboard.createDialog.name')}</label>
               <Input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Dashboard name"
+                placeholder={t('dashboard.createDialog.namePlaceholder')}
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Description (optional)</label>
+              <label className="text-sm font-medium">{t('savedQueries.saveDialog.description')}</label>
               <Input
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Description"
+                placeholder={t('savedQueries.saveDialog.descriptionPlaceholder')}
               />
             </div>
           </div>
         </DialogContent>
         <DialogFooter>
           <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button onClick={handleCreate} disabled={saving || !name.trim()}>
-            {saving ? 'Creating...' : 'Create'}
+            {saving ? t('common.loading') : t('common.create')}
           </Button>
         </DialogFooter>
       </Dialog>
 
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
         <DialogHeader>
-          <DialogTitle>Delete Dashboard</DialogTitle>
+          <DialogTitle>{t('dashboard.deleteConfirm.title')}</DialogTitle>
         </DialogHeader>
         <DialogContent>
-          <p>Are you sure you want to delete "{dashboardToDelete?.name}"?</p>
+          <p>{t('dashboard.deleteConfirm.description')}</p>
         </DialogContent>
         <DialogFooter>
           <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleting}>
-            {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? t('common.loading') : t('common.delete')}
           </Button>
         </DialogFooter>
       </Dialog>

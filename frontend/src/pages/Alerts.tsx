@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '@/components/ui/dialog'
@@ -21,26 +22,12 @@ import type {
   AlertHistory,
 } from '@/types'
 
-const operatorOptions: { value: ConditionOperator; label: string }[] = [
-  { value: 'gt', label: '> (Greater than)' },
-  { value: 'lt', label: '< (Less than)' },
-  { value: 'eq', label: '= (Equals)' },
-  { value: 'gte', label: '>= (Greater or equal)' },
-  { value: 'lte', label: '<= (Less or equal)' },
-  { value: 'neq', label: '!= (Not equals)' },
-  { value: 'contains', label: 'Contains' },
-]
+const operatorKeys: ConditionOperator[] = ['gt', 'lt', 'eq', 'gte', 'lte', 'neq', 'contains']
 
-const aggregationOptions: { value: Aggregation; label: string }[] = [
-  { value: 'first', label: 'First row value' },
-  { value: 'sum', label: 'Sum' },
-  { value: 'avg', label: 'Average' },
-  { value: 'count', label: 'Count' },
-  { value: 'min', label: 'Minimum' },
-  { value: 'max', label: 'Maximum' },
-]
+const aggregationKeys: Aggregation[] = ['first', 'sum', 'avg', 'count', 'min', 'max']
 
 export default function Alerts() {
+  const { t } = useTranslation()
   const [alerts, setAlerts] = useState<QueryAlert[]>([])
   const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([])
   const [channels, setChannels] = useState<NotificationChannel[]>([])
@@ -151,7 +138,7 @@ export default function Alerts() {
           cooldown_minutes: formData.cooldown_minutes,
           channel_ids: formData.channel_ids,
         })
-        toast.success('Alert updated', `"${formData.name}" has been updated`)
+        toast.success(t('alerts.toast.updated'), t('alerts.toast.updatedDesc', { name: formData.name }))
       } else {
         const req: CreateAlertRequest = {
           query_id: formData.query_id,
@@ -166,37 +153,37 @@ export default function Alerts() {
           channel_ids: formData.channel_ids,
         }
         await alertApi.create(req)
-        toast.success('Alert created', `"${formData.name}" has been created`)
+        toast.success(t('alerts.toast.created'), t('alerts.toast.createdDesc', { name: formData.name }))
       }
 
       await loadData()
       handleCloseDialog()
     } catch (err) {
-      toast.error('Failed to save alert', getErrorMessage(err))
+      toast.error(t('alerts.toast.saveFailed'), getErrorMessage(err))
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (alert: QueryAlert) => {
-    if (!confirm(`Are you sure you want to delete "${alert.name}"?`)) return
+    if (!confirm(t('alerts.confirmDelete', { name: alert.name }))) return
 
     try {
       await alertApi.delete(alert.id)
-      toast.success('Alert deleted', `"${alert.name}" has been deleted`)
+      toast.success(t('alerts.toast.deleted'), t('alerts.toast.deletedDesc', { name: alert.name }))
       await loadData()
     } catch (err) {
-      toast.error('Failed to delete alert', getErrorMessage(err))
+      toast.error(t('alerts.toast.deleteFailed'), getErrorMessage(err))
     }
   }
 
   const handleToggleActive = async (alert: QueryAlert) => {
     try {
       await alertApi.update(alert.id, { is_active: !alert.is_active })
-      toast.success('Alert updated', `"${alert.name}" is now ${!alert.is_active ? 'active' : 'inactive'}`)
+      toast.success(t('alerts.toast.updated'), !alert.is_active ? t('alerts.toast.nowActive', { name: alert.name }) : t('alerts.toast.nowInactive', { name: alert.name }))
       await loadData()
     } catch (err) {
-      toast.error('Failed to update alert', getErrorMessage(err))
+      toast.error(t('alerts.toast.updateFailed'), getErrorMessage(err))
     }
   }
 
@@ -205,12 +192,12 @@ export default function Alerts() {
       setTestLoading(alert.id)
       const result = await alertApi.test(alert.id)
       if (result.triggered) {
-        toast.success('Alert would trigger', `Condition met with value: ${result.actual_value}`)
+        toast.success(t('alerts.toast.testSuccess'), t('alerts.toast.testSuccessDesc', { value: result.actual_value }))
       } else {
-        toast.info('Alert would not trigger', `Current value: ${result.actual_value}`)
+        toast.info(t('alerts.toast.testNoTrigger'), t('alerts.toast.testNoTriggerDesc', { value: result.actual_value }))
       }
     } catch (err) {
-      toast.error('Test failed', getErrorMessage(err))
+      toast.error(t('alerts.toast.testFailed'), getErrorMessage(err))
     } finally {
       setTestLoading(null)
     }
@@ -222,16 +209,16 @@ export default function Alerts() {
       setSelectedAlertHistory(history)
       setHistoryDialogOpen(true)
     } catch (err) {
-      toast.error('Failed to load history', getErrorMessage(err))
+      toast.error(t('alerts.toast.historyFailed'), getErrorMessage(err))
     }
   }
 
   const getQueryName = (queryId: string) => {
-    return savedQueries.find((q) => q.id === queryId)?.name || 'Unknown Query'
+    return savedQueries.find((q) => q.id === queryId)?.name || t('alerts.selectQuery')
   }
 
   const getOperatorLabel = (op: ConditionOperator) => {
-    return operatorOptions.find((o) => o.value === op)?.label || op
+    return t(`alerts.operators.${op}`)
   }
 
   const toggleChannelSelection = (channelId: string) => {
@@ -247,7 +234,7 @@ export default function Alerts() {
     return (
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold">Alerts</h1>
+          <h1 className="text-2xl font-semibold">{t('alerts.title')}</h1>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
@@ -262,7 +249,7 @@ export default function Alerts() {
     return (
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold">Alerts</h1>
+          <h1 className="text-2xl font-semibold">{t('alerts.title')}</h1>
         </div>
         <ErrorState
           message={getErrorMessage(error)}
@@ -277,20 +264,20 @@ export default function Alerts() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold">Alerts</h1>
+        <h1 className="text-2xl font-semibold">{t('alerts.title')}</h1>
         <Button onClick={() => handleOpenDialog()}>
           <Plus className="h-4 w-4 mr-2" />
-          Create Alert
+          {t('alerts.create')}
         </Button>
       </div>
 
       {alerts.length === 0 ? (
         <EmptyState
-          title="No alerts configured"
-          description="Create an alert to monitor your query results"
+          title={t('alerts.empty')}
+          description={t('alerts.emptyDescription')}
           icon={Bell}
           action={{
-            label: 'Create Alert',
+            label: t('alerts.create'),
             onClick: () => handleOpenDialog(),
           }}
         />
@@ -305,7 +292,7 @@ export default function Alerts() {
                     size="sm"
                     variant="ghost"
                     onClick={() => handleToggleActive(alert)}
-                    title={alert.is_active ? 'Click to disable' : 'Click to enable'}
+                    title={alert.is_active ? t('alerts.clickToDisable') : t('alerts.clickToEnable')}
                   >
                     {alert.is_active ? (
                       <Bell className="h-4 w-4 text-green-600" />
@@ -317,20 +304,20 @@ export default function Alerts() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-2 text-sm">
-                  <p className="text-muted-foreground">{alert.description || 'No description'}</p>
+                  <p className="text-muted-foreground">{alert.description || t('common.noDescription')}</p>
                   <p>
-                    <span className="font-medium">Query:</span> {getQueryName(alert.query_id)}
+                    <span className="font-medium">{t('alerts.form.savedQuery')}:</span> {getQueryName(alert.query_id)}
                   </p>
                   <p>
-                    <span className="font-medium">Condition:</span>{' '}
+                    <span className="font-medium">{t('alerts.condition')}:</span>{' '}
                     {alert.condition_column} {getOperatorLabel(alert.condition_operator)} {alert.condition_value}
                   </p>
                   <p>
-                    <span className="font-medium">Interval:</span> {alert.check_interval_minutes} min
+                    <span className="font-medium">{t('alerts.interval')}:</span> {alert.check_interval_minutes} min
                   </p>
                   {alert.last_triggered_at && (
                     <p className="text-xs text-muted-foreground">
-                      Last triggered: {formatDate(alert.last_triggered_at)}
+                      {t('alerts.lastTriggered', { date: formatDate(alert.last_triggered_at) })}
                     </p>
                   )}
                 </div>
@@ -366,40 +353,40 @@ export default function Alerts() {
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onClose={handleCloseDialog}>
         <DialogHeader>
-          <DialogTitle>{editingAlert ? 'Edit Alert' : 'Create Alert'}</DialogTitle>
+          <DialogTitle>{editingAlert ? t('alerts.edit') : t('alerts.create')}</DialogTitle>
         </DialogHeader>
         <DialogContent>
           <div className="space-y-4 max-h-[60vh] overflow-y-auto">
             <div>
-              <Label htmlFor="name">Alert Name</Label>
+              <Label htmlFor="name">{t('alerts.form.name')}</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="High Error Rate Alert"
+                placeholder={t('alerts.form.namePlaceholder')}
               />
             </div>
 
             <div>
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">{t('alerts.form.description')}</Label>
               <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Optional description"
+                placeholder={t('alerts.form.descriptionPlaceholder')}
                 rows={2}
               />
             </div>
 
             {!editingAlert && (
               <div>
-                <Label htmlFor="query">Saved Query</Label>
+                <Label htmlFor="query">{t('alerts.form.savedQuery')}</Label>
                 <Select
                   id="query"
                   value={formData.query_id}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, query_id: e.target.value })}
                 >
-                  <option value="">Select a query...</option>
+                  <option value="">{t('alerts.form.selectQueryPlaceholder')}</option>
                   {savedQueries.map((q) => (
                     <option key={q.id} value={q.id}>{q.name}</option>
                   ))}
@@ -409,53 +396,53 @@ export default function Alerts() {
 
             <div className="grid grid-cols-3 gap-4">
               <div>
-                <Label htmlFor="column">Column</Label>
+                <Label htmlFor="column">{t('alerts.form.column')}</Label>
                 <Input
                   id="column"
                   value={formData.condition_column}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, condition_column: e.target.value })}
-                  placeholder="count"
+                  placeholder={t('alerts.form.columnPlaceholder')}
                 />
               </div>
               <div>
-                <Label htmlFor="operator">Operator</Label>
+                <Label htmlFor="operator">{t('alerts.form.operator')}</Label>
                 <Select
                   id="operator"
                   value={formData.condition_operator}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, condition_operator: e.target.value as ConditionOperator })}
                 >
-                  {operatorOptions.map((op) => (
-                    <option key={op.value} value={op.value}>{op.label}</option>
+                  {operatorKeys.map((op) => (
+                    <option key={op} value={op}>{t(`alerts.operators.${op}`)}</option>
                   ))}
                 </Select>
               </div>
               <div>
-                <Label htmlFor="value">Threshold</Label>
+                <Label htmlFor="value">{t('alerts.threshold')}</Label>
                 <Input
                   id="value"
                   value={formData.condition_value}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, condition_value: e.target.value })}
-                  placeholder="100"
+                  placeholder={t('alerts.form.valuePlaceholder')}
                 />
               </div>
             </div>
 
             <div>
-              <Label htmlFor="aggregation">Aggregation</Label>
+              <Label htmlFor="aggregation">{t('alerts.form.aggregation')}</Label>
               <Select
                 id="aggregation"
                 value={formData.aggregation}
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, aggregation: e.target.value as Aggregation })}
               >
-                {aggregationOptions.map((agg) => (
-                  <option key={agg.value} value={agg.value}>{agg.label}</option>
+                {aggregationKeys.map((agg) => (
+                  <option key={agg} value={agg}>{t(`alerts.aggregations.${agg}`)}</option>
                 ))}
               </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="interval">Check Interval (minutes)</Label>
+                <Label htmlFor="interval">{t('alerts.form.intervalMinutes')}</Label>
                 <Input
                   id="interval"
                   type="number"
@@ -464,7 +451,7 @@ export default function Alerts() {
                 />
               </div>
               <div>
-                <Label htmlFor="cooldown">Cooldown (minutes)</Label>
+                <Label htmlFor="cooldown">{t('alerts.form.cooldownMinutes')}</Label>
                 <Input
                   id="cooldown"
                   type="number"
@@ -475,7 +462,7 @@ export default function Alerts() {
             </div>
 
             <div>
-              <Label>Notification Channels</Label>
+              <Label>{t('alerts.form.notificationChannels')}</Label>
               <div className="flex flex-wrap gap-2 mt-2">
                 {channels.map((ch) => (
                   <button
@@ -493,7 +480,7 @@ export default function Alerts() {
                 ))}
                 {channels.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    No notification channels configured. Add one in Settings.
+                    {t('alerts.form.noChannelsConfigured')}
                   </p>
                 )}
               </div>
@@ -501,9 +488,9 @@ export default function Alerts() {
           </div>
         </DialogContent>
         <DialogFooter>
-          <Button variant="outline" onClick={handleCloseDialog}>Cancel</Button>
+          <Button variant="outline" onClick={handleCloseDialog}>{t('common.cancel')}</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : editingAlert ? 'Update' : 'Create'}
+            {saving ? t('common.saving') : editingAlert ? t('common.update') : t('common.create')}
           </Button>
         </DialogFooter>
       </Dialog>
@@ -511,19 +498,19 @@ export default function Alerts() {
       {/* History Dialog */}
       <Dialog open={historyDialogOpen} onClose={() => setHistoryDialogOpen(false)}>
         <DialogHeader>
-          <DialogTitle>Alert History</DialogTitle>
+          <DialogTitle>{t('alerts.history.title')}</DialogTitle>
         </DialogHeader>
         <DialogContent>
           {selectedAlertHistory.length === 0 ? (
-            <p className="text-center text-muted-foreground py-4">No history available</p>
+            <p className="text-center text-muted-foreground py-4">{t('alerts.history.noHistory')}</p>
           ) : (
             <div className="max-h-[50vh] overflow-y-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="text-left py-2">Triggered At</th>
-                    <th className="text-left py-2">Value</th>
-                    <th className="text-left py-2">Status</th>
+                    <th className="text-left py-2">{t('alerts.history.triggeredAt')}</th>
+                    <th className="text-left py-2">{t('alerts.history.value')}</th>
+                    <th className="text-left py-2">{t('alerts.history.status')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -548,7 +535,7 @@ export default function Alerts() {
           )}
         </DialogContent>
         <DialogFooter>
-          <Button variant="outline" onClick={() => setHistoryDialogOpen(false)}>Close</Button>
+          <Button variant="outline" onClick={() => setHistoryDialogOpen(false)}>{t('common.close')}</Button>
         </DialogFooter>
       </Dialog>
     </div>

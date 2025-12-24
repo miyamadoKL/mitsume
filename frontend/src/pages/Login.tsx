@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuthStore } from '@/stores/authStore'
 import { authApi } from '@/services/api'
 import { Button } from '@/components/ui/button'
@@ -9,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 
 export const Login: React.FC = () => {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { login, register } = useAuthStore()
   const [tab, setTab] = useState('login')
   const [email, setEmail] = useState('')
@@ -25,7 +27,7 @@ export const Login: React.FC = () => {
       await login(email, password)
       navigate('/query')
     } catch (err) {
-      setError('Invalid email or password')
+      setError(t('errors.loginFailed'))
     } finally {
       setLoading(false)
     }
@@ -39,7 +41,7 @@ export const Login: React.FC = () => {
       await register(email, password, name)
       navigate('/query')
     } catch (err) {
-      setError('Registration failed')
+      setError(t('errors.registerFailed'))
     } finally {
       setLoading(false)
     }
@@ -50,7 +52,7 @@ export const Login: React.FC = () => {
       const url = await authApi.getGoogleLoginUrl()
       window.location.href = url
     } catch (err) {
-      setError('Google login is not configured')
+      setError(t('errors.googleLoginNotConfigured'))
     }
   }
 
@@ -59,13 +61,13 @@ export const Login: React.FC = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Mitsume</CardTitle>
-          <CardDescription>Trino SQL Client</CardDescription>
+          <CardDescription>{t('auth.subtitle')}</CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="login">Login</TabsTrigger>
-              <TabsTrigger value="register">Register</TabsTrigger>
+              <TabsTrigger value="login">{t('auth.login')}</TabsTrigger>
+              <TabsTrigger value="register">{t('auth.register')}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="login">
@@ -73,7 +75,7 @@ export const Login: React.FC = () => {
                 <div className="space-y-2">
                   <Input
                     type="email"
-                    placeholder="Email"
+                    placeholder={t('auth.email')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -82,7 +84,7 @@ export const Login: React.FC = () => {
                 <div className="space-y-2">
                   <Input
                     type="password"
-                    placeholder="Password"
+                    placeholder={t('auth.password')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -90,7 +92,7 @@ export const Login: React.FC = () => {
                 </div>
                 {error && <p className="text-sm text-destructive">{error}</p>}
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Loading...' : 'Login'}
+                  {loading ? t('common.loading') : t('auth.login')}
                 </Button>
               </form>
             </TabsContent>
@@ -100,7 +102,7 @@ export const Login: React.FC = () => {
                 <div className="space-y-2">
                   <Input
                     type="text"
-                    placeholder="Name"
+                    placeholder={t('auth.name')}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required
@@ -109,7 +111,7 @@ export const Login: React.FC = () => {
                 <div className="space-y-2">
                   <Input
                     type="email"
-                    placeholder="Email"
+                    placeholder={t('auth.email')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -118,7 +120,7 @@ export const Login: React.FC = () => {
                 <div className="space-y-2">
                   <Input
                     type="password"
-                    placeholder="Password (min 6 characters)"
+                    placeholder={t('auth.passwordHint')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     minLength={6}
@@ -127,7 +129,7 @@ export const Login: React.FC = () => {
                 </div>
                 {error && <p className="text-sm text-destructive">{error}</p>}
                 <Button type="submit" className="w-full" disabled={loading}>
-                  {loading ? 'Loading...' : 'Register'}
+                  {loading ? t('common.loading') : t('auth.register')}
                 </Button>
               </form>
             </TabsContent>
@@ -138,7 +140,7 @@ export const Login: React.FC = () => {
               <span className="w-full border-t" />
             </div>
             <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+              <span className="bg-background px-2 text-muted-foreground">{t('auth.orContinueWith')}</span>
             </div>
           </div>
 

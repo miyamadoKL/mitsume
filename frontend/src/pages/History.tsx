@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useQueryStore } from '@/stores/queryStore'
 import { Button } from '@/components/ui/button'
 import { formatDate, formatDuration } from '@/lib/utils'
@@ -12,6 +13,7 @@ import { Play, CheckCircle, XCircle, History as HistoryIcon } from 'lucide-react
 
 export const History: React.FC = () => {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { history, loadHistory, setQuery } = useQueryStore()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
@@ -50,7 +52,7 @@ export const History: React.FC = () => {
   if (loading) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-semibold mb-6">Query History</h1>
+        <h1 className="text-2xl font-semibold mb-6">{t('history.title')}</h1>
         <SkeletonList items={5} />
       </div>
     )
@@ -59,7 +61,7 @@ export const History: React.FC = () => {
   if (error) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-semibold mb-6">Query History</h1>
+        <h1 className="text-2xl font-semibold mb-6">{t('history.title')}</h1>
         <ErrorState
           message={getErrorMessage(error)}
           variant={getErrorVariant(error)}
@@ -72,15 +74,15 @@ export const History: React.FC = () => {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-6">Query History</h1>
+      <h1 className="text-2xl font-semibold mb-6">{t('history.title')}</h1>
 
       {history.length === 0 ? (
         <EmptyState
-          title="No query history"
-          description="Execute some queries to see them here"
+          title={t('history.empty')}
+          description={t('history.emptyDescription')}
           icon={HistoryIcon}
           action={{
-            label: 'Go to Query Editor',
+            label: t('history.goToEditor'),
             onClick: () => navigate('/query'),
           }}
         />
@@ -111,7 +113,7 @@ export const History: React.FC = () => {
                     <span>{formatDuration(item.execution_time_ms)}</span>
                   )}
                   {item.row_count != null && (
-                    <span>{item.row_count} rows</span>
+                    <span>{t('query.rows', { count: item.row_count })}</span>
                   )}
                   {item.error_message && (
                     <span className="text-destructive">{item.error_message}</span>
@@ -124,7 +126,7 @@ export const History: React.FC = () => {
                 onClick={() => handleUseQuery(item.query_text)}
               >
                 <Play className="h-3 w-3 mr-1" />
-                Use
+                {t('common.use')}
               </Button>
             </div>
           ))}

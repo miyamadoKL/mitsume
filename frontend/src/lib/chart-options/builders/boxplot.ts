@@ -81,7 +81,7 @@ export function buildBoxplotOptions(input: ChartBuilderInput): EChartsOption {
 
   // Add outliers as scatter series
   if (showOutliers && outliers.length > 0) {
-    series.push({
+    (series as Array<Record<string, unknown>>).push({
       name: 'Outliers',
       type: 'scatter',
       data: outliers,
@@ -94,7 +94,7 @@ export function buildBoxplotOptions(input: ChartBuilderInput): EChartsOption {
           return `${categories[p.value[0]]}: ${p.value[1].toLocaleString()}`
         },
       },
-    } as EChartsOption['series'][number])
+    })
   }
 
   return {

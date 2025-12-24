@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from './dialog'
 import { Button } from './button'
 import { Input } from './input'
@@ -22,6 +23,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   format,
   isExporting,
 }) => {
+  const { t } = useTranslation()
   const [filename, setFilename] = useState(defaultFilename)
 
   useEffect(() => {
@@ -43,13 +45,13 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
   return (
     <Dialog open={open} onClose={onClose}>
       <DialogHeader>
-        <DialogTitle>Export as {format.toUpperCase()}</DialogTitle>
+        <DialogTitle>{t('export.title', { format: format.toUpperCase() })}</DialogTitle>
       </DialogHeader>
       <DialogContent>
         <div className="space-y-4">
           <div className="space-y-2">
             <label htmlFor="filename" className="text-sm font-medium">
-              Filename
+              {t('export.filename')}
             </label>
             <div className="flex items-center gap-2">
               <Input
@@ -57,7 +59,7 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
                 value={filename}
                 onChange={(e) => setFilename(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Enter filename"
+                placeholder={t('export.filenamePlaceholder')}
                 disabled={isExporting}
                 className="flex-1"
               />
@@ -68,18 +70,18 @@ export const ExportDialog: React.FC<ExportDialogProps> = ({
       </DialogContent>
       <DialogFooter>
         <Button variant="outline" onClick={onClose} disabled={isExporting}>
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button onClick={handleExport} disabled={isExporting || !filename.trim()}>
           {isExporting ? (
             <>
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Exporting...
+              {t('common.exporting')}
             </>
           ) : (
             <>
               <Download className="mr-2 h-4 w-4" />
-              Export
+              {t('common.export')}
             </>
           )}
         </Button>

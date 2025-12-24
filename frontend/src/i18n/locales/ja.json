@@ -1,0 +1,497 @@
+{
+  "common": {
+    "loading": "読み込み中...",
+    "save": "保存",
+    "saving": "保存中...",
+    "cancel": "キャンセル",
+    "delete": "削除",
+    "deleting": "削除中...",
+    "edit": "編集",
+    "create": "作成",
+    "creating": "作成中...",
+    "update": "更新",
+    "confirm": "確認",
+    "close": "閉じる",
+    "retry": "再試行",
+    "retrying": "再試行中...",
+    "tryAgain": "再試行",
+    "back": "戻る",
+    "next": "次へ",
+    "search": "検索",
+    "filter": "フィルター",
+    "actions": "アクション",
+    "name": "名前",
+    "description": "説明",
+    "noDescription": "説明なし",
+    "status": "ステータス",
+    "enabled": "有効",
+    "disabled": "無効",
+    "active": "有効",
+    "inactive": "無効",
+    "use": "使用",
+    "copy": "コピー",
+    "export": "エクスポート",
+    "exporting": "エクスポート中...",
+    "updated": "更新日時: {{date}}",
+    "null": "NULL",
+    "system": "システム",
+    "verified": "確認済み",
+    "unverified": "未確認",
+    "you": "あなた",
+    "none": "なし",
+    "all": "すべて",
+    "noRoles": "ロールなし",
+    "test": "テスト",
+    "testSent": "テスト送信完了",
+    "webhookConfigured": "Webhook設定済み"
+  },
+  "nav": {
+    "query": "クエリ",
+    "savedQueries": "保存済みクエリ",
+    "history": "履歴",
+    "dashboards": "ダッシュボード",
+    "alerts": "アラート",
+    "subscriptions": "サブスクリプション",
+    "notifications": "通知チャンネル",
+    "admin": "管理",
+    "roles": "ロール管理",
+    "users": "ユーザー管理",
+    "logout": "ログアウト"
+  },
+  "auth": {
+    "login": "ログイン",
+    "register": "登録",
+    "logout": "ログアウト",
+    "email": "メールアドレス",
+    "password": "パスワード",
+    "name": "名前",
+    "loginWithGoogle": "Googleでログイン",
+    "orContinueWith": "または",
+    "passwordHint": "パスワード（6文字以上）",
+    "subtitle": "Trino SQLクライアント"
+  },
+  "query": {
+    "pageTitle": "クエリエディタ",
+    "execute": "実行",
+    "executing": "実行中...",
+    "saveQuery": "クエリを保存",
+    "export": "エクスポート",
+    "results": "結果",
+    "noResults": "クエリを実行して結果を表示",
+    "rows": "{{count}}行",
+    "rowsIn": "{{count}}行 / {{time}}",
+    "executionTime": "実行時間: {{time}}",
+    "enterQuery": "SQLクエリを入力...",
+    "downloadAs": "形式を選択してダウンロード",
+    "fileName": "ファイル名",
+    "csv": "CSV",
+    "tsv": "TSV"
+  },
+  "export": {
+    "title": "{{format}}でエクスポート",
+    "filename": "ファイル名",
+    "filenamePlaceholder": "ファイル名を入力"
+  },
+  "savedQueries": {
+    "title": "保存済みクエリ",
+    "new": "新規クエリ",
+    "empty": "保存済みクエリがありません",
+    "emptyDescription": "クエリエディタでクエリを保存してください",
+    "goToEditor": "クエリエディタへ",
+    "saveDialog": {
+      "title": "クエリを保存",
+      "name": "クエリ名",
+      "namePlaceholder": "クエリ名",
+      "description": "説明（任意）",
+      "descriptionPlaceholder": "説明"
+    },
+    "deleteConfirm": {
+      "title": "クエリを削除",
+      "description": "本当にこのクエリを削除しますか？この操作は取り消せません。"
+    }
+  },
+  "history": {
+    "title": "クエリ履歴",
+    "empty": "クエリ履歴がありません",
+    "emptyDescription": "クエリエディタでクエリを実行してください",
+    "goToEditor": "クエリエディタへ",
+    "success": "成功",
+    "error": "エラー",
+    "executedAt": "実行日時"
+  },
+  "dashboard": {
+    "title": "ダッシュボード",
+    "new": "新規ダッシュボード",
+    "addWidget": "ウィジェット追加",
+    "editMode": "編集モード",
+    "viewMode": "表示モード",
+    "share": "共有",
+    "export": "エクスポート",
+    "refresh": "更新",
+    "autoRefresh": "自動更新",
+    "empty": "ダッシュボードがありません",
+    "emptyDescription": "最初のダッシュボードを作成してください",
+    "createDialog": {
+      "title": "ダッシュボード作成",
+      "name": "ダッシュボード名",
+      "namePlaceholder": "ダッシュボード名"
+    },
+    "deleteConfirm": {
+      "title": "ダッシュボードを削除",
+      "description": "本当にこのダッシュボードを削除しますか？この操作は取り消せません。"
+    },
+    "widget": {
+      "title": "ウィジェット",
+      "selectQuery": "クエリを選択",
+      "chartType": "チャートタイプ",
+      "widgetTitle": "ウィジェットタイトル",
+      "noQueries": "保存済みクエリがありません"
+    },
+    "permissions": {
+      "owner": "オーナー",
+      "canEdit": "編集可",
+      "viewOnly": "閲覧のみ",
+      "public": "公開"
+    }
+  },
+  "alerts": {
+    "title": "アラート",
+    "create": "アラート作成",
+    "edit": "アラート編集",
+    "condition": "条件",
+    "threshold": "しきい値",
+    "interval": "チェック間隔",
+    "cooldown": "クールダウン",
+    "triggered": "発火",
+    "empty": "アラートがありません",
+    "emptyDescription": "クエリ結果に基づくアラートを設定してください",
+    "selectQuery": "クエリを選択",
+    "selectColumn": "カラムを選択",
+    "selectOperator": "演算子を選択",
+    "selectChannel": "通知チャンネルを選択",
+    "operators": {
+      "gt": "より大きい (>)",
+      "gte": "以上 (>=)",
+      "lt": "より小さい (<)",
+      "lte": "以下 (<=)",
+      "eq": "等しい (=)",
+      "neq": "等しくない (!=)",
+      "contains": "含む"
+    },
+    "aggregations": {
+      "first": "最初の行の値",
+      "sum": "合計",
+      "avg": "平均",
+      "count": "件数",
+      "min": "最小値",
+      "max": "最大値"
+    },
+    "intervals": {
+      "minutes_1": "1分",
+      "minutes_5": "5分",
+      "minutes_15": "15分",
+      "minutes_30": "30分",
+      "hours_1": "1時間",
+      "hours_6": "6時間",
+      "hours_12": "12時間",
+      "days_1": "1日"
+    },
+    "deleteConfirm": {
+      "title": "アラートを削除",
+      "description": "本当にこのアラートを削除しますか？この操作は取り消せません。"
+    },
+    "form": {
+      "name": "アラート名",
+      "namePlaceholder": "エラー率アラート",
+      "description": "説明",
+      "descriptionPlaceholder": "任意の説明",
+      "savedQuery": "保存済みクエリ",
+      "selectQueryPlaceholder": "クエリを選択...",
+      "column": "カラム",
+      "columnPlaceholder": "count",
+      "operator": "演算子",
+      "valuePlaceholder": "100",
+      "aggregation": "集計方法",
+      "intervalMinutes": "チェック間隔（分）",
+      "cooldownMinutes": "クールダウン（分）",
+      "notificationChannels": "通知チャンネル",
+      "noChannelsConfigured": "通知チャンネルが設定されていません。設定から追加してください。"
+    },
+    "history": {
+      "title": "アラート履歴",
+      "noHistory": "履歴がありません",
+      "triggeredAt": "発火日時",
+      "value": "値",
+      "status": "ステータス"
+    },
+    "toast": {
+      "created": "アラート作成完了",
+      "createdDesc": "「{{name}}」を作成しました",
+      "updated": "アラート更新完了",
+      "updatedDesc": "「{{name}}」を更新しました",
+      "deleted": "アラート削除完了",
+      "deletedDesc": "「{{name}}」を削除しました",
+      "saveFailed": "アラートの保存に失敗しました",
+      "deleteFailed": "アラートの削除に失敗しました",
+      "updateFailed": "アラートの更新に失敗しました",
+      "testSuccess": "アラートが発火します",
+      "testSuccessDesc": "条件に一致しました。値: {{value}}",
+      "testNoTrigger": "アラートは発火しません",
+      "testNoTriggerDesc": "現在の値: {{value}}",
+      "testFailed": "テスト失敗",
+      "historyFailed": "履歴の読み込みに失敗しました",
+      "nowActive": "「{{name}}」が有効になりました",
+      "nowInactive": "「{{name}}」が無効になりました"
+    },
+    "confirmDelete": "「{{name}}」を削除しますか？",
+    "lastTriggered": "最終発火: {{date}}",
+    "clickToDisable": "クリックで無効化",
+    "clickToEnable": "クリックで有効化"
+  },
+  "subscriptions": {
+    "title": "サブスクリプション",
+    "create": "サブスクリプション作成",
+    "edit": "サブスクリプション編集",
+    "empty": "サブスクリプションがありません",
+    "emptyDescription": "ダッシュボードの定期配信を設定してください",
+    "selectDashboard": "ダッシュボードを選択",
+    "selectChannel": "通知チャンネルを選択",
+    "schedule": "スケジュール",
+    "cronExpression": "Cron式",
+    "timezone": "タイムゾーン",
+    "deleteConfirm": {
+      "title": "サブスクリプションを削除",
+      "description": "本当にこのサブスクリプションを削除しますか？この操作は取り消せません。"
+    },
+    "form": {
+      "name": "サブスクリプション名",
+      "namePlaceholder": "週次売上レポート",
+      "selectDashboardPlaceholder": "ダッシュボードを選択...",
+      "exportFormat": "エクスポート形式",
+      "customCronHint": "またはカスタムcronを入力: {{cron}}"
+    },
+    "cronPresets": {
+      "everyHour": "毎時",
+      "dailyAt9": "毎日9時",
+      "mondayAt9": "毎週月曜9時",
+      "firstOfMonthAt9": "毎月1日9時"
+    },
+    "toast": {
+      "created": "サブスクリプション作成完了",
+      "createdDesc": "「{{name}}」を作成しました",
+      "updated": "サブスクリプション更新完了",
+      "updatedDesc": "「{{name}}」を更新しました",
+      "deleted": "サブスクリプション削除完了",
+      "deletedDesc": "「{{name}}」を削除しました",
+      "saveFailed": "サブスクリプションの保存に失敗しました",
+      "deleteFailed": "サブスクリプションの削除に失敗しました",
+      "updateFailed": "サブスクリプションの更新に失敗しました",
+      "triggered": "サブスクリプション実行完了",
+      "triggeredDesc": "「{{name}}」のレポートを送信しました",
+      "triggerFailed": "サブスクリプションの実行に失敗しました",
+      "nowActive": "「{{name}}」が有効になりました",
+      "nowInactive": "「{{name}}」が無効になりました"
+    },
+    "confirmDelete": "「{{name}}」を削除しますか？",
+    "nextRun": "次回実行: {{date}}",
+    "lastSent": "最終送信: {{date}}",
+    "format": "形式"
+  },
+  "notifications": {
+    "title": "通知チャンネル",
+    "create": "チャンネル作成",
+    "edit": "チャンネル編集",
+    "add": "チャンネル追加",
+    "empty": "通知チャンネルがありません",
+    "emptyDescription": "Slack、メール、Google Chatなどの通知先を設定してください",
+    "addEmptyDescription": "アラートやレポートを受信するチャンネルを追加してください",
+    "types": {
+      "slack": "Slack",
+      "email": "メール",
+      "googleChat": "Google Chat"
+    },
+    "slack": {
+      "webhookUrl": "Webhook URL",
+      "webhookPlaceholder": "https://hooks.slack.com/services/..."
+    },
+    "email": {
+      "recipients": "宛先",
+      "recipientsHint": "カンマ区切りで複数入力可",
+      "recipientsPlaceholder": "email1@example.com, email2@example.com"
+    },
+    "googleChat": {
+      "webhookUrl": "Webhook URL",
+      "webhookPlaceholder": "https://chat.googleapis.com/v1/spaces/..."
+    },
+    "deleteConfirm": {
+      "title": "チャンネルを削除",
+      "description": "本当にこのチャンネルを削除しますか？この操作は取り消せません。"
+    },
+    "form": {
+      "name": "名前",
+      "namePlaceholder": "Slackチャンネル",
+      "channelType": "チャンネルタイプ"
+    },
+    "toast": {
+      "created": "チャンネル作成完了",
+      "createdDesc": "「{{name}}」を作成しました",
+      "updated": "チャンネル更新完了",
+      "updatedDesc": "「{{name}}」を更新しました",
+      "deleted": "チャンネル削除完了",
+      "deletedDesc": "「{{name}}」を削除しました",
+      "saveFailed": "チャンネルの保存に失敗しました",
+      "deleteFailed": "チャンネルの削除に失敗しました",
+      "testSent": "テスト送信完了",
+      "testSentDesc": "「{{name}}」にテスト通知を送信しました",
+      "testFailed": "テスト失敗"
+    },
+    "confirmDelete": "「{{name}}」を削除しますか？"
+  },
+  "admin": {
+    "roles": {
+      "title": "ロール管理",
+      "create": "ロール作成",
+      "edit": "ロール編集",
+      "empty": "ロールがありません",
+      "emptyDescription": "ユーザー権限を管理するロールを作成してください",
+      "name": "ロール名",
+      "namePlaceholder": "ロール名",
+      "description": "説明",
+      "descriptionPlaceholder": "ロールの説明",
+      "permissions": "権限",
+      "catalogs": "カタログ権限",
+      "catalogsButton": "カタログ",
+      "catalogPermissionsTitle": "カタログ権限 - {{name}}",
+      "catalogPermissionsDesc": "このロールのユーザーがアクセスできるカタログを選択してください。",
+      "noCatalogsAvailable": "利用可能なカタログがありません。",
+      "allCatalogs": "すべてのカタログ",
+      "deleteConfirm": {
+        "title": "ロールを削除",
+        "description": "本当にこのロールを削除しますか？この操作は取り消せません。"
+      },
+      "toast": {
+        "created": "ロール作成完了",
+        "createdDesc": "「{{name}}」を作成しました",
+        "updated": "ロール更新完了",
+        "updatedDesc": "「{{name}}」を更新しました",
+        "deleted": "ロール削除完了",
+        "deletedDesc": "「{{name}}」を削除しました",
+        "catalogsUpdated": "カタログ権限更新完了",
+        "catalogsUpdatedDesc": "「{{name}}」のカタログ権限を更新しました",
+        "saveFailed": "ロールの保存に失敗しました",
+        "deleteFailed": "ロールの削除に失敗しました",
+        "catalogsFailed": "カタログの読み込みに失敗しました",
+        "catalogsSaveFailed": "カタログ権限の保存に失敗しました",
+        "cannotDeleteSystem": "システムロールは削除できません",
+        "cannotDeleteSystemDesc": "adminロールは削除できません"
+      },
+      "confirmDelete": "「{{name}}」を削除しますか？"
+    },
+    "users": {
+      "title": "ユーザー管理",
+      "empty": "ユーザーがいません",
+      "role": "ロール",
+      "roles": "ロール",
+      "assignRole": "ロールを割り当て",
+      "removeRole": "ロールを解除",
+      "manageRoles": "ロール管理",
+      "manageRolesTitle": "ロール管理 - {{name}}",
+      "manageRolesDesc": "このユーザーに割り当てるロールを選択してください。",
+      "noRolesAvailable": "利用可能なロールがありません。",
+      "authProvider": "認証プロバイダ",
+      "toast": {
+        "rolesUpdated": "ロール更新完了",
+        "rolesUpdatedDesc": "「{{name}}」のロールを更新しました",
+        "saveFailed": "ロールの保存に失敗しました",
+        "cannotRemoveAdminRole": "adminロールを削除できません",
+        "cannotRemoveAdminRoleDesc": "自分自身のadminロールは削除できません"
+      }
+    }
+  },
+  "errors": {
+    "generic": "エラーが発生しました",
+    "network": "ネットワークエラー",
+    "unauthorized": "認証が必要です",
+    "forbidden": "アクセス権限がありません",
+    "notFound": "見つかりません",
+    "validation": "入力内容を確認してください",
+    "loginFailed": "メールアドレスまたはパスワードが正しくありません",
+    "registerFailed": "登録に失敗しました",
+    "googleLoginNotConfigured": "Googleログインが設定されていません",
+    "queryFailed": "クエリの実行に失敗しました",
+    "saveFailed": "保存に失敗しました",
+    "deleteFailed": "削除に失敗しました",
+    "loadFailed": "読み込みに失敗しました"
+  },
+  "success": {
+    "saved": "保存しました",
+    "deleted": "削除しました",
+    "created": "作成しました",
+    "updated": "更新しました",
+    "copied": "コピーしました"
+  },
+  "confirm": {
+    "delete": "削除しますか？",
+    "deleteDescription": "この操作は取り消せません。"
+  },
+  "time": {
+    "justNow": "たった今",
+    "minutesAgo": "{{count}}分前",
+    "hoursAgo": "{{count}}時間前",
+    "daysAgo": "{{count}}日前"
+  },
+  "chart": {
+    "types": {
+      "table": "テーブル",
+      "bar": "棒グラフ",
+      "line": "折れ線グラフ",
+      "area": "エリアグラフ",
+      "pie": "円グラフ",
+      "donut": "ドーナツグラフ",
+      "scatter": "散布図",
+      "combo": "複合グラフ",
+      "heatmap": "ヒートマップ",
+      "gauge": "ゲージ",
+      "progress": "プログレスバー",
+      "funnel": "ファネルチャート",
+      "treemap": "ツリーマップ",
+      "bubble": "バブルチャート",
+      "sunburst": "サンバーストチャート",
+      "boxplot": "箱ひげ図"
+    },
+    "options": {
+      "xAxis": "X軸",
+      "yAxis": "Y軸",
+      "groupBy": "グループ化",
+      "colorScheme": "カラースキーム",
+      "showLegend": "凡例を表示",
+      "stacked": "積み上げ表示"
+    },
+    "colorSchemes": {
+      "default": "デフォルト",
+      "pastel": "パステル",
+      "vivid": "ビビッド",
+      "earth": "アース",
+      "ocean": "オーシャン",
+      "sunset": "サンセット",
+      "monochrome": "モノクローム",
+      "rainbow": "レインボー",
+      "business": "ビジネス",
+      "nature": "ネイチャー"
+    }
+  },
+  "errorState": {
+    "default": {
+      "title": "問題が発生しました",
+      "message": "予期しないエラーが発生しました。もう一度お試しください。"
+    },
+    "network": {
+      "title": "接続エラー",
+      "message": "サーバーに接続できません。インターネット接続を確認してください。"
+    },
+    "server": {
+      "title": "サーバーエラー",
+      "message": "サーバーでエラーが発生しました。しばらくしてからもう一度お試しください。"
+    }
+  }
+}
