@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react'
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
@@ -13,6 +13,7 @@ import {
   type RowContext,
   type ChartClickData,
 } from '@/lib/drilldown'
+import { buildChartOptions } from '@/lib/chart-options'
 import { MarkdownWidget } from './MarkdownWidget'
 import { CounterWidget } from './CounterWidget'
 import { PivotWidget } from './PivotWidget'
@@ -137,47 +138,11 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
     navigate(url)
   }, [config.drilldown, data, navigate])
 
-  const getChartOptions = () => {
-    if (!data) return {}
-
-    const xAxisIndex = data.columns.indexOf(config.xAxis || data.columns[0])
-    const yAxisColumn = config.yAxis || data.columns[1]
-    const yAxisIndices = Array.isArray(yAxisColumn)
-      ? yAxisColumn.map(col => data.columns.indexOf(col))
-      : [data.columns.indexOf(yAxisColumn)]
-
-    const xData = data.rows.map(row => row[xAxisIndex])
-    const series = yAxisIndices.map((yIdx) => ({
-      name: data.columns[yIdx],
-      type: widget.chart_type === 'area' ? 'line' : widget.chart_type,
-      data: data.rows.map(row => row[yIdx]),
-      areaStyle: widget.chart_type === 'area' ? {} : undefined,
-      smooth: widget.chart_type === 'line' || widget.chart_type === 'area',
-    }))
-
-    if (widget.chart_type === 'pie') {
-      return {
-        tooltip: { trigger: 'item' },
-        legend: { orient: 'vertical', left: 'left' },
-        series: [{
-          type: 'pie',
-          radius: '50%',
-          data: data.rows.map(row => ({
-            name: row[xAxisIndex],
-            value: row[yAxisIndices[0]],
-          })),
-        }],
-      }
-    }
-
-    return {
-      tooltip: { trigger: 'axis' },
-      legend: config.legend !== false ? { data: yAxisIndices.map(i => data.columns[i]) } : undefined,
-      xAxis: { type: 'category', data: xData },
-      yAxis: { type: 'value' },
-      series,
-    }
-  }
+  // Build chart options using the centralized builder
+  const chartOptions = useMemo(
+    () => buildChartOptions(widget.chart_type, data, config),
+    [widget.chart_type, data, config]
+  )
 
   if (loading) {
     return (
@@ -264,7 +229,7 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
 
   return (
     <ReactECharts
-      option={getChartOptions()}
+      option={chartOptions}
       style={chartStyle}
       opts={{ renderer: 'canvas' }}
       onEvents={config.drilldown ? { click: handleChartClick } : undefined}
