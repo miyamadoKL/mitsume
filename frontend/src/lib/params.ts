@@ -1,8 +1,65 @@
 /**
  * Query parameter utilities for {{param_name}} placeholder support
+ * Includes SQL injection prevention measures
  */
 
 const PARAM_REGEX = /\{\{([a-zA-Z_][a-zA-Z0-9_]*)\}\}/g
+
+/**
+ * SQL injection prevention patterns
+ * These patterns indicate potential injection attempts
+ */
+const DANGEROUS_PATTERNS = [
+  /;\s*(DROP|DELETE|TRUNCATE|ALTER|CREATE|INSERT|UPDATE|GRANT|REVOKE)/i,
+  /;\s*--/,
+  /'\s*OR\s+'?\d*'?\s*=\s*'?\d*'?/i,
+  /'\s*OR\s+'[^']*'\s*=\s*'[^']*'/i,
+  /UNION\s+(ALL\s+)?SELECT/i,
+  /\/\*[\s\S]*?\*\//,
+  /--\s*$/m,
+]
+
+/**
+ * Check if a value contains potential SQL injection patterns
+ */
+export function containsSqlInjection(value: string): boolean {
+  return DANGEROUS_PATTERNS.some(pattern => pattern.test(value))
+}
+
+/**
+ * Escape special SQL characters in a string value
+ * This escapes single quotes by doubling them (SQL standard)
+ */
+export function escapeSqlValue(value: string): string {
+  // Escape single quotes by doubling them
+  return value.replace(/'/g, "''")
+}
+
+/**
+ * Sanitize a parameter value for safe SQL inclusion
+ * Returns the sanitized value or throws if dangerous patterns detected
+ */
+export function sanitizeParameterValue(value: string): string {
+  // Check for dangerous patterns
+  if (containsSqlInjection(value)) {
+    throw new ParameterValidationError(
+      `Parameter value contains potentially dangerous SQL patterns: "${value.substring(0, 50)}..."`
+    )
+  }
+
+  // Escape SQL special characters
+  return escapeSqlValue(value)
+}
+
+/**
+ * Custom error for parameter validation failures
+ */
+export class ParameterValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ParameterValidationError'
+  }
+}
 
 /**
  * Extract parameter names from a query string.
@@ -28,18 +85,29 @@ export function extractParameters(queryText: string): string[] {
 
 /**
  * Replace parameter placeholders with actual values.
+ * Values are sanitized to prevent SQL injection.
  * @param queryText - SQL query with {{param}} placeholders
  * @param params - Object mapping parameter names to values
- * @returns Query string with parameters replaced
+ * @param options - Optional settings for parameter replacement
+ * @returns Query string with parameters replaced (sanitized)
+ * @throws ParameterValidationError if a value contains dangerous SQL patterns
  */
 export function replaceParameters(
   queryText: string,
-  params: Record<string, string>
+  params: Record<string, string>,
+  options: { skipSanitization?: boolean } = {}
 ): string {
   return queryText.replace(PARAM_REGEX, (match, paramName) => {
     const value = params[paramName]
-    // If parameter has a value, use it; otherwise keep the placeholder
-    return value !== undefined ? value : match
+    // If parameter has a value, sanitize and use it; otherwise keep the placeholder
+    if (value !== undefined) {
+      // Skip sanitization only if explicitly requested (for internal use)
+      if (options.skipSanitization) {
+        return value
+      }
+      return sanitizeParameterValue(value)
+    }
+    return match
   })
 }
 
