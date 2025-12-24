@@ -1,0 +1,4 @@
+CREATE USER IF NOT EXISTS 'trino'@'%' IDENTIFIED BY 'trino';
+GRANT SELECT, SHOW VIEW ON world.* TO 'trino'@'%';
+FLUSH PRIVILEGES;
+

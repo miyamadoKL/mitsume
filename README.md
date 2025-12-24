@@ -45,10 +45,10 @@ Trinoに接続してSQLクエリを実行するWebベースのGUIアプリケー
 cp .env.example .env
 
 # 起動
-docker-compose up -d
+docker compose up -d
 
 # ログ確認
-docker-compose logs -f
+docker compose logs -f
 ```
 
 アプリケーションにアクセス:
