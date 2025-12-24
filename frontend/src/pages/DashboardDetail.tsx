@@ -16,6 +16,7 @@ import { toast } from '@/stores/toastStore'
 import { getErrorMessage } from '@/lib/errors'
 import { extractAllParameters } from '@/lib/params'
 import { ArrowLeft, Plus, Loader2, Edit, Save, RefreshCw, Share2, Eye, Globe } from 'lucide-react'
+import { getImplementedChartTypeOptions } from '@/lib/chart-options'
 
 const autoRefreshOptions: { value: string; label: string }[] = [
   { value: '0', label: 'Off' },
@@ -25,17 +26,8 @@ const autoRefreshOptions: { value: string; label: string }[] = [
   { value: '600', label: '10m' },
 ]
 
-const chartTypes: { value: ChartType; label: string }[] = [
-  { value: 'bar', label: 'Bar Chart' },
-  { value: 'line', label: 'Line Chart' },
-  { value: 'pie', label: 'Pie Chart' },
-  { value: 'area', label: 'Area Chart' },
-  { value: 'scatter', label: 'Scatter Chart' },
-  { value: 'table', label: 'Table' },
-  { value: 'counter', label: 'Counter (KPI)' },
-  { value: 'pivot', label: 'Pivot Table' },
-  { value: 'markdown', label: 'Text (Markdown)' },
-]
+// Get chart types from single source of truth
+const chartTypes = getImplementedChartTypeOptions()
 
 export const DashboardDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>()
