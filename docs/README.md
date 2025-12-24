@@ -13,6 +13,7 @@ Mitsume は Trino に接続して SQL クエリを実行する Web ベースの 
 |-------------|------|
 | [クエリエディタ](./user-guide/query-editor.md) | SQL クエリの作成・実行・エクスポート |
 | [保存クエリ](./user-guide/saved-queries.md) | クエリの保存・管理・共有 |
+| [クエリ履歴](./user-guide/history.md) | 過去の実行履歴の確認・再利用 |
 | [ダッシュボード](./user-guide/dashboards.md) | ダッシュボードの作成・ウィジェット配置・チャート設定 |
 | [アラート](./user-guide/alerts.md) | クエリ結果に基づく条件監視・通知設定 |
 | [サブスクリプション](./user-guide/subscriptions.md) | ダッシュボードの定期配信設定 |
