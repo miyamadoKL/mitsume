@@ -11,6 +11,12 @@ import { buildComboOptions } from './builders/combo'
 import { buildHeatmapOptions } from './builders/heatmap'
 import { buildGaugeOptions } from './builders/gauge'
 import { buildProgressOptions } from './builders/progress'
+// Phase 4: Advanced visualization
+import { buildFunnelOptions } from './builders/funnel'
+import { buildTreemapOptions } from './builders/treemap'
+import { buildBubbleOptions } from './builders/bubble'
+import { buildSunburstOptions } from './builders/sunburst'
+import { buildBoxplotOptions } from './builders/boxplot'
 import { isEChartsType } from './registry'
 
 /**
@@ -27,6 +33,12 @@ const chartBuilders: Partial<Record<ChartType, ChartOptionBuilder>> = {
   heatmap: buildHeatmapOptions,
   gauge: buildGaugeOptions,
   progress: buildProgressOptions,
+  // Phase 4: Advanced visualization
+  funnel: buildFunnelOptions,
+  treemap: buildTreemapOptions,
+  bubble: buildBubbleOptions,
+  sunburst: buildSunburstOptions,
+  boxplot: buildBoxplotOptions,
 }
 
 /**

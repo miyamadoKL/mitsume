@@ -198,6 +198,35 @@ export interface BubbleConfig {
 }
 
 /**
+ * Config for funnel charts
+ */
+export interface FunnelConfig {
+  labelColumn: string
+  valueColumn: string
+  sortOrder?: 'descending' | 'ascending' | 'none'
+  labelPosition?: 'left' | 'right' | 'inside'
+  showPercentage?: boolean
+}
+
+/**
+ * Config for sunburst charts
+ */
+export interface SunburstConfig {
+  hierarchyColumns: string[]
+  valueColumn: string
+  labelColumn?: string
+}
+
+/**
+ * Config for boxplot charts
+ */
+export interface BoxplotConfig {
+  categoryColumn: string
+  valueColumn: string
+  showOutliers?: boolean
+}
+
+/**
  * Common axis configuration
  */
 export interface AxisDetailConfig {
@@ -322,6 +351,15 @@ export interface ChartConfig {
 
   // Bubble chart
   bubbleConfig?: BubbleConfig
+
+  // Funnel chart
+  funnelConfig?: FunnelConfig
+
+  // Sunburst chart
+  sunburstConfig?: SunburstConfig
+
+  // Boxplot chart
+  boxplotConfig?: BoxplotConfig
 
   // ============================================
   // Common enhanced configs

@@ -256,6 +256,8 @@ const IMPLEMENTED_CHART_TYPES: ChartType[] = [
   'donut', 'combo', 'heatmap',
   // Phase 2: KPI ECharts
   'gauge', 'progress',
+  // Phase 4: Advanced visualization
+  'funnel', 'treemap', 'bubble', 'sunburst', 'boxplot',
   // Non-ECharts widgets
   'table', 'counter', 'pivot', 'markdown',
 ]
