@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
 import type { Widget, QueryResult, ChartConfig } from '@/types'
 import { queryApi } from '@/services/api'
-import { replaceParameters, hasUnresolvedParameters } from '@/lib/params'
+import { replaceParameters, hasUnresolvedParameters, ParameterValidationError } from '@/lib/params'
 import {
   getColumnLinkConfig,
   resolveTableDrilldown,
@@ -78,8 +78,19 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
         setError(null)
         return
       }
-      const resolvedQuery = replaceParameters(savedQueryText, parameterValues)
-      loadData(resolvedQuery)
+
+      try {
+        const resolvedQuery = replaceParameters(savedQueryText, parameterValues)
+        loadData(resolvedQuery)
+      } catch (err) {
+        if (err instanceof ParameterValidationError) {
+          // Handle SQL injection attempt - show error instead of executing
+          setError(new Error('Invalid parameter value: potential SQL injection detected'))
+          setData(null)
+        } else {
+          throw err
+        }
+      }
     }
   }, [savedQueryText, parameterValues, isMarkdown, refreshKey, loadData])
 
