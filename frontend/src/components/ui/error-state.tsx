@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertCircle, WifiOff, ServerCrash, RefreshCw, Loader2 } from 'lucide-react';
 import { Button } from './button';
 
@@ -15,22 +16,10 @@ interface ErrorStateProps {
   compact?: boolean;
 }
 
-const variantConfig = {
-  default: {
-    icon: AlertCircle,
-    defaultTitle: 'Something went wrong',
-    defaultMessage: 'An unexpected error occurred. Please try again.',
-  },
-  network: {
-    icon: WifiOff,
-    defaultTitle: 'Connection Error',
-    defaultMessage: 'Unable to connect to the server. Please check your internet connection.',
-  },
-  server: {
-    icon: ServerCrash,
-    defaultTitle: 'Server Error',
-    defaultMessage: 'The server encountered an error. Please try again later.',
-  },
+const variantIconConfig = {
+  default: AlertCircle,
+  network: WifiOff,
+  server: ServerCrash,
 };
 
 export function ErrorState({
@@ -43,10 +32,10 @@ export function ErrorState({
   className = '',
   compact = false,
 }: ErrorStateProps) {
-  const config = variantConfig[variant];
-  const Icon = config.icon;
-  const displayTitle = title || config.defaultTitle;
-  const displayMessage = message || config.defaultMessage;
+  const { t } = useTranslation();
+  const Icon = variantIconConfig[variant];
+  const displayTitle = title || t(`errorState.${variant}.title`);
+  const displayMessage = message || t(`errorState.${variant}.message`);
 
   if (compact) {
     return (
@@ -96,12 +85,12 @@ export function ErrorState({
           {isRetrying ? (
             <>
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              Retrying...
+              {t('common.retrying')}
             </>
           ) : (
             <>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Try Again
+              {t('common.tryAgain')}
             </>
           )}
         </Button>

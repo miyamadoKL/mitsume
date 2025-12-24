@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useQueryStore } from '@/stores/queryStore'
 import { exportApi } from '@/services/api'
 import { SQLEditor } from '@/components/editor/SQLEditor'
@@ -13,6 +14,7 @@ import { generateExportFilename, sanitizeFilename } from '@/lib/utils'
 import { Play, Save, Download, Loader2 } from 'lucide-react'
 
 export const Query: React.FC = () => {
+  const { t } = useTranslation()
   const {
     currentQuery,
     setQuery,
@@ -44,9 +46,9 @@ export const Query: React.FC = () => {
       setSaveDialogOpen(false)
       setQueryName('')
       setQueryDescription('')
-      toast.success('Query saved', `"${queryName}" has been saved successfully`)
+      toast.success(t('success.saved'), `"${queryName}"`)
     } catch (err) {
-      toast.error('Failed to save query', getErrorMessage(err))
+      toast.error(t('errors.saveFailed'), getErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -75,9 +77,9 @@ export const Query: React.FC = () => {
       URL.revokeObjectURL(url)
 
       setExportDialogOpen(false)
-      toast.success('Export complete', `Downloaded ${sanitized}.${exportFormat}`)
+      toast.success(t('common.export'), `${sanitized}.${exportFormat}`)
     } catch (err) {
-      toast.error('Export failed', getErrorMessage(err))
+      toast.error(t('errors.generic'), getErrorMessage(err))
     } finally {
       setIsExporting(false)
     }
@@ -87,7 +89,7 @@ export const Query: React.FC = () => {
     <div className="flex flex-col h-full">
       <div className="p-4 border-b">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-xl font-semibold">Query Editor</h1>
+          <h1 className="text-xl font-semibold">{t('query.pageTitle')}</h1>
           <div className="flex gap-2">
             <Button onClick={handleExecute} disabled={isExecuting}>
               {isExecuting ? (
@@ -95,21 +97,21 @@ export const Query: React.FC = () => {
               ) : (
                 <Play className="h-4 w-4 mr-2" />
               )}
-              Execute
+              {t('query.execute')}
             </Button>
             <Button variant="outline" onClick={() => setSaveDialogOpen(true)}>
               <Save className="h-4 w-4 mr-2" />
-              Save
+              {t('common.save')}
             </Button>
             {result && (
               <>
                 <Button variant="outline" onClick={() => openExportDialog('csv')}>
                   <Download className="h-4 w-4 mr-2" />
-                  CSV
+                  {t('query.csv')}
                 </Button>
                 <Button variant="outline" onClick={() => openExportDialog('tsv')}>
                   <Download className="h-4 w-4 mr-2" />
-                  TSV
+                  {t('query.tsv')}
                 </Button>
               </>
             )}
@@ -132,7 +134,7 @@ export const Query: React.FC = () => {
         {result && <ResultsTable result={result} />}
         {!result && !error && !isExecuting && (
           <div className="flex items-center justify-center h-full text-muted-foreground">
-            Execute a query to see results
+            {t('query.noResults')}
           </div>
         )}
         {isExecuting && (
@@ -144,34 +146,34 @@ export const Query: React.FC = () => {
 
       <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)}>
         <DialogHeader>
-          <DialogTitle>Save Query</DialogTitle>
+          <DialogTitle>{t('savedQueries.saveDialog.title')}</DialogTitle>
         </DialogHeader>
         <DialogContent>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Name</label>
+              <label className="text-sm font-medium">{t('savedQueries.saveDialog.name')}</label>
               <Input
                 value={queryName}
                 onChange={(e) => setQueryName(e.target.value)}
-                placeholder="Query name"
+                placeholder={t('savedQueries.saveDialog.namePlaceholder')}
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Description (optional)</label>
+              <label className="text-sm font-medium">{t('savedQueries.saveDialog.description')}</label>
               <Input
                 value={queryDescription}
                 onChange={(e) => setQueryDescription(e.target.value)}
-                placeholder="Description"
+                placeholder={t('savedQueries.saveDialog.descriptionPlaceholder')}
               />
             </div>
           </div>
         </DialogContent>
         <DialogFooter>
           <Button variant="outline" onClick={() => setSaveDialogOpen(false)}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button onClick={handleSave} disabled={saving || !queryName.trim()}>
-            {saving ? 'Saving...' : 'Save'}
+            {saving ? t('common.loading') : t('common.save')}
           </Button>
         </DialogFooter>
       </Dialog>

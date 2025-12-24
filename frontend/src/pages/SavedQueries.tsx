@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useQueryStore } from '@/stores/queryStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
@@ -15,6 +16,7 @@ import type { SavedQuery } from '@/types'
 
 export const SavedQueries: React.FC = () => {
   const navigate = useNavigate()
+  const { t } = useTranslation()
   const { savedQueries, loadSavedQueries, setQuery, deleteQuery } = useQueryStore()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
@@ -66,9 +68,9 @@ export const SavedQueries: React.FC = () => {
       await deleteQuery(queryToDelete.id)
       setDeleteDialogOpen(false)
       setQueryToDelete(null)
-      toast.success('Query deleted', `"${queryName}" has been deleted`)
+      toast.success(t('success.deleted'), `"${queryName}"`)
     } catch (err) {
-      toast.error('Failed to delete query', getErrorMessage(err))
+      toast.error(t('errors.deleteFailed'), getErrorMessage(err))
     } finally {
       setDeleting(false)
     }
@@ -77,7 +79,7 @@ export const SavedQueries: React.FC = () => {
   if (loading) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-semibold mb-6">Saved Queries</h1>
+        <h1 className="text-2xl font-semibold mb-6">{t('savedQueries.title')}</h1>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <SkeletonCard key={i} />
@@ -90,7 +92,7 @@ export const SavedQueries: React.FC = () => {
   if (error) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-semibold mb-6">Saved Queries</h1>
+        <h1 className="text-2xl font-semibold mb-6">{t('savedQueries.title')}</h1>
         <ErrorState
           message={getErrorMessage(error)}
           variant={getErrorVariant(error)}
@@ -103,15 +105,15 @@ export const SavedQueries: React.FC = () => {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-semibold mb-6">Saved Queries</h1>
+      <h1 className="text-2xl font-semibold mb-6">{t('savedQueries.title')}</h1>
 
       {savedQueries.length === 0 ? (
         <EmptyState
-          title="No saved queries"
-          description="Save a query from the Query Editor to see it here"
+          title={t('savedQueries.empty')}
+          description={t('savedQueries.emptyDescription')}
           icon={FileCode}
           action={{
-            label: 'Go to Query Editor',
+            label: t('savedQueries.goToEditor'),
             onClick: () => navigate('/query'),
           }}
         />
@@ -122,7 +124,7 @@ export const SavedQueries: React.FC = () => {
               <CardHeader>
                 <CardTitle className="text-lg">{query.name}</CardTitle>
                 <CardDescription>
-                  {query.description || 'No description'}
+                  {query.description || t('common.description')}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -136,7 +138,7 @@ export const SavedQueries: React.FC = () => {
                   <div className="flex gap-2">
                     <Button size="sm" onClick={() => handleUseQuery(query)}>
                       <Play className="h-3 w-3 mr-1" />
-                      Use
+                      {t('common.use')}
                     </Button>
                     <Button
                       size="sm"
@@ -155,17 +157,17 @@ export const SavedQueries: React.FC = () => {
 
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)}>
         <DialogHeader>
-          <DialogTitle>Delete Query</DialogTitle>
+          <DialogTitle>{t('savedQueries.deleteConfirm.title')}</DialogTitle>
         </DialogHeader>
         <DialogContent>
-          <p>Are you sure you want to delete "{queryToDelete?.name}"?</p>
+          <p>{t('savedQueries.deleteConfirm.description')}</p>
         </DialogContent>
         <DialogFooter>
           <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleting}>
-            {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? t('common.loading') : t('common.delete')}
           </Button>
         </DialogFooter>
       </Dialog>

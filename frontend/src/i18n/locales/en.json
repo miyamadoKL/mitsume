@@ -1,0 +1,497 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "deleting": "Deleting...",
+    "edit": "Edit",
+    "create": "Create",
+    "creating": "Creating...",
+    "update": "Update",
+    "confirm": "Confirm",
+    "close": "Close",
+    "retry": "Retry",
+    "retrying": "Retrying...",
+    "tryAgain": "Try Again",
+    "back": "Back",
+    "next": "Next",
+    "search": "Search",
+    "filter": "Filter",
+    "actions": "Actions",
+    "name": "Name",
+    "description": "Description",
+    "noDescription": "No description",
+    "status": "Status",
+    "enabled": "Enabled",
+    "disabled": "Disabled",
+    "active": "Active",
+    "inactive": "Inactive",
+    "use": "Use",
+    "copy": "Copy",
+    "export": "Export",
+    "exporting": "Exporting...",
+    "updated": "Updated {{date}}",
+    "null": "NULL",
+    "system": "System",
+    "verified": "Verified",
+    "unverified": "Unverified",
+    "you": "You",
+    "none": "None",
+    "all": "All",
+    "noRoles": "No roles",
+    "test": "Test",
+    "testSent": "Test sent",
+    "webhookConfigured": "Webhook configured"
+  },
+  "nav": {
+    "query": "Query",
+    "savedQueries": "Saved Queries",
+    "history": "History",
+    "dashboards": "Dashboards",
+    "alerts": "Alerts",
+    "subscriptions": "Subscriptions",
+    "notifications": "Notifications",
+    "admin": "Admin",
+    "roles": "Roles",
+    "users": "Users",
+    "logout": "Logout"
+  },
+  "auth": {
+    "login": "Login",
+    "register": "Register",
+    "logout": "Logout",
+    "email": "Email",
+    "password": "Password",
+    "name": "Name",
+    "loginWithGoogle": "Login with Google",
+    "orContinueWith": "Or continue with",
+    "passwordHint": "Password (min 6 characters)",
+    "subtitle": "Trino SQL Client"
+  },
+  "query": {
+    "pageTitle": "Query Editor",
+    "execute": "Execute",
+    "executing": "Executing...",
+    "saveQuery": "Save Query",
+    "export": "Export",
+    "results": "Results",
+    "noResults": "Execute a query to see results",
+    "rows": "{{count}} rows",
+    "rowsIn": "{{count}} rows in {{time}}",
+    "executionTime": "Execution time: {{time}}",
+    "enterQuery": "Enter SQL query...",
+    "downloadAs": "Download as",
+    "fileName": "File name",
+    "csv": "CSV",
+    "tsv": "TSV"
+  },
+  "export": {
+    "title": "Export as {{format}}",
+    "filename": "Filename",
+    "filenamePlaceholder": "Enter filename"
+  },
+  "savedQueries": {
+    "title": "Saved Queries",
+    "new": "New Query",
+    "empty": "No saved queries",
+    "emptyDescription": "Save a query from the query editor",
+    "goToEditor": "Go to Query Editor",
+    "saveDialog": {
+      "title": "Save Query",
+      "name": "Query Name",
+      "namePlaceholder": "Query name",
+      "description": "Description (optional)",
+      "descriptionPlaceholder": "Description"
+    },
+    "deleteConfirm": {
+      "title": "Delete Query",
+      "description": "Are you sure you want to delete this query? This action cannot be undone."
+    }
+  },
+  "history": {
+    "title": "Query History",
+    "empty": "No query history",
+    "emptyDescription": "Execute a query from the query editor",
+    "goToEditor": "Go to Query Editor",
+    "success": "Success",
+    "error": "Error",
+    "executedAt": "Executed at"
+  },
+  "dashboard": {
+    "title": "Dashboards",
+    "new": "New Dashboard",
+    "addWidget": "Add Widget",
+    "editMode": "Edit Mode",
+    "viewMode": "View Mode",
+    "share": "Share",
+    "export": "Export",
+    "refresh": "Refresh",
+    "autoRefresh": "Auto Refresh",
+    "empty": "No dashboards yet",
+    "emptyDescription": "Create your first dashboard to visualize your data",
+    "createDialog": {
+      "title": "Create Dashboard",
+      "name": "Dashboard Name",
+      "namePlaceholder": "Dashboard name"
+    },
+    "deleteConfirm": {
+      "title": "Delete Dashboard",
+      "description": "Are you sure you want to delete this dashboard? This action cannot be undone."
+    },
+    "widget": {
+      "title": "Widget",
+      "selectQuery": "Select Query",
+      "chartType": "Chart Type",
+      "widgetTitle": "Widget Title",
+      "noQueries": "No saved queries available"
+    },
+    "permissions": {
+      "owner": "Owner",
+      "canEdit": "Can Edit",
+      "viewOnly": "View Only",
+      "public": "Public"
+    }
+  },
+  "alerts": {
+    "title": "Alerts",
+    "create": "Create Alert",
+    "edit": "Edit Alert",
+    "condition": "Condition",
+    "threshold": "Threshold",
+    "interval": "Check Interval",
+    "cooldown": "Cooldown",
+    "triggered": "Triggered",
+    "empty": "No alerts",
+    "emptyDescription": "Set up alerts based on query results",
+    "selectQuery": "Select Query",
+    "selectColumn": "Select Column",
+    "selectOperator": "Select Operator",
+    "selectChannel": "Select Notification Channel",
+    "operators": {
+      "gt": "Greater than (>)",
+      "gte": "Greater than or equal (>=)",
+      "lt": "Less than (<)",
+      "lte": "Less than or equal (<=)",
+      "eq": "Equal (=)",
+      "neq": "Not equal (!=)",
+      "contains": "Contains"
+    },
+    "aggregations": {
+      "first": "First row value",
+      "sum": "Sum",
+      "avg": "Average",
+      "count": "Count",
+      "min": "Minimum",
+      "max": "Maximum"
+    },
+    "intervals": {
+      "minutes_1": "1 minute",
+      "minutes_5": "5 minutes",
+      "minutes_15": "15 minutes",
+      "minutes_30": "30 minutes",
+      "hours_1": "1 hour",
+      "hours_6": "6 hours",
+      "hours_12": "12 hours",
+      "days_1": "1 day"
+    },
+    "deleteConfirm": {
+      "title": "Delete Alert",
+      "description": "Are you sure you want to delete this alert? This action cannot be undone."
+    },
+    "form": {
+      "name": "Alert Name",
+      "namePlaceholder": "High Error Rate Alert",
+      "description": "Description",
+      "descriptionPlaceholder": "Optional description",
+      "savedQuery": "Saved Query",
+      "selectQueryPlaceholder": "Select a query...",
+      "column": "Column",
+      "columnPlaceholder": "count",
+      "operator": "Operator",
+      "valuePlaceholder": "100",
+      "aggregation": "Aggregation",
+      "intervalMinutes": "Check Interval (minutes)",
+      "cooldownMinutes": "Cooldown (minutes)",
+      "notificationChannels": "Notification Channels",
+      "noChannelsConfigured": "No notification channels configured. Add one in Settings."
+    },
+    "history": {
+      "title": "Alert History",
+      "noHistory": "No history available",
+      "triggeredAt": "Triggered At",
+      "value": "Value",
+      "status": "Status"
+    },
+    "toast": {
+      "created": "Alert created",
+      "createdDesc": "\"{{name}}\" has been created",
+      "updated": "Alert updated",
+      "updatedDesc": "\"{{name}}\" has been updated",
+      "deleted": "Alert deleted",
+      "deletedDesc": "\"{{name}}\" has been deleted",
+      "saveFailed": "Failed to save alert",
+      "deleteFailed": "Failed to delete alert",
+      "updateFailed": "Failed to update alert",
+      "testSuccess": "Alert would trigger",
+      "testSuccessDesc": "Condition met with value: {{value}}",
+      "testNoTrigger": "Alert would not trigger",
+      "testNoTriggerDesc": "Current value: {{value}}",
+      "testFailed": "Test failed",
+      "historyFailed": "Failed to load history",
+      "nowActive": "\"{{name}}\" is now active",
+      "nowInactive": "\"{{name}}\" is now inactive"
+    },
+    "confirmDelete": "Are you sure you want to delete \"{{name}}\"?",
+    "lastTriggered": "Last triggered: {{date}}",
+    "clickToDisable": "Click to disable",
+    "clickToEnable": "Click to enable"
+  },
+  "subscriptions": {
+    "title": "Subscriptions",
+    "create": "Create Subscription",
+    "edit": "Edit Subscription",
+    "empty": "No subscriptions",
+    "emptyDescription": "Set up scheduled dashboard delivery",
+    "selectDashboard": "Select Dashboard",
+    "selectChannel": "Select Notification Channel",
+    "schedule": "Schedule",
+    "cronExpression": "Cron Expression",
+    "timezone": "Timezone",
+    "deleteConfirm": {
+      "title": "Delete Subscription",
+      "description": "Are you sure you want to delete this subscription? This action cannot be undone."
+    },
+    "form": {
+      "name": "Subscription Name",
+      "namePlaceholder": "Weekly Sales Report",
+      "selectDashboardPlaceholder": "Select a dashboard...",
+      "exportFormat": "Export Format",
+      "customCronHint": "Or enter custom cron: {{cron}}"
+    },
+    "cronPresets": {
+      "everyHour": "Every hour",
+      "dailyAt9": "Every day at 9 AM",
+      "mondayAt9": "Every Monday at 9 AM",
+      "firstOfMonthAt9": "Every 1st of month at 9 AM"
+    },
+    "toast": {
+      "created": "Subscription created",
+      "createdDesc": "\"{{name}}\" has been created",
+      "updated": "Subscription updated",
+      "updatedDesc": "\"{{name}}\" has been updated",
+      "deleted": "Subscription deleted",
+      "deletedDesc": "\"{{name}}\" has been deleted",
+      "saveFailed": "Failed to save subscription",
+      "deleteFailed": "Failed to delete subscription",
+      "updateFailed": "Failed to update subscription",
+      "triggered": "Subscription triggered",
+      "triggeredDesc": "Report sent for \"{{name}}\"",
+      "triggerFailed": "Failed to trigger subscription",
+      "nowActive": "\"{{name}}\" is now active",
+      "nowInactive": "\"{{name}}\" is now inactive"
+    },
+    "confirmDelete": "Are you sure you want to delete \"{{name}}\"?",
+    "nextRun": "Next run: {{date}}",
+    "lastSent": "Last sent: {{date}}",
+    "format": "Format"
+  },
+  "notifications": {
+    "title": "Notification Channels",
+    "create": "Create Channel",
+    "edit": "Edit Channel",
+    "add": "Add Channel",
+    "empty": "No notification channels",
+    "emptyDescription": "Set up notification destinations like Slack, Email, or Google Chat",
+    "addEmptyDescription": "Add a channel to receive alerts and reports",
+    "types": {
+      "slack": "Slack",
+      "email": "Email",
+      "googleChat": "Google Chat"
+    },
+    "slack": {
+      "webhookUrl": "Webhook URL",
+      "webhookPlaceholder": "https://hooks.slack.com/services/..."
+    },
+    "email": {
+      "recipients": "Recipients",
+      "recipientsHint": "Separate multiple emails with commas",
+      "recipientsPlaceholder": "email1@example.com, email2@example.com"
+    },
+    "googleChat": {
+      "webhookUrl": "Webhook URL",
+      "webhookPlaceholder": "https://chat.googleapis.com/v1/spaces/..."
+    },
+    "deleteConfirm": {
+      "title": "Delete Channel",
+      "description": "Are you sure you want to delete this channel? This action cannot be undone."
+    },
+    "form": {
+      "name": "Name",
+      "namePlaceholder": "My Slack Channel",
+      "channelType": "Channel Type"
+    },
+    "toast": {
+      "created": "Channel created",
+      "createdDesc": "\"{{name}}\" has been created",
+      "updated": "Channel updated",
+      "updatedDesc": "\"{{name}}\" has been updated",
+      "deleted": "Channel deleted",
+      "deletedDesc": "\"{{name}}\" has been deleted",
+      "saveFailed": "Failed to save channel",
+      "deleteFailed": "Failed to delete channel",
+      "testSent": "Test sent",
+      "testSentDesc": "Test notification sent to \"{{name}}\"",
+      "testFailed": "Test failed"
+    },
+    "confirmDelete": "Are you sure you want to delete \"{{name}}\"?"
+  },
+  "admin": {
+    "roles": {
+      "title": "Role Management",
+      "create": "Create Role",
+      "edit": "Edit Role",
+      "empty": "No roles configured",
+      "emptyDescription": "Create a role to manage user permissions",
+      "name": "Role Name",
+      "namePlaceholder": "Role name",
+      "description": "Description",
+      "descriptionPlaceholder": "Role description",
+      "permissions": "Permissions",
+      "catalogs": "Catalog Permissions",
+      "catalogsButton": "Catalogs",
+      "catalogPermissionsTitle": "Catalog Permissions - {{name}}",
+      "catalogPermissionsDesc": "Select which catalogs users with this role can access.",
+      "noCatalogsAvailable": "No catalogs available.",
+      "allCatalogs": "All catalogs",
+      "deleteConfirm": {
+        "title": "Delete Role",
+        "description": "Are you sure you want to delete this role? This action cannot be undone."
+      },
+      "toast": {
+        "created": "Role created",
+        "createdDesc": "\"{{name}}\" has been created",
+        "updated": "Role updated",
+        "updatedDesc": "\"{{name}}\" has been updated",
+        "deleted": "Role deleted",
+        "deletedDesc": "\"{{name}}\" has been deleted",
+        "catalogsUpdated": "Catalogs updated",
+        "catalogsUpdatedDesc": "Catalog permissions for \"{{name}}\" have been updated",
+        "saveFailed": "Failed to save role",
+        "deleteFailed": "Failed to delete role",
+        "catalogsFailed": "Failed to load catalogs",
+        "catalogsSaveFailed": "Failed to save catalogs",
+        "cannotDeleteSystem": "Cannot delete system role",
+        "cannotDeleteSystemDesc": "The admin role cannot be deleted"
+      },
+      "confirmDelete": "Are you sure you want to delete \"{{name}}\"?"
+    },
+    "users": {
+      "title": "User Management",
+      "empty": "No users",
+      "role": "Role",
+      "roles": "Roles",
+      "assignRole": "Assign Role",
+      "removeRole": "Remove Role",
+      "manageRoles": "Manage Roles",
+      "manageRolesTitle": "Manage Roles - {{name}}",
+      "manageRolesDesc": "Select roles to assign to this user.",
+      "noRolesAvailable": "No roles available.",
+      "authProvider": "Auth Provider",
+      "toast": {
+        "rolesUpdated": "Roles updated",
+        "rolesUpdatedDesc": "Roles for \"{{name}}\" have been updated",
+        "saveFailed": "Failed to save roles",
+        "cannotRemoveAdminRole": "Cannot remove admin role",
+        "cannotRemoveAdminRoleDesc": "You cannot remove your own admin role"
+      }
+    }
+  },
+  "errors": {
+    "generic": "An error occurred",
+    "network": "Network error",
+    "unauthorized": "Authentication required",
+    "forbidden": "Access denied",
+    "notFound": "Not found",
+    "validation": "Please check your input",
+    "loginFailed": "Invalid email or password",
+    "registerFailed": "Registration failed",
+    "googleLoginNotConfigured": "Google login is not configured",
+    "queryFailed": "Query execution failed",
+    "saveFailed": "Failed to save",
+    "deleteFailed": "Failed to delete",
+    "loadFailed": "Failed to load"
+  },
+  "success": {
+    "saved": "Saved successfully",
+    "deleted": "Deleted successfully",
+    "created": "Created successfully",
+    "updated": "Updated successfully",
+    "copied": "Copied to clipboard"
+  },
+  "confirm": {
+    "delete": "Delete?",
+    "deleteDescription": "This action cannot be undone."
+  },
+  "time": {
+    "justNow": "Just now",
+    "minutesAgo": "{{count}} minutes ago",
+    "hoursAgo": "{{count}} hours ago",
+    "daysAgo": "{{count}} days ago"
+  },
+  "chart": {
+    "types": {
+      "table": "Table",
+      "bar": "Bar Chart",
+      "line": "Line Chart",
+      "area": "Area Chart",
+      "pie": "Pie Chart",
+      "donut": "Donut Chart",
+      "scatter": "Scatter Plot",
+      "combo": "Combo Chart",
+      "heatmap": "Heatmap",
+      "gauge": "Gauge",
+      "progress": "Progress Bar",
+      "funnel": "Funnel Chart",
+      "treemap": "Treemap",
+      "bubble": "Bubble Chart",
+      "sunburst": "Sunburst Chart",
+      "boxplot": "Box Plot"
+    },
+    "options": {
+      "xAxis": "X Axis",
+      "yAxis": "Y Axis",
+      "groupBy": "Group By",
+      "colorScheme": "Color Scheme",
+      "showLegend": "Show Legend",
+      "stacked": "Stacked"
+    },
+    "colorSchemes": {
+      "default": "Default",
+      "pastel": "Pastel",
+      "vivid": "Vivid",
+      "earth": "Earth",
+      "ocean": "Ocean",
+      "sunset": "Sunset",
+      "monochrome": "Monochrome",
+      "rainbow": "Rainbow",
+      "business": "Business",
+      "nature": "Nature"
+    }
+  },
+  "errorState": {
+    "default": {
+      "title": "Something went wrong",
+      "message": "An unexpected error occurred. Please try again."
+    },
+    "network": {
+      "title": "Connection Error",
+      "message": "Unable to connect to the server. Please check your internet connection."
+    },
+    "server": {
+      "title": "Server Error",
+      "message": "The server encountered an error. Please try again later."
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '@/components/ui/dialog'
@@ -35,6 +36,7 @@ const timezones = [
 ]
 
 export default function Subscriptions() {
+  const { t } = useTranslation()
   const [subscriptions, setSubscriptions] = useState<DashboardSubscription[]>([])
   const [dashboards, setDashboards] = useState<Dashboard[]>([])
   const [channels, setChannels] = useState<NotificationChannel[]>([])
@@ -127,7 +129,7 @@ export default function Subscriptions() {
           format: formData.format,
           channel_ids: formData.channel_ids,
         })
-        toast.success('Subscription updated', `"${formData.name}" has been updated`)
+        toast.success(t('subscriptions.toast.updated'), t('subscriptions.toast.updatedDesc', { name: formData.name }))
       } else {
         const req: CreateSubscriptionRequest = {
           dashboard_id: formData.dashboard_id,
@@ -138,37 +140,37 @@ export default function Subscriptions() {
           channel_ids: formData.channel_ids,
         }
         await subscriptionApi.create(req)
-        toast.success('Subscription created', `"${formData.name}" has been created`)
+        toast.success(t('subscriptions.toast.created'), t('subscriptions.toast.createdDesc', { name: formData.name }))
       }
 
       await loadData()
       handleCloseDialog()
     } catch (err) {
-      toast.error('Failed to save subscription', getErrorMessage(err))
+      toast.error(t('subscriptions.toast.saveFailed'), getErrorMessage(err))
     } finally {
       setSaving(false)
     }
   }
 
   const handleDelete = async (subscription: DashboardSubscription) => {
-    if (!confirm(`Are you sure you want to delete "${subscription.name}"?`)) return
+    if (!confirm(t('subscriptions.confirmDelete', { name: subscription.name }))) return
 
     try {
       await subscriptionApi.delete(subscription.id)
-      toast.success('Subscription deleted', `"${subscription.name}" has been deleted`)
+      toast.success(t('subscriptions.toast.deleted'), t('subscriptions.toast.deletedDesc', { name: subscription.name }))
       await loadData()
     } catch (err) {
-      toast.error('Failed to delete subscription', getErrorMessage(err))
+      toast.error(t('subscriptions.toast.deleteFailed'), getErrorMessage(err))
     }
   }
 
   const handleToggleActive = async (subscription: DashboardSubscription) => {
     try {
       await subscriptionApi.update(subscription.id, { is_active: !subscription.is_active })
-      toast.success('Subscription updated', `"${subscription.name}" is now ${!subscription.is_active ? 'active' : 'inactive'}`)
+      toast.success(t('subscriptions.toast.updated'), !subscription.is_active ? t('subscriptions.toast.nowActive', { name: subscription.name }) : t('subscriptions.toast.nowInactive', { name: subscription.name }))
       await loadData()
     } catch (err) {
-      toast.error('Failed to update subscription', getErrorMessage(err))
+      toast.error(t('subscriptions.toast.updateFailed'), getErrorMessage(err))
     }
   }
 
@@ -176,9 +178,9 @@ export default function Subscriptions() {
     try {
       setTriggerLoading(subscription.id)
       await subscriptionApi.trigger(subscription.id)
-      toast.success('Subscription triggered', `Report sent for "${subscription.name}"`)
+      toast.success(t('subscriptions.toast.triggered'), t('subscriptions.toast.triggeredDesc', { name: subscription.name }))
     } catch (err) {
-      toast.error('Failed to trigger subscription', getErrorMessage(err))
+      toast.error(t('subscriptions.toast.triggerFailed'), getErrorMessage(err))
     } finally {
       setTriggerLoading(null)
     }
@@ -230,7 +232,7 @@ export default function Subscriptions() {
     return (
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold">Subscriptions</h1>
+          <h1 className="text-2xl font-semibold">{t('subscriptions.title')}</h1>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
@@ -245,7 +247,7 @@ export default function Subscriptions() {
     return (
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-semibold">Subscriptions</h1>
+          <h1 className="text-2xl font-semibold">{t('subscriptions.title')}</h1>
         </div>
         <ErrorState
           message={getErrorMessage(error)}
@@ -260,20 +262,20 @@ export default function Subscriptions() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold">Subscriptions</h1>
+        <h1 className="text-2xl font-semibold">{t('subscriptions.title')}</h1>
         <Button onClick={() => handleOpenDialog()}>
           <Plus className="h-4 w-4 mr-2" />
-          Create Subscription
+          {t('subscriptions.create')}
         </Button>
       </div>
 
       {subscriptions.length === 0 ? (
         <EmptyState
-          title="No subscriptions"
-          description="Create a subscription to receive scheduled dashboard reports"
+          title={t('subscriptions.empty')}
+          description={t('subscriptions.emptyDescription')}
           icon={CalendarClock}
           action={{
-            label: 'Create Subscription',
+            label: t('subscriptions.create'),
             onClick: () => handleOpenDialog(),
           }}
         />
@@ -301,7 +303,7 @@ export default function Subscriptions() {
               <CardContent>
                 <div className="space-y-2 text-sm">
                   <p>
-                    <span className="font-medium">Dashboard:</span> {getDashboardName(sub.dashboard_id)}
+                    <span className="font-medium">{t('subscriptions.selectDashboard')}:</span> {getDashboardName(sub.dashboard_id)}
                   </p>
                   <p className="flex items-center gap-1">
                     <Clock className="h-3 w-3" />
@@ -309,17 +311,17 @@ export default function Subscriptions() {
                     <span className="text-muted-foreground">({sub.timezone})</span>
                   </p>
                   <p>
-                    <span className="font-medium">Format:</span>{' '}
+                    <span className="font-medium">{t('subscriptions.format')}:</span>{' '}
                     <span className="px-2 py-0.5 rounded bg-muted text-xs uppercase">{sub.format}</span>
                   </p>
                   {sub.next_run_at && (
                     <p className="text-xs text-muted-foreground">
-                      Next run: {formatDate(sub.next_run_at)}
+                      {t('subscriptions.nextRun', { date: formatDate(sub.next_run_at) })}
                     </p>
                   )}
                   {sub.last_sent_at && (
                     <p className="text-xs text-muted-foreground">
-                      Last sent: {formatDate(sub.last_sent_at)}
+                      {t('subscriptions.lastSent', { date: formatDate(sub.last_sent_at) })}
                     </p>
                   )}
                 </div>
@@ -352,29 +354,29 @@ export default function Subscriptions() {
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onClose={handleCloseDialog}>
         <DialogHeader>
-          <DialogTitle>{editingSubscription ? 'Edit Subscription' : 'Create Subscription'}</DialogTitle>
+          <DialogTitle>{editingSubscription ? t('subscriptions.edit') : t('subscriptions.create')}</DialogTitle>
         </DialogHeader>
         <DialogContent>
           <div className="space-y-4 max-h-[60vh] overflow-y-auto">
             <div>
-              <Label htmlFor="name">Subscription Name</Label>
+              <Label htmlFor="name">{t('subscriptions.form.name')}</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e: React.ChangeEvent<HTMLInputElement>) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Weekly Sales Report"
+                placeholder={t('subscriptions.form.namePlaceholder')}
               />
             </div>
 
             {!editingSubscription && (
               <div>
-                <Label htmlFor="dashboard">Dashboard</Label>
+                <Label htmlFor="dashboard">{t('subscriptions.selectDashboard')}</Label>
                 <Select
                   id="dashboard"
                   value={formData.dashboard_id}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, dashboard_id: e.target.value })}
                 >
-                  <option value="">Select a dashboard...</option>
+                  <option value="">{t('subscriptions.form.selectDashboardPlaceholder')}</option>
                   {dashboards.map((d) => (
                     <option key={d.id} value={d.id}>{d.name}</option>
                   ))}
@@ -383,7 +385,7 @@ export default function Subscriptions() {
             )}
 
             <div>
-              <Label htmlFor="schedule">Schedule</Label>
+              <Label htmlFor="schedule">{t('subscriptions.schedule')}</Label>
               <Select
                 id="schedule"
                 value={formData.schedule_cron}
@@ -394,13 +396,13 @@ export default function Subscriptions() {
                 ))}
               </Select>
               <p className="text-xs text-muted-foreground mt-1">
-                Or enter custom cron: {formData.schedule_cron}
+                {t('subscriptions.form.customCronHint', { cron: formData.schedule_cron })}
               </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="timezone">Timezone</Label>
+                <Label htmlFor="timezone">{t('subscriptions.timezone')}</Label>
                 <Select
                   id="timezone"
                   value={formData.timezone}
@@ -412,7 +414,7 @@ export default function Subscriptions() {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="format">Export Format</Label>
+                <Label htmlFor="format">{t('subscriptions.form.exportFormat')}</Label>
                 <Select
                   id="format"
                   value={formData.format}
@@ -425,7 +427,7 @@ export default function Subscriptions() {
             </div>
 
             <div>
-              <Label>Notification Channels</Label>
+              <Label>{t('alerts.form.notificationChannels')}</Label>
               <div className="flex flex-wrap gap-2 mt-2">
                 {channels.map((ch) => (
                   <button
@@ -443,7 +445,7 @@ export default function Subscriptions() {
                 ))}
                 {channels.length === 0 && (
                   <p className="text-sm text-muted-foreground">
-                    No notification channels configured. Add one in Settings.
+                    {t('alerts.form.noChannelsConfigured')}
                   </p>
                 )}
               </div>
@@ -451,9 +453,9 @@ export default function Subscriptions() {
           </div>
         </DialogContent>
         <DialogFooter>
-          <Button variant="outline" onClick={handleCloseDialog}>Cancel</Button>
+          <Button variant="outline" onClick={handleCloseDialog}>{t('common.cancel')}</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : editingSubscription ? 'Update' : 'Create'}
+            {saving ? t('common.saving') : editingSubscription ? t('common.update') : t('common.create')}
           </Button>
         </DialogFooter>
       </Dialog>

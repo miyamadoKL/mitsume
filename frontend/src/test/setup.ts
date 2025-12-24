@@ -3,6 +3,9 @@ import * as matchers from '@testing-library/jest-dom/matchers'
 import { server } from '@/mocks/server'
 import { resetMockData } from '@/mocks/handlers'
 
+// Initialize i18n for tests
+import '@/i18n'
+
 // Silence noisy React Router v7 future flag warnings in tests
 const originalWarn = console.warn
 console.warn = (...args: unknown[]) => {

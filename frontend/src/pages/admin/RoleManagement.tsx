@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '@/components/ui/dialog'
@@ -13,6 +14,7 @@ import { Plus, Trash2, Edit2, Shield, Loader2, Database } from 'lucide-react'
 import type { RoleWithCatalogs, CreateRoleRequest } from '@/types'
 
 export default function RoleManagement() {
+  const { t } = useTranslation()
   const [roles, setRoles] = useState<RoleWithCatalogs[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
@@ -85,7 +87,7 @@ export default function RoleManagement() {
       setAvailableCatalogs(catalogs)
       setCatalogDialogOpen(true)
     } catch (err) {
-      toast.error('Failed to load catalogs', getErrorMessage(err))
+      toast.error(t('admin.roles.toast.catalogsFailed'), getErrorMessage(err))
     }
   }
 
@@ -103,20 +105,20 @@ export default function RoleManagement() {
           name: formData.name,
           description: formData.description,
         })
-        toast.success('Role updated', `"${formData.name}" has been updated`)
+        toast.success(t('admin.roles.toast.updated'), t('admin.roles.toast.updatedDesc', { name: formData.name }))
       } else {
         const req: CreateRoleRequest = {
           name: formData.name,
           description: formData.description,
         }
         await adminApi.createRole(req)
-        toast.success('Role created', `"${formData.name}" has been created`)
+        toast.success(t('admin.roles.toast.created'), t('admin.roles.toast.createdDesc', { name: formData.name }))
       }
 
       await loadRoles()
       handleCloseDialog()
     } catch (err) {
-      toast.error('Failed to save role', getErrorMessage(err))
+      toast.error(t('admin.roles.toast.saveFailed'), getErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -127,11 +129,11 @@ export default function RoleManagement() {
     try {
       setSaving(true)
       await adminApi.setRoleCatalogs(selectedRole.id, selectedCatalogs)
-      toast.success('Catalogs updated', `Catalog permissions for "${selectedRole.name}" have been updated`)
+      toast.success(t('admin.roles.toast.catalogsUpdated'), t('admin.roles.toast.catalogsUpdatedDesc', { name: selectedRole.name }))
       await loadRoles()
       handleCloseCatalogDialog()
     } catch (err) {
-      toast.error('Failed to save catalogs', getErrorMessage(err))
+      toast.error(t('admin.roles.toast.catalogsSaveFailed'), getErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -139,17 +141,17 @@ export default function RoleManagement() {
 
   const handleDelete = async (role: RoleWithCatalogs) => {
     if (role.is_system) {
-      toast.error('Cannot delete system role', 'The admin role cannot be deleted')
+      toast.error(t('admin.roles.toast.cannotDeleteSystem'), t('admin.roles.toast.cannotDeleteSystemDesc'))
       return
     }
-    if (!confirm(`Are you sure you want to delete "${role.name}"?`)) return
+    if (!confirm(t('admin.roles.confirmDelete', { name: role.name }))) return
 
     try {
       await adminApi.deleteRole(role.id)
-      toast.success('Role deleted', `"${role.name}" has been deleted`)
+      toast.success(t('admin.roles.toast.deleted'), t('admin.roles.toast.deletedDesc', { name: role.name }))
       await loadRoles()
     } catch (err) {
-      toast.error('Failed to delete role', getErrorMessage(err))
+      toast.error(t('admin.roles.toast.deleteFailed'), getErrorMessage(err))
     }
   }
 
@@ -165,7 +167,7 @@ export default function RoleManagement() {
     return (
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Role Management</h1>
+          <h1 className="text-2xl font-bold">{t('admin.roles.title')}</h1>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
@@ -180,7 +182,7 @@ export default function RoleManagement() {
     return (
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold">Role Management</h1>
+          <h1 className="text-2xl font-bold">{t('admin.roles.title')}</h1>
         </div>
         <ErrorState
           message={getErrorMessage(error)}
@@ -195,19 +197,19 @@ export default function RoleManagement() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Role Management</h1>
+        <h1 className="text-2xl font-bold">{t('admin.roles.title')}</h1>
         <Button onClick={() => handleOpenDialog()}>
-          <Plus className="h-4 w-4 mr-2" /> Create Role
+          <Plus className="h-4 w-4 mr-2" /> {t('admin.roles.create')}
         </Button>
       </div>
 
       {roles.length === 0 ? (
         <EmptyState
-          title="No roles configured"
-          description="Create a role to manage user permissions"
+          title={t('admin.roles.empty')}
+          description={t('admin.roles.emptyDescription')}
           icon={Shield}
           action={{
-            label: 'Create Role',
+            label: t('admin.roles.create'),
             onClick: () => handleOpenDialog(),
           }}
         />
@@ -223,23 +225,23 @@ export default function RoleManagement() {
                 </div>
                 {role.is_system && (
                   <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">
-                    System
+                    {t('common.system')}
                   </span>
                 )}
               </div>
             </CardHeader>
             <CardContent>
               <p className="text-sm text-muted-foreground mb-3">
-                {role.description || 'No description'}
+                {role.description || t('common.noDescription')}
               </p>
               <div className="text-sm mb-3">
-                <span className="font-medium">Catalogs:</span>{' '}
+                <span className="font-medium">{t('admin.roles.catalogs')}:</span>{' '}
                 {role.is_system ? (
-                  <span className="text-muted-foreground">All catalogs</span>
+                  <span className="text-muted-foreground">{t('admin.roles.allCatalogs')}</span>
                 ) : role.catalogs && role.catalogs.length > 0 ? (
                   <span className="text-muted-foreground">{role.catalogs.join(', ')}</span>
                 ) : (
-                  <span className="text-muted-foreground">None</span>
+                  <span className="text-muted-foreground">{t('common.none')}</span>
                 )}
               </div>
               <div className="flex gap-2">
@@ -250,7 +252,7 @@ export default function RoleManagement() {
                       size="sm"
                       onClick={() => handleOpenCatalogDialog(role)}
                     >
-                      <Database className="h-4 w-4 mr-1" /> Catalogs
+                      <Database className="h-4 w-4 mr-1" /> {t('admin.roles.catalogsButton')}
                     </Button>
                     <Button
                       variant="outline"
@@ -279,36 +281,36 @@ export default function RoleManagement() {
       <Dialog open={dialogOpen} onClose={handleCloseDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingRole ? 'Edit Role' : 'Create Role'}</DialogTitle>
+            <DialogTitle>{editingRole ? t('admin.roles.edit') : t('admin.roles.create')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div>
-              <Label htmlFor="name">Name</Label>
+              <Label htmlFor="name">{t('admin.roles.name')}</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Role name"
+                placeholder={t('admin.roles.namePlaceholder')}
               />
             </div>
             <div>
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description">{t('admin.roles.description')}</Label>
               <Textarea
                 id="description"
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Role description"
+                placeholder={t('admin.roles.descriptionPlaceholder')}
                 rows={3}
               />
             </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseDialog}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleSave} disabled={saving || !formData.name}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              {editingRole ? 'Update' : 'Create'}
+              {editingRole ? t('common.update') : t('common.create')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -318,14 +320,14 @@ export default function RoleManagement() {
       <Dialog open={catalogDialogOpen} onClose={handleCloseCatalogDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Catalog Permissions - {selectedRole?.name}</DialogTitle>
+            <DialogTitle>{t('admin.roles.catalogPermissionsTitle', { name: selectedRole?.name })}</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <p className="text-sm text-muted-foreground mb-4">
-              Select which catalogs users with this role can access.
+              {t('admin.roles.catalogPermissionsDesc')}
             </p>
             {availableCatalogs.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No catalogs available.</p>
+              <p className="text-sm text-muted-foreground">{t('admin.roles.noCatalogsAvailable')}</p>
             ) : (
               <div className="space-y-2 max-h-64 overflow-y-auto">
                 {availableCatalogs.map((catalog) => (
@@ -348,11 +350,11 @@ export default function RoleManagement() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={handleCloseCatalogDialog}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button onClick={handleSaveCatalogs} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Save
+              {t('common.save')}
             </Button>
           </DialogFooter>
         </DialogContent>

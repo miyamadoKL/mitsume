@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import type { QueryResult } from '@/types'
 import { formatDuration } from '@/lib/utils'
 
@@ -7,11 +8,13 @@ interface ResultsTableProps {
 }
 
 export const ResultsTable: React.FC<ResultsTableProps> = ({ result }) => {
+  const { t } = useTranslation()
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-3 border-b bg-muted/50">
         <span className="text-sm text-muted-foreground">
-          {result.row_count} rows in {formatDuration(result.execution_time_ms)}
+          {t('query.rowsIn', { count: result.row_count, time: formatDuration(result.execution_time_ms) })}
         </span>
       </div>
       <div className="flex-1 overflow-auto">
@@ -34,7 +37,7 @@ export const ResultsTable: React.FC<ResultsTableProps> = ({ result }) => {
                 {row.map((cell, cellIndex) => (
                   <td key={cellIndex} className="px-4 py-2 whitespace-nowrap">
                     {cell === null ? (
-                      <span className="text-muted-foreground italic">NULL</span>
+                      <span className="text-muted-foreground italic">{t('common.null')}</span>
                     ) : (
                       String(cell)
                     )}
