@@ -5,6 +5,9 @@ import {
   applyTimeSeriesTransform,
   aggregateByGranularity,
   isTimeAxis,
+  calculatePeriodComparison,
+  formatComparisonChange,
+  getComparisonLabel,
 } from './time-series'
 
 describe('calculateRollingWindow', () => {
@@ -248,5 +251,120 @@ describe('isTimeAxis', () => {
   it('should handle mixed values with majority dates', () => {
     const values = ['2024-01-15', '2024-01-16', '2024-01-17', 'Invalid', null]
     expect(isTimeAxis(values)).toBe(true)
+  })
+})
+
+// =====================
+// YoY/WoW/MoM Comparison Tests
+// =====================
+
+describe('calculatePeriodComparison', () => {
+  it('should calculate week-over-week comparison', () => {
+    const xValues = [
+      '2024-01-01',
+      '2024-01-08', // 7 days later
+    ]
+    const yValues = [100, 120]
+
+    const result = calculatePeriodComparison(xValues, yValues, 'wow')
+
+    expect(result.previousValues[0]).toBeNull() // No previous week for first value
+    expect(result.previousValues[1]).toBe(100) // Previous week value
+    expect(result.absoluteChanges[1]).toBe(20)
+    expect(result.percentChanges[1]).toBeCloseTo(20, 1) // 20% increase
+  })
+
+  it('should calculate month-over-month comparison', () => {
+    const xValues = [
+      '2024-01-15',
+      '2024-02-14', // ~30 days later
+    ]
+    const yValues = [100, 150]
+
+    const result = calculatePeriodComparison(xValues, yValues, 'mom')
+
+    expect(result.previousValues[1]).toBe(100)
+    expect(result.absoluteChanges[1]).toBe(50)
+    expect(result.percentChanges[1]).toBeCloseTo(50, 1)
+  })
+
+  it('should calculate year-over-year comparison', () => {
+    // Use exact timestamps to ensure proper matching
+    const xValues = [
+      '2023-06-15T12:00:00Z',
+      '2024-06-14T12:00:00Z', // 365 days later (within tolerance)
+    ]
+    const yValues = [1000, 1200]
+
+    const result = calculatePeriodComparison(xValues, yValues, 'yoy')
+
+    expect(result.previousValues[1]).toBe(1000)
+    expect(result.absoluteChanges[1]).toBe(200)
+    expect(result.percentChanges[1]).toBeCloseTo(20, 1)
+  })
+
+  it('should handle custom period comparison', () => {
+    const xValues = [
+      '2024-01-01',
+      '2024-01-11', // 10 days later
+    ]
+    const yValues = [100, 90]
+
+    const result = calculatePeriodComparison(xValues, yValues, 'custom', 10)
+
+    expect(result.previousValues[1]).toBe(100)
+    expect(result.absoluteChanges[1]).toBe(-10)
+    expect(result.percentChanges[1]).toBeCloseTo(-10, 1) // 10% decrease
+  })
+
+  it('should return null for missing comparison data', () => {
+    const xValues = ['2024-01-01', '2024-01-02']
+    const yValues = [100, 110]
+
+    const result = calculatePeriodComparison(xValues, yValues, 'yoy')
+
+    // No data from previous year
+    expect(result.previousValues[0]).toBeNull()
+    expect(result.previousValues[1]).toBeNull()
+    expect(result.percentChanges[0]).toBeNull()
+    expect(result.percentChanges[1]).toBeNull()
+  })
+})
+
+describe('formatComparisonChange', () => {
+  it('should format positive percent change', () => {
+    const result = formatComparisonChange(25.5, 100, true, false)
+    expect(result).toBe('+25.5%')
+  })
+
+  it('should format negative percent change', () => {
+    const result = formatComparisonChange(-15.3, -50, true, false)
+    expect(result).toBe('-15.3%')
+  })
+
+  it('should format with absolute change', () => {
+    const result = formatComparisonChange(25.0, 100, true, true)
+    expect(result).toBe('+25.0% (+100)')
+  })
+
+  it('should format absolute only', () => {
+    const result = formatComparisonChange(25.0, -50, false, true)
+    expect(result).toBe('(-50)')
+  })
+
+  it('should handle null values', () => {
+    expect(formatComparisonChange(null, null, true, true)).toBe('')
+    expect(formatComparisonChange(null, 100, true, true)).toBe('(+100)')
+    expect(formatComparisonChange(25.0, null, true, true)).toBe('+25.0%')
+  })
+})
+
+describe('getComparisonLabel', () => {
+  it('should return correct labels', () => {
+    expect(getComparisonLabel('yoy')).toBe('vs Last Year')
+    expect(getComparisonLabel('mom')).toBe('vs Last Month')
+    expect(getComparisonLabel('wow')).toBe('vs Last Week')
+    expect(getComparisonLabel('dod')).toBe('vs Yesterday')
+    expect(getComparisonLabel('custom')).toBe('vs Previous Period')
   })
 })
