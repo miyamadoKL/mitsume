@@ -102,7 +102,17 @@ export interface LayoutItem extends Position {
   i: string
 }
 
-export type ChartType = 'bar' | 'line' | 'pie' | 'area' | 'scatter' | 'table' | 'markdown' | 'counter' | 'pivot'
+// Chart types - grouped by implementation phase
+export type ChartType =
+  // Phase 0: Existing types
+  | 'bar' | 'line' | 'pie' | 'area' | 'scatter'
+  | 'table' | 'markdown' | 'counter' | 'pivot'
+  // Phase 1: Basic chart enhancements
+  | 'donut' | 'combo' | 'heatmap'
+  // Phase 2: KPI & Metrics
+  | 'gauge' | 'progress'
+  // Phase 4: Advanced visualization
+  | 'funnel' | 'treemap' | 'bubble' | 'sunburst' | 'boxplot'
 
 // Drilldown Types
 export interface ColumnLinkConfig {
@@ -117,26 +127,236 @@ export interface ChartDrilldownConfig {
   parameterMapping: Record<string, string>  // Param name → "name"|"value"|"series"|column name
 }
 
+// ============================================
+// Nested Chart Config Types (Phase 0.2+)
+// ============================================
+
+/**
+ * Common config for cartesian (x/y axis) charts: bar, line, area
+ */
+export interface CartesianConfig {
+  stacking?: 'none' | 'normal' | 'percent'
+}
+
+/**
+ * Config for combo charts (mixed bar/line/area)
+ */
+export interface ComboConfig {
+  seriesTypes?: Record<string, 'bar' | 'line' | 'area'>
+  dualYAxis?: boolean
+}
+
+/**
+ * Config for heatmap charts
+ */
+export interface HeatmapConfig {
+  xColumn: string
+  yColumn: string
+  valueColumn: string
+  colorScheme?: string
+  showValues?: boolean
+}
+
+/**
+ * Config for gauge charts
+ */
+export interface GaugeConfig {
+  min: number
+  max: number
+  ranges?: { from: number; to: number; color: string; label?: string }[]
+  showPointer?: boolean
+}
+
+/**
+ * Config for progress bar charts
+ */
+export interface ProgressConfig {
+  targetValue: number
+  showPercentage?: boolean
+  color?: string
+  backgroundColor?: string
+}
+
+/**
+ * Config for treemap charts
+ */
+export interface TreemapConfig {
+  hierarchyColumns: string[]
+  valueColumn: string
+  labelColumn?: string
+}
+
+/**
+ * Config for bubble charts
+ */
+export interface BubbleConfig {
+  xColumn: string
+  yColumn: string
+  sizeColumn: string
+  colorColumn?: string
+  maxBubbleSize?: number
+}
+
+/**
+ * Common axis configuration
+ */
+export interface AxisDetailConfig {
+  label?: string
+  rotate?: number
+  min?: number
+  max?: number
+  scale?: 'linear' | 'log'
+}
+
+/**
+ * Legend configuration
+ */
+export interface LegendConfig {
+  show?: boolean
+  position?: 'top' | 'bottom' | 'left' | 'right'
+}
+
+/**
+ * Data zoom configuration for time series
+ */
+export interface DataZoomConfig {
+  enabled: boolean
+  type?: 'inside' | 'slider' | 'both'
+  start?: number
+  end?: number
+}
+
+/**
+ * Time series specific configuration
+ */
+export interface TimeSeriesConfig {
+  enabled?: boolean
+  timeColumn?: string
+  granularity?: 'hour' | 'day' | 'week' | 'month' | 'quarter' | 'year'
+  aggregation?: 'sum' | 'avg' | 'min' | 'max' | 'count'
+  rollingWindow?: {
+    enabled: boolean
+    periods: number
+    function: 'mean' | 'sum' | 'min' | 'max'
+  }
+  cumulative?: {
+    enabled: boolean
+  }
+}
+
+/**
+ * Comparison configuration for counter/KPI
+ */
+export interface ComparisonConfig {
+  type: 'previous_row' | 'target' | 'none'
+  targetValue?: number
+  showPercentChange?: boolean
+  invertColors?: boolean
+}
+
+/**
+ * Conditional formatting for counter/table
+ */
+export interface ConditionalFormatRule {
+  condition: 'gt' | 'lt' | 'eq' | 'gte' | 'lte' | 'between'
+  value: number | [number, number]
+  backgroundColor?: string
+  textColor?: string
+}
+
+/**
+ * Sparkline configuration for counter widget
+ */
+export interface SparklineConfig {
+  enabled: boolean
+  type: 'line' | 'bar' | 'area'
+  column: string
+}
+
 export interface ChartConfig {
+  // Basic axis config (shared by bar, line, area, scatter)
   xAxis?: string
   yAxis?: string | string[]
   series?: string[]
   title?: string
   legend?: boolean
   content?: string  // Markdown content for markdown widget
+
   // Counter widget config
   valueColumn?: string  // Column to display as counter value
   counterLabel?: string  // Label below the counter
   counterPrefix?: string  // Prefix (e.g., "$")
   counterSuffix?: string  // Suffix (e.g., "%")
+
   // Pivot widget config
   rowGroupColumn?: string  // Column for row grouping
   colGroupColumn?: string  // Column for column grouping
   valueAggColumn?: string  // Column to aggregate
   aggregation?: 'sum' | 'count' | 'avg' | 'min' | 'max'  // Aggregation function
+
   // Drilldown config
   columnLinks?: ColumnLinkConfig[]     // Table column link settings
   drilldown?: ChartDrilldownConfig     // Chart drilldown settings
+
+  // ============================================
+  // Nested configs for specific chart types
+  // ============================================
+
+  // Cartesian charts (bar, line, area) - stacking support
+  cartesianConfig?: CartesianConfig
+
+  // Combo chart (mixed bar/line/area)
+  comboConfig?: ComboConfig
+
+  // Heatmap
+  heatmapConfig?: HeatmapConfig
+
+  // Gauge chart
+  gaugeConfig?: GaugeConfig
+
+  // Progress bar
+  progressConfig?: ProgressConfig
+
+  // Treemap
+  treemapConfig?: TreemapConfig
+
+  // Bubble chart
+  bubbleConfig?: BubbleConfig
+
+  // ============================================
+  // Common enhanced configs
+  // ============================================
+
+  // Axis detail settings
+  axisConfig?: {
+    xAxis?: AxisDetailConfig
+    yAxis?: AxisDetailConfig
+  }
+
+  // Legend settings
+  legendConfig?: LegendConfig
+
+  // Data zoom for time series
+  dataZoom?: DataZoomConfig
+
+  // Time series features
+  timeSeriesConfig?: TimeSeriesConfig
+
+  // Counter/KPI comparison
+  comparison?: ComparisonConfig
+
+  // Conditional formatting (counter, table)
+  conditionalFormatting?: {
+    column?: string
+    rules: ConditionalFormatRule[]
+  }[]
+
+  // Sparkline for counter widget
+  sparkline?: SparklineConfig
+
+  // Color scheme
+  colorScheme?: string
+  customColors?: string[]
 }
 
 export interface CreateDashboardRequest {
