@@ -8,6 +8,7 @@ import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
 import { DashboardParameters } from '@/components/dashboard/DashboardParameters'
 import { WidgetSettingsDialog } from '@/components/dashboard/WidgetSettingsDialog'
 import { ShareDashboardDialog } from '@/components/dashboard/ShareDashboardDialog'
+import { QuickAddPanel } from '@/components/dashboard/QuickAddPanel'
 import { DashboardExportButton } from '@/components/export/DashboardExportButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -224,6 +225,37 @@ export const DashboardDetail: React.FC = () => {
     }
   }
 
+  const handleQuickAddWidget = async (type: ChartType) => {
+    if (!id) return
+    setSaving(true)
+
+    const maxY = dashboard?.widgets?.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0) || 0
+    const widgetCount = (dashboard?.widgets?.length || 0) + 1
+
+    const req: CreateWidgetRequest = {
+      name: `${t(`chart.types.${type}`)} ${widgetCount}`,
+      query_id: undefined,
+      chart_type: type,
+      chart_config: type === 'markdown' ? { content: '' } : {},
+      position: { x: 0, y: maxY, w: 6, h: 3 },
+    }
+
+    try {
+      const widget = await dashboardApi.createWidget(id, req)
+      setDashboard(prev => prev ? {
+        ...prev,
+        widgets: [...(prev.widgets || []), widget],
+      } : null)
+      // Open settings dialog for the new widget
+      setEditingWidget(widget)
+      setSettingsDialogOpen(true)
+    } catch (err) {
+      toast.error(t('dashboard.detail.toast.addWidgetFailed'), getErrorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleDeleteWidget = async (widgetId: string) => {
     if (!id) return
     try {
@@ -235,6 +267,34 @@ export const DashboardDetail: React.FC = () => {
       toast.success(t('dashboard.detail.toast.widgetDeleted'))
     } catch (err) {
       toast.error(t('dashboard.detail.toast.deleteWidgetFailed'), getErrorMessage(err))
+    }
+  }
+
+  const handleDuplicateWidget = async (widget: Widget) => {
+    if (!id) return
+    setSaving(true)
+    try {
+      // Calculate position for duplicate (next row)
+      const maxY = dashboard?.widgets?.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0) || 0
+
+      const req: CreateWidgetRequest = {
+        name: `${widget.name} (Copy)`,
+        query_id: widget.query_id || undefined,
+        chart_type: widget.chart_type,
+        chart_config: widget.chart_config,
+        position: { x: widget.position.x, y: maxY, w: widget.position.w, h: widget.position.h },
+      }
+
+      const newWidget = await dashboardApi.createWidget(id, req)
+      setDashboard(prev => prev ? {
+        ...prev,
+        widgets: [...(prev.widgets || []), newWidget],
+      } : null)
+      toast.success(t('dashboard.detail.toast.widgetDuplicated'))
+    } catch (err) {
+      toast.error(t('dashboard.detail.toast.duplicateWidgetFailed'), getErrorMessage(err))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -373,12 +433,14 @@ export const DashboardDetail: React.FC = () => {
       />
 
       <div className="flex-1 overflow-auto p-4" ref={dashboardContentRef}>
+        {editMode && <QuickAddPanel onAddWidget={handleQuickAddWidget} />}
         {dashboard.widgets && dashboard.widgets.length > 0 ? (
           <DashboardGrid
             dashboard={dashboard}
             onLayoutChange={handleLayoutChange}
             editable={editMode}
             onDeleteWidget={handleDeleteWidget}
+            onDuplicateWidget={handleDuplicateWidget}
             onSettingsClick={handleSettingsClick}
             parameterValues={parameterValues}
             refreshKeys={refreshKeys}
