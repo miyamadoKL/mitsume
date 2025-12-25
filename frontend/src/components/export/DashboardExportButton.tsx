@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import html2canvas from 'html2canvas'
 import { jsPDF } from 'jspdf'
 import { Button } from '@/components/ui/button'
@@ -16,28 +17,29 @@ interface DashboardExportButtonProps {
   dashboardName: string
 }
 
-const formatOptions: { value: ExportFormat; label: string }[] = [
-  { value: 'pdf', label: 'PDF' },
-  { value: 'png', label: 'PNG Image' },
-]
-
 export const DashboardExportButton: React.FC<DashboardExportButtonProps> = ({
   dashboardRef,
   dashboardName,
 }) => {
+  const { t } = useTranslation()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [format, setFormat] = useState<ExportFormat>('pdf')
   const [filename, setFilename] = useState('')
   const [exporting, setExporting] = useState(false)
 
+  const formatOptions: { value: ExportFormat; label: string }[] = [
+    { value: 'pdf', label: t('dashboard.exportDialog.formats.pdf') },
+    { value: 'png', label: t('dashboard.exportDialog.formats.png') },
+  ]
+
   const handleOpenDialog = () => {
-    setFilename(sanitizeFilename(dashboardName) || 'dashboard')
+    setFilename(sanitizeFilename(dashboardName) || t('dashboard.exportDialog.filenamePlaceholder'))
     setDialogOpen(true)
   }
 
   const handleExport = async () => {
     if (!dashboardRef.current) {
-      toast.error('Export failed', 'Dashboard element not found')
+      toast.error(t('dashboard.exportDialog.toast.failed'), t('dashboard.exportDialog.toast.elementNotFound'))
       return
     }
 
@@ -59,7 +61,7 @@ export const DashboardExportButton: React.FC<DashboardExportButtonProps> = ({
         link.download = `${sanitizedFilename}.png`
         link.href = canvas.toDataURL('image/png')
         link.click()
-        toast.success('Export complete', `Downloaded ${sanitizedFilename}.png`)
+        toast.success(t('dashboard.exportDialog.toast.complete'), t('dashboard.exportDialog.toast.downloaded', { filename: `${sanitizedFilename}.png` }))
       } else {
         const imgData = canvas.toDataURL('image/png')
         const imgWidth = canvas.width
@@ -81,13 +83,13 @@ export const DashboardExportButton: React.FC<DashboardExportButtonProps> = ({
 
         pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
         pdf.save(`${sanitizedFilename}.pdf`)
-        toast.success('Export complete', `Downloaded ${sanitizedFilename}.pdf`)
+        toast.success(t('dashboard.exportDialog.toast.complete'), t('dashboard.exportDialog.toast.downloaded', { filename: `${sanitizedFilename}.pdf` }))
       }
 
       setDialogOpen(false)
     } catch (error) {
       console.error('Export failed:', error)
-      toast.error('Export failed', error instanceof Error ? error.message : 'Unknown error occurred')
+      toast.error(t('dashboard.exportDialog.toast.failed'), error instanceof Error ? error.message : t('errors.generic'))
     } finally {
       setExporting(false)
     }
@@ -97,22 +99,22 @@ export const DashboardExportButton: React.FC<DashboardExportButtonProps> = ({
     <>
       <Button variant="outline" onClick={handleOpenDialog}>
         <Download className="h-4 w-4 mr-2" />
-        Export
+        {t('common.export')}
       </Button>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)}>
         <DialogHeader>
-          <DialogTitle>Export Dashboard</DialogTitle>
+          <DialogTitle>{t('dashboard.exportDialog.title')}</DialogTitle>
         </DialogHeader>
         <DialogContent>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Filename</label>
+              <label className="text-sm font-medium">{t('export.filename')}</label>
               <div className="flex items-center gap-2 mt-1">
                 <Input
                   value={filename}
                   onChange={(e) => setFilename(e.target.value)}
-                  placeholder="dashboard"
+                  placeholder={t('dashboard.exportDialog.filenamePlaceholder')}
                   className="flex-1"
                 />
                 <span className="text-sm text-muted-foreground">.{format}</span>
@@ -120,7 +122,7 @@ export const DashboardExportButton: React.FC<DashboardExportButtonProps> = ({
             </div>
 
             <div>
-              <label className="text-sm font-medium">Format</label>
+              <label className="text-sm font-medium">{t('dashboard.exportDialog.format')}</label>
               <Select
                 value={format}
                 onChange={(e) => setFormat(e.target.value as ExportFormat)}
@@ -130,25 +132,25 @@ export const DashboardExportButton: React.FC<DashboardExportButtonProps> = ({
 
             <p className="text-sm text-muted-foreground">
               {format === 'pdf'
-                ? 'Creates a PDF document of the current dashboard view.'
-                : 'Creates a high-resolution PNG image of the current dashboard view.'}
+                ? t('dashboard.exportDialog.description.pdf')
+                : t('dashboard.exportDialog.description.png')}
             </p>
           </div>
         </DialogContent>
         <DialogFooter>
           <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={exporting}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button onClick={handleExport} disabled={exporting || !filename.trim()}>
             {exporting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Exporting...
+                {t('common.exporting')}
               </>
             ) : (
               <>
                 <Download className="h-4 w-4 mr-2" />
-                Export
+                {t('common.export')}
               </>
             )}
           </Button>

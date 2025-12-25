@@ -12,6 +12,7 @@
     "update": "更新",
     "confirm": "確認",
     "close": "閉じる",
+    "done": "完了",
     "retry": "再試行",
     "retrying": "再試行中...",
     "tryAgain": "再試行",
@@ -152,6 +153,292 @@
       "canEdit": "編集可",
       "viewOnly": "閲覧のみ",
       "public": "公開"
+    },
+    "detail": {
+      "toast": {
+        "refreshAll": "すべてのウィジェットを更新しています",
+        "widgetDeleted": "ウィジェットを削除しました",
+        "deleteWidgetFailed": "ウィジェットの削除に失敗しました",
+        "widgetUpdated": "ウィジェットを更新しました",
+        "updateWidgetFailed": "ウィジェットの更新に失敗しました"
+      },
+      "noWidgetsYet": "ウィジェットがありません",
+      "addWidgetDialog": {
+        "widgetName": "ウィジェット名",
+        "widgetNamePlaceholder": "ウィジェット名",
+        "savedQuery": "保存済みクエリ",
+        "selectQueryPlaceholder": "クエリを選択...",
+        "adding": "追加中..."
+      },
+      "autoRefreshOptions": {
+        "off": "オフ",
+        "seconds30": "30秒",
+        "minute1": "1分",
+        "minutes5": "5分",
+        "minutes10": "10分"
+      }
+    },
+    "shareDialog": {
+      "title": "ダッシュボード共有",
+      "publicDashboard": "公開ダッシュボード",
+      "privateDashboard": "非公開ダッシュボード",
+      "publicDescription": "システムにアクセスできるユーザーなら誰でもこのダッシュボードを閲覧できます",
+      "privateDescription": "あなたと明示的に許可されたユーザーのみがアクセスできます",
+      "makePrivate": "非公開にする",
+      "makePublic": "公開にする",
+      "addPeopleOrRoles": "ユーザー/ロールを追加",
+      "grantType": {
+        "user": "ユーザー",
+        "role": "ロール"
+      },
+      "userIdPlaceholder": "ユーザーIDを入力",
+      "selectRolePlaceholder": "ロールを選択...",
+      "permissionLevel": {
+        "view": "閲覧可",
+        "edit": "編集可"
+      },
+      "peopleWithAccess": "アクセス権のあるユーザー",
+      "loading": "読み込み中...",
+      "noOneElse": "このダッシュボードにアクセスできる他のユーザーはいません",
+      "type": {
+        "user": "ユーザー",
+        "role": "ロール"
+      },
+      "unknown": "不明",
+      "permissionItem": "{{type}} - {{level}}",
+      "toast": {
+        "nowPrivate": "ダッシュボードを非公開にしました",
+        "nowPublic": "ダッシュボードを公開しました",
+        "updateVisibilityFailed": "公開設定の更新に失敗しました",
+        "enterUserEmail": "ユーザーのメールアドレスを入力してください",
+        "selectRole": "ロールを選択してください",
+        "permissionGranted": "権限を付与しました",
+        "grantFailed": "権限の付与に失敗しました",
+        "permissionRevoked": "権限を取り消しました",
+        "revokeFailed": "権限の取り消しに失敗しました"
+      }
+    },
+    "exportDialog": {
+      "title": "ダッシュボードをエクスポート",
+      "filenamePlaceholder": "dashboard",
+      "format": "形式",
+      "formats": {
+        "pdf": "PDF",
+        "png": "PNG画像"
+      },
+      "description": {
+        "pdf": "現在のダッシュボード表示をPDFとして作成します。",
+        "png": "現在のダッシュボード表示を高解像度PNG画像として作成します。"
+      },
+      "toast": {
+        "failed": "エクスポートに失敗しました",
+        "elementNotFound": "ダッシュボード要素が見つかりません",
+        "complete": "エクスポート完了",
+        "downloaded": "{{filename}} をダウンロードしました"
+      }
+    },
+    "parameterMappingEditor": {
+      "empty": "パラメータマッピングが設定されていません。",
+      "parameterNamePlaceholder": "パラメータ名",
+      "sourcePlaceholder": "ソースを選択...",
+      "addMapping": "マッピング追加"
+    },
+    "widgetSettings": {
+      "title": "ウィジェット設定",
+      "namePlaceholder": "ウィジェット名",
+      "markdown": {
+        "content": "コンテンツ（Markdown）",
+        "placeholder": "Markdownを入力...",
+        "hint": "Markdown対応: **太字**, *斜体*, # 見出し, - リスト, [リンク](url)"
+      },
+      "query": "クエリ",
+      "selectQueryPlaceholder": "クエリを選択...",
+      "loadingColumns": "カラムを読み込み中...",
+      "counter": {
+        "title": "カウンター設定",
+        "valueColumn": "値カラム",
+        "labelOptional": "ラベル（任意）",
+        "labelPlaceholderTotalSales": "例: 総売上",
+        "prefixOptional": "接頭辞（任意）",
+        "prefixPlaceholder": "例: $",
+        "suffixOptional": "接尾辞（任意）",
+        "suffixPlaceholder": "例: %"
+      },
+      "comparison": {
+        "title": "比較",
+        "type": "比較タイプ",
+        "targetValue": "目標値",
+        "targetValuePlaceholder": "例: 100",
+        "showPercentChange": "変化率を表示",
+        "invertColors": "色を反転",
+        "invertColorsHint": "減少をプラス（緑）、増加をマイナス（赤）として扱います"
+      },
+      "conditionalFormatting": {
+        "title": "条件付き書式",
+        "addRule": "ルール追加",
+        "and": "〜",
+        "background": "背景:",
+        "text": "文字:"
+      },
+      "sparkline": {
+        "title": "スパークライン",
+        "enable": "スパークラインを有効化",
+        "enableHint": "カウンター値の横にミニチャートを表示します",
+        "type": "スパークラインの種類",
+        "dataColumn": "データカラム",
+        "useValueColumn": "値カラムを使用",
+        "dataColumnHint": "スパークライン用のカラム（全行を使用）"
+      },
+      "gauge": {
+        "title": "ゲージ設定",
+        "minimum": "最小値",
+        "maximum": "最大値",
+        "labelPlaceholderCpuUsage": "例: CPU使用率",
+        "showPointer": "針を表示"
+      },
+      "progress": {
+        "title": "進捗バー設定",
+        "labelPlaceholderTasksCompleted": "例: 完了タスク数",
+        "targetValue": "目標値",
+        "targetValueHint": "100% を表す値です",
+        "progressColor": "進捗色",
+        "showPercentage": "パーセンテージを表示"
+      },
+      "pivot": {
+        "title": "ピボット設定",
+        "rowGroupingColumn": "行グループカラム",
+        "columnGroupingColumn": "列グループカラム",
+        "valueColumn": "値カラム",
+        "aggregation": "集計"
+      },
+      "chart": {
+        "title": "チャート設定",
+        "xAxisColumn": "X軸カラム",
+        "selectColumnPlaceholder": "カラムを選択...",
+        "yAxisColumns": "Y軸カラム（複数可）",
+        "showLegend": "凡例を表示",
+        "chartTitleOptional": "チャートタイトル（任意）",
+        "chartTitlePlaceholder": "チャートタイトル",
+        "stacking": "積み上げ",
+        "stackingHint": "複数系列を積み上げ表示します"
+      },
+      "combo": {
+        "seriesTypes": "系列タイプ",
+        "seriesTypesHint": "各系列の表示方法を選択します",
+        "dualYAxis": "2つのY軸",
+        "dualYAxisHint": "系列ごとに別Y軸を使用します（スケールが異なる場合に有用）"
+      },
+      "timeSeries": {
+        "title": "時系列機能",
+        "granularity": "時間粒度",
+        "granularityHint": "期間ごとに集計します（時間系のX軸が必要）",
+        "aggregationFunction": "集計関数",
+        "rollingWindow": "移動窓",
+        "periods": "期間",
+        "function": "関数",
+        "cumulativeSum": "累積合計",
+        "cumulativeSumHint": "累計を表示します"
+      },
+      "dataZoom": {
+        "title": "ズーム",
+        "enable": "ズームを有効化",
+        "enableHint": "大規模データ向けにズーム操作を追加します",
+        "zoomType": "ズーム方式"
+      },
+      "heatmap": {
+        "title": "ヒートマップ設定",
+        "xAxisCategories": "X軸カラム（カテゴリ）",
+        "yAxisCategories": "Y軸カラム（カテゴリ）",
+        "valueColumn": "値カラム",
+        "colorScheme": "カラースキーム",
+        "showValues": "値を表示",
+        "showValuesHint": "各セルに数値を表示します"
+      },
+      "tableLinks": {
+        "title": "カラムリンク（ドリルダウン）",
+        "description": "カラムをクリックして別ダッシュボードへ遷移するリンクを設定します。",
+        "targetDashboard": "遷移先ダッシュボード",
+        "selectDashboardPlaceholder": "ダッシュボードを選択...",
+        "parameterMapping": "パラメータマッピング",
+        "parameterMappingHint": "\"@\" はセルの値として使用できます。カラム名も使用できます。",
+        "displayTextOptional": "表示テキスト（任意）",
+        "displayTextPlaceholder": "例: 詳細 {{at}}",
+        "displayTextHint": "{{at}} はセルの値、{{columnName}} はカラム名です。"
+      },
+      "drilldown": {
+        "title": "クリック時の動作（ドリルダウン）",
+        "description": "チャート要素をクリックすると別のダッシュボードへ遷移します。",
+        "enable": "ドリルダウンを有効化",
+        "targetDashboard": "遷移先ダッシュボード",
+        "selectDashboardPlaceholder": "ダッシュボードを選択...",
+        "parameterMapping": "パラメータマッピング",
+        "parameterMappingHint": "クリックしたデータをダッシュボードパラメータにマッピングします: name (X軸), value (Y軸), series, またはカラム名。"
+      },
+      "columnDefaults": {
+        "first": "先頭カラム（デフォルト）",
+        "second": "2番目のカラム（デフォルト）",
+        "third": "3番目のカラム（デフォルト）"
+      },
+      "options": {
+        "seriesType": {
+          "bar": "棒",
+          "line": "線",
+          "area": "エリア"
+        },
+        "heatmapColorScheme": {
+          "default": "オレンジ（デフォルト）",
+          "blue": "青",
+          "green": "緑",
+          "red": "赤",
+          "purple": "紫",
+          "diverging": "発散（赤-黄-緑）"
+        },
+        "stacking": {
+          "none": "積み上げなし",
+          "normal": "積み上げ",
+          "percent": "100%積み上げ"
+        },
+        "aggregation": {
+          "sum": "合計",
+          "count": "件数",
+          "avg": "平均",
+          "min": "最小",
+          "max": "最大"
+        },
+        "rollingFunction": {
+          "mean": "移動平均",
+          "sum": "移動合計",
+          "min": "移動最小",
+          "max": "移動最大"
+        },
+        "dataZoomType": {
+          "slider": "スライダー",
+          "inside": "スクロール",
+          "both": "両方"
+        },
+        "granularity": {
+          "none": "なし（生データ）",
+          "hour": "時間",
+          "day": "日",
+          "week": "週",
+          "month": "月",
+          "quarter": "四半期",
+          "year": "年"
+        },
+        "comparisonType": {
+          "none": "なし",
+          "previous_row": "前の行",
+          "target": "目標値"
+        },
+        "condition": {
+          "gt": ">（より大きい）",
+          "gte": ">=（以上）",
+          "lt": "<（より小さい）",
+          "lte": "<=（以下）",
+          "eq": "=（等しい）",
+          "between": "範囲"
+        }
+      }
     }
   },
   "alerts": {
@@ -254,6 +541,7 @@
     "edit": "サブスクリプション編集",
     "empty": "サブスクリプションがありません",
     "emptyDescription": "ダッシュボードの定期配信を設定してください",
+    "unknownDashboard": "不明なダッシュボード",
     "selectDashboard": "ダッシュボードを選択",
     "selectChannel": "通知チャンネルを選択",
     "schedule": "スケジュール",
@@ -275,6 +563,21 @@
       "dailyAt9": "毎日9時",
       "mondayAt9": "毎週月曜9時",
       "firstOfMonthAt9": "毎月1日9時"
+    },
+    "cron": {
+      "everyHourAt": "毎時{{minute}}分",
+      "dailyAt": "毎日{{hour}}:{{minute}}",
+      "dayOfWeekAt": "{{day}} {{hour}}:{{minute}}",
+      "dayOfMonthAt": "毎月{{day}}日 {{hour}}:{{minute}}",
+      "days": {
+        "sun": "日",
+        "mon": "月",
+        "tue": "火",
+        "wed": "水",
+        "thu": "木",
+        "fri": "金",
+        "sat": "土"
+      }
     },
     "toast": {
       "created": "サブスクリプション作成完了",
@@ -479,6 +782,12 @@
       "business": "ビジネス",
       "nature": "ネイチャー"
     }
+  },
+  "errorBoundary": {
+    "title": "問題が発生しました",
+    "message": "予期しないエラーが発生しました。ページを再読み込みするか、問題が解消しない場合はサポートにお問い合わせください。",
+    "details": "エラー詳細",
+    "reloadPage": "ページを再読み込み"
   },
   "errorState": {
     "default": {

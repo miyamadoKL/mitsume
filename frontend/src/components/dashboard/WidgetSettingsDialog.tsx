@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { Widget, SavedQuery, ChartType, ChartConfig, Dashboard, ColumnLinkConfig, CartesianConfig, ConditionalFormatRule, ComparisonConfig, SparklineConfig } from '@/types'
 import { queryApi, dashboardApi } from '@/services/api'
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '@/components/ui/dialog'
@@ -8,93 +9,6 @@ import { Select } from '@/components/ui/select'
 import { ParameterMappingEditor } from './ParameterMappingEditor'
 import { getImplementedChartTypeOptions } from '@/lib/chart-options'
 import { Loader2, ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react'
-
-// Get chart types from single source of truth
-const chartTypes = getImplementedChartTypeOptions()
-
-const comboSeriesTypeOptions: { value: string; label: string }[] = [
-  { value: 'bar', label: 'Bar' },
-  { value: 'line', label: 'Line' },
-  { value: 'area', label: 'Area' },
-]
-
-const heatmapColorSchemes: { value: string; label: string }[] = [
-  { value: 'default', label: 'Orange (default)' },
-  { value: 'blue', label: 'Blue' },
-  { value: 'green', label: 'Green' },
-  { value: 'red', label: 'Red' },
-  { value: 'purple', label: 'Purple' },
-  { value: 'diverging', label: 'Diverging (Red-Yellow-Green)' },
-]
-
-const stackingOptions: { value: string; label: string }[] = [
-  { value: 'none', label: 'No stacking' },
-  { value: 'normal', label: 'Stacked' },
-  { value: 'percent', label: '100% Stacked' },
-]
-
-const aggregationOptions: { value: string; label: string }[] = [
-  { value: 'sum', label: 'Sum' },
-  { value: 'count', label: 'Count' },
-  { value: 'avg', label: 'Average' },
-  { value: 'min', label: 'Minimum' },
-  { value: 'max', label: 'Maximum' },
-]
-
-const rollingFunctionOptions: { value: string; label: string }[] = [
-  { value: 'mean', label: 'Moving Average' },
-  { value: 'sum', label: 'Moving Sum' },
-  { value: 'min', label: 'Moving Min' },
-  { value: 'max', label: 'Moving Max' },
-]
-
-const dataZoomTypeOptions: { value: string; label: string }[] = [
-  { value: 'slider', label: 'Slider' },
-  { value: 'inside', label: 'Mouse Scroll' },
-  { value: 'both', label: 'Both' },
-]
-
-const granularityOptions: { value: string; label: string }[] = [
-  { value: '', label: 'None (raw data)' },
-  { value: 'hour', label: 'Hourly' },
-  { value: 'day', label: 'Daily' },
-  { value: 'week', label: 'Weekly' },
-  { value: 'month', label: 'Monthly' },
-  { value: 'quarter', label: 'Quarterly' },
-  { value: 'year', label: 'Yearly' },
-]
-
-const granularityAggregationOptions: { value: string; label: string }[] = [
-  { value: 'sum', label: 'Sum' },
-  { value: 'avg', label: 'Average' },
-  { value: 'min', label: 'Minimum' },
-  { value: 'max', label: 'Maximum' },
-  { value: 'count', label: 'Count' },
-]
-
-// Counter comparison options
-const comparisonTypeOptions: { value: string; label: string }[] = [
-  { value: 'none', label: 'None' },
-  { value: 'previous_row', label: 'Previous Row' },
-  { value: 'target', label: 'Target Value' },
-]
-
-// Conditional formatting conditions
-const conditionOptions: { value: string; label: string }[] = [
-  { value: 'gt', label: '> (Greater than)' },
-  { value: 'gte', label: '>= (Greater or equal)' },
-  { value: 'lt', label: '< (Less than)' },
-  { value: 'lte', label: '<= (Less or equal)' },
-  { value: 'eq', label: '= (Equal to)' },
-  { value: 'between', label: 'Between' },
-]
-
-// Sparkline type options
-const sparklineTypeOptions: { value: string; label: string }[] = [
-  { value: 'line', label: 'Line' },
-  { value: 'bar', label: 'Bar' },
-  { value: 'area', label: 'Area' },
-]
 
 interface WidgetSettingsDialogProps {
   open: boolean
@@ -111,6 +25,94 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
   savedQueries,
   onSave,
 }) => {
+  const { t } = useTranslation()
+
+  const chartTypeOptions = getImplementedChartTypeOptions().map(option => ({
+    ...option,
+    label: t(`chart.types.${option.value}`, { defaultValue: option.label }),
+  }))
+
+  const comboSeriesTypeOptions: { value: string; label: string }[] = [
+    { value: 'bar', label: t('dashboard.widgetSettings.options.seriesType.bar') },
+    { value: 'line', label: t('dashboard.widgetSettings.options.seriesType.line') },
+    { value: 'area', label: t('dashboard.widgetSettings.options.seriesType.area') },
+  ]
+
+  const heatmapColorSchemes: { value: string; label: string }[] = [
+    { value: 'default', label: t('dashboard.widgetSettings.options.heatmapColorScheme.default') },
+    { value: 'blue', label: t('dashboard.widgetSettings.options.heatmapColorScheme.blue') },
+    { value: 'green', label: t('dashboard.widgetSettings.options.heatmapColorScheme.green') },
+    { value: 'red', label: t('dashboard.widgetSettings.options.heatmapColorScheme.red') },
+    { value: 'purple', label: t('dashboard.widgetSettings.options.heatmapColorScheme.purple') },
+    { value: 'diverging', label: t('dashboard.widgetSettings.options.heatmapColorScheme.diverging') },
+  ]
+
+  const stackingOptions: { value: string; label: string }[] = [
+    { value: 'none', label: t('dashboard.widgetSettings.options.stacking.none') },
+    { value: 'normal', label: t('dashboard.widgetSettings.options.stacking.normal') },
+    { value: 'percent', label: t('dashboard.widgetSettings.options.stacking.percent') },
+  ]
+
+  const aggregationOptions: { value: string; label: string }[] = [
+    { value: 'sum', label: t('dashboard.widgetSettings.options.aggregation.sum') },
+    { value: 'count', label: t('dashboard.widgetSettings.options.aggregation.count') },
+    { value: 'avg', label: t('dashboard.widgetSettings.options.aggregation.avg') },
+    { value: 'min', label: t('dashboard.widgetSettings.options.aggregation.min') },
+    { value: 'max', label: t('dashboard.widgetSettings.options.aggregation.max') },
+  ]
+
+  const rollingFunctionOptions: { value: string; label: string }[] = [
+    { value: 'mean', label: t('dashboard.widgetSettings.options.rollingFunction.mean') },
+    { value: 'sum', label: t('dashboard.widgetSettings.options.rollingFunction.sum') },
+    { value: 'min', label: t('dashboard.widgetSettings.options.rollingFunction.min') },
+    { value: 'max', label: t('dashboard.widgetSettings.options.rollingFunction.max') },
+  ]
+
+  const dataZoomTypeOptions: { value: string; label: string }[] = [
+    { value: 'slider', label: t('dashboard.widgetSettings.options.dataZoomType.slider') },
+    { value: 'inside', label: t('dashboard.widgetSettings.options.dataZoomType.inside') },
+    { value: 'both', label: t('dashboard.widgetSettings.options.dataZoomType.both') },
+  ]
+
+  const granularityOptions: { value: string; label: string }[] = [
+    { value: '', label: t('dashboard.widgetSettings.options.granularity.none') },
+    { value: 'hour', label: t('dashboard.widgetSettings.options.granularity.hour') },
+    { value: 'day', label: t('dashboard.widgetSettings.options.granularity.day') },
+    { value: 'week', label: t('dashboard.widgetSettings.options.granularity.week') },
+    { value: 'month', label: t('dashboard.widgetSettings.options.granularity.month') },
+    { value: 'quarter', label: t('dashboard.widgetSettings.options.granularity.quarter') },
+    { value: 'year', label: t('dashboard.widgetSettings.options.granularity.year') },
+  ]
+
+  const granularityAggregationOptions: { value: string; label: string }[] = [
+    { value: 'sum', label: t('dashboard.widgetSettings.options.aggregation.sum') },
+    { value: 'avg', label: t('dashboard.widgetSettings.options.aggregation.avg') },
+    { value: 'min', label: t('dashboard.widgetSettings.options.aggregation.min') },
+    { value: 'max', label: t('dashboard.widgetSettings.options.aggregation.max') },
+    { value: 'count', label: t('dashboard.widgetSettings.options.aggregation.count') },
+  ]
+
+  const comparisonTypeOptions: { value: string; label: string }[] = [
+    { value: 'none', label: t('dashboard.widgetSettings.options.comparisonType.none') },
+    { value: 'previous_row', label: t('dashboard.widgetSettings.options.comparisonType.previous_row') },
+    { value: 'target', label: t('dashboard.widgetSettings.options.comparisonType.target') },
+  ]
+
+  const conditionOptions: { value: string; label: string }[] = [
+    { value: 'gt', label: t('dashboard.widgetSettings.options.condition.gt') },
+    { value: 'gte', label: t('dashboard.widgetSettings.options.condition.gte') },
+    { value: 'lt', label: t('dashboard.widgetSettings.options.condition.lt') },
+    { value: 'lte', label: t('dashboard.widgetSettings.options.condition.lte') },
+    { value: 'eq', label: t('dashboard.widgetSettings.options.condition.eq') },
+    { value: 'between', label: t('dashboard.widgetSettings.options.condition.between') },
+  ]
+
+  const sparklineTypeOptions: { value: string; label: string }[] = [
+    { value: 'line', label: t('dashboard.widgetSettings.options.seriesType.line') },
+    { value: 'bar', label: t('dashboard.widgetSettings.options.seriesType.bar') },
+    { value: 'area', label: t('dashboard.widgetSettings.options.seriesType.area') },
+  ]
+
   const [name, setName] = useState(widget.name)
   const [queryId, setQueryId] = useState(widget.query_id || '')
   const [chartType, setChartType] = useState<ChartType>(widget.chart_type)
@@ -613,146 +615,146 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
   const showHeatmapConfig = isHeatmap && queryId && columns.length > 0
   const showChartDrilldown = isStandardChart && queryId && columns.length > 0
 
-  return (
-    <Dialog open={open} onClose={onClose}>
-      <DialogHeader>
-        <DialogTitle>Widget Settings</DialogTitle>
-      </DialogHeader>
-      <DialogContent>
-        <div className="space-y-4">
-          {/* Basic Settings */}
-          <div>
-            <label className="text-sm font-medium">Name</label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Widget name"
-            />
-          </div>
+	  return (
+	    <Dialog open={open} onClose={onClose}>
+	      <DialogHeader>
+	        <DialogTitle>{t('dashboard.widgetSettings.title')}</DialogTitle>
+	      </DialogHeader>
+	      <DialogContent>
+	        <div className="space-y-4">
+	          {/* Basic Settings */}
+	          <div>
+	            <label className="text-sm font-medium">{t('common.name')}</label>
+	            <Input
+	              value={name}
+	              onChange={(e) => setName(e.target.value)}
+	              placeholder={t('dashboard.widgetSettings.namePlaceholder')}
+	            />
+	          </div>
 
-          <div>
-            <label className="text-sm font-medium">Chart Type</label>
-            <Select
-              value={chartType}
-              onChange={(e) => setChartType(e.target.value as ChartType)}
-              options={chartTypes}
-            />
-          </div>
+	          <div>
+	            <label className="text-sm font-medium">{t('dashboard.widget.chartType')}</label>
+	            <Select
+	              value={chartType}
+	              onChange={(e) => setChartType(e.target.value as ChartType)}
+	              options={chartTypeOptions}
+	            />
+	          </div>
 
           {/* Markdown Content */}
-          {isMarkdown && (
-            <div>
-              <label className="text-sm font-medium">Content (Markdown)</label>
-              <textarea
-                value={markdownContent}
-                onChange={(e) => setMarkdownContent(e.target.value)}
-                placeholder="Enter markdown content..."
-                className="w-full h-40 mt-1 px-3 py-2 text-sm border rounded-md bg-background resize-y font-mono"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Supports Markdown: **bold**, *italic*, # headings, - lists, [links](url)
-              </p>
-            </div>
-          )}
+	          {isMarkdown && (
+	            <div>
+	              <label className="text-sm font-medium">{t('dashboard.widgetSettings.markdown.content')}</label>
+	              <textarea
+	                value={markdownContent}
+	                onChange={(e) => setMarkdownContent(e.target.value)}
+	                placeholder={t('dashboard.widgetSettings.markdown.placeholder')}
+	                className="w-full h-40 mt-1 px-3 py-2 text-sm border rounded-md bg-background resize-y font-mono"
+	              />
+	              <p className="mt-1 text-xs text-muted-foreground">
+	                {t('dashboard.widgetSettings.markdown.hint')}
+	              </p>
+	            </div>
+	          )}
 
           {/* Query Selection (for non-markdown) */}
-          {!isMarkdown && (
-            <div>
-              <label className="text-sm font-medium">Query</label>
-              <Select
-                value={queryId}
-                onChange={(e) => handleQueryChange(e.target.value)}
-                options={[
-                  { value: '', label: 'Select a query...' },
-                  ...savedQueries.map(q => ({ value: q.id, label: q.name })),
-                ]}
-              />
-            </div>
-          )}
+	          {!isMarkdown && (
+	            <div>
+	              <label className="text-sm font-medium">{t('dashboard.widgetSettings.query')}</label>
+	              <Select
+	                value={queryId}
+	                onChange={(e) => handleQueryChange(e.target.value)}
+	                options={[
+	                  { value: '', label: t('dashboard.widgetSettings.selectQueryPlaceholder') },
+	                  ...savedQueries.map(q => ({ value: q.id, label: q.name })),
+	                ]}
+	              />
+	            </div>
+	          )}
 
           {/* Loading columns indicator */}
-          {!isMarkdown && loadingColumns && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading columns...
-            </div>
-          )}
+	          {!isMarkdown && loadingColumns && (
+	            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+	              <Loader2 className="h-4 w-4 animate-spin" />
+	              {t('dashboard.widgetSettings.loadingColumns')}
+	            </div>
+	          )}
 
           {/* Counter Configuration */}
-          {showCounterConfig && (
-            <>
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium mb-3">Counter Configuration</h4>
-              </div>
+	          {showCounterConfig && (
+	            <>
+	              <div className="border-t pt-4">
+	                <h4 className="text-sm font-medium mb-3">{t('dashboard.widgetSettings.counter.title')}</h4>
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Value Column</label>
-                <Select
-                  value={valueColumn}
-                  onChange={(e) => setValueColumn(e.target.value)}
-                  options={[
-                    { value: '', label: 'First column (default)' },
-                    ...columns.map(col => ({ value: col, label: col })),
-                  ]}
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.counter.valueColumn')}</label>
+	                <Select
+	                  value={valueColumn}
+	                  onChange={(e) => setValueColumn(e.target.value)}
+	                  options={[
+	                    { value: '', label: t('dashboard.widgetSettings.columnDefaults.first') },
+	                    ...columns.map(col => ({ value: col, label: col })),
+	                  ]}
+	                />
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Label (optional)</label>
-                <Input
-                  value={counterLabel}
-                  onChange={(e) => setCounterLabel(e.target.value)}
-                  placeholder="e.g., Total Sales"
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.counter.labelOptional')}</label>
+	                <Input
+	                  value={counterLabel}
+	                  onChange={(e) => setCounterLabel(e.target.value)}
+	                  placeholder={t('dashboard.widgetSettings.counter.labelPlaceholderTotalSales')}
+	                />
+	              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Prefix (optional)</label>
-                  <Input
-                    value={counterPrefix}
-                    onChange={(e) => setCounterPrefix(e.target.value)}
-                    placeholder="e.g., $"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Suffix (optional)</label>
-                  <Input
-                    value={counterSuffix}
-                    onChange={(e) => setCounterSuffix(e.target.value)}
-                    placeholder="e.g., %"
-                  />
-                </div>
-              </div>
+	              <div className="grid grid-cols-2 gap-4">
+	                <div>
+	                  <label className="text-sm font-medium">{t('dashboard.widgetSettings.counter.prefixOptional')}</label>
+	                  <Input
+	                    value={counterPrefix}
+	                    onChange={(e) => setCounterPrefix(e.target.value)}
+	                    placeholder={t('dashboard.widgetSettings.counter.prefixPlaceholder')}
+	                  />
+	                </div>
+	                <div>
+	                  <label className="text-sm font-medium">{t('dashboard.widgetSettings.counter.suffixOptional')}</label>
+	                  <Input
+	                    value={counterSuffix}
+	                    onChange={(e) => setCounterSuffix(e.target.value)}
+	                    placeholder={t('dashboard.widgetSettings.counter.suffixPlaceholder')}
+	                  />
+	                </div>
+	              </div>
 
-              {/* Comparison */}
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium mb-3">Comparison</h4>
-              </div>
+	              {/* Comparison */}
+	              <div className="border-t pt-4">
+	                <h4 className="text-sm font-medium mb-3">{t('dashboard.widgetSettings.comparison.title')}</h4>
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Comparison Type</label>
-                <Select
-                  value={comparisonType}
-                  onChange={(e) => setComparisonType(e.target.value as ComparisonConfig['type'])}
-                  options={comparisonTypeOptions}
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.comparison.type')}</label>
+	                <Select
+	                  value={comparisonType}
+	                  onChange={(e) => setComparisonType(e.target.value as ComparisonConfig['type'])}
+	                  options={comparisonTypeOptions}
+	                />
+	              </div>
 
-              {comparisonType === 'target' && (
-                <div>
-                  <label className="text-sm font-medium">Target Value</label>
-                  <Input
-                    type="number"
-                    value={comparisonTargetValue}
-                    onChange={(e) => setComparisonTargetValue(Number(e.target.value) || 0)}
-                    placeholder="e.g., 100"
-                  />
-                </div>
-              )}
+	              {comparisonType === 'target' && (
+	                <div>
+	                  <label className="text-sm font-medium">{t('dashboard.widgetSettings.comparison.targetValue')}</label>
+	                  <Input
+	                    type="number"
+	                    value={comparisonTargetValue}
+	                    onChange={(e) => setComparisonTargetValue(Number(e.target.value) || 0)}
+	                    placeholder={t('dashboard.widgetSettings.comparison.targetValuePlaceholder')}
+	                  />
+	                </div>
+	              )}
 
-              {comparisonType !== 'none' && (
-                <div className="space-y-2">
+	              {comparisonType !== 'none' && (
+	                <div className="space-y-2">
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -760,8 +762,8 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
                       onChange={(e) => setComparisonShowPercentChange(e.target.checked)}
                       className="rounded border-input"
                     />
-                    <span className="text-sm font-medium">Show Percent Change</span>
-                  </label>
+	                    <span className="text-sm font-medium">{t('dashboard.widgetSettings.comparison.showPercentChange')}</span>
+	                  </label>
                   <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
@@ -769,33 +771,33 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
                       onChange={(e) => setComparisonInvertColors(e.target.checked)}
                       className="rounded border-input"
                     />
-                    <span className="text-sm font-medium">Invert Colors</span>
-                  </label>
-                  <p className="text-xs text-muted-foreground ml-5">
-                    Treat decrease as positive (green) and increase as negative (red)
-                  </p>
-                </div>
-              )}
+	                    <span className="text-sm font-medium">{t('dashboard.widgetSettings.comparison.invertColors')}</span>
+	                  </label>
+	                  <p className="text-xs text-muted-foreground ml-5">
+	                    {t('dashboard.widgetSettings.comparison.invertColorsHint')}
+	                  </p>
+	                </div>
+	              )}
 
-              {/* Conditional Formatting */}
-              <div className="border-t pt-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="text-sm font-medium">Conditional Formatting</h4>
-                  <Button
-                    variant="outline"
-                    size="sm"
+	              {/* Conditional Formatting */}
+	              <div className="border-t pt-4">
+	                <div className="flex items-center justify-between mb-3">
+	                  <h4 className="text-sm font-medium">{t('dashboard.widgetSettings.conditionalFormatting.title')}</h4>
+	                  <Button
+	                    variant="outline"
+	                    size="sm"
                     onClick={() => setConditionalRules([...conditionalRules, {
                       condition: 'gt',
                       value: 0,
                       backgroundColor: '#dcfce7',
                       textColor: '#166534',
-                    }])}
-                  >
-                    <Plus className="h-4 w-4 mr-1" />
-                    Add Rule
-                  </Button>
-                </div>
-              </div>
+	                    }])}
+	                  >
+	                    <Plus className="h-4 w-4 mr-1" />
+	                    {t('dashboard.widgetSettings.conditionalFormatting.addRule')}
+	                  </Button>
+	                </div>
+	              </div>
 
               {conditionalRules.length > 0 && (
                 <div className="space-y-3">
@@ -828,8 +830,8 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
                               }}
                               className="w-20"
                             />
-                            <span className="text-sm">and</span>
-                            <Input
+	                            <span className="text-sm">{t('dashboard.widgetSettings.conditionalFormatting.and')}</span>
+	                            <Input
                               type="number"
                               value={Array.isArray(rule.value) ? rule.value[1] : 100}
                               onChange={(e) => {
@@ -861,10 +863,10 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          <label className="text-xs">Background:</label>
-                          <input
+	                      <div className="flex items-center gap-4">
+	                        <div className="flex items-center gap-2">
+	                          <label className="text-xs">{t('dashboard.widgetSettings.conditionalFormatting.background')}</label>
+	                          <input
                             type="color"
                             value={rule.backgroundColor || '#dcfce7'}
                             onChange={(e) => {
@@ -874,10 +876,10 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
                             }}
                             className="w-8 h-6 rounded border border-input cursor-pointer"
                           />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <label className="text-xs">Text:</label>
-                          <input
+	                        </div>
+	                        <div className="flex items-center gap-2">
+	                          <label className="text-xs">{t('dashboard.widgetSettings.conditionalFormatting.text')}</label>
+	                          <input
                             type="color"
                             value={rule.textColor || '#166534'}
                             onChange={(e) => {
@@ -894,100 +896,100 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
                 </div>
               )}
 
-              {/* Sparkline */}
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium mb-3">Sparkline</h4>
-              </div>
+	              {/* Sparkline */}
+	              <div className="border-t pt-4">
+	                <h4 className="text-sm font-medium mb-3">{t('dashboard.widgetSettings.sparkline.title')}</h4>
+	              </div>
 
               <div>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={sparklineEnabled}
-                    onChange={(e) => setSparklineEnabled(e.target.checked)}
-                    className="rounded border-input"
-                  />
-                  <span className="text-sm font-medium">Enable Sparkline</span>
-                </label>
-                <p className="mt-1 text-xs text-muted-foreground ml-5">
-                  Show a mini chart alongside the counter value
-                </p>
-              </div>
+	                  <input
+	                    type="checkbox"
+	                    checked={sparklineEnabled}
+	                    onChange={(e) => setSparklineEnabled(e.target.checked)}
+	                    className="rounded border-input"
+	                  />
+	                  <span className="text-sm font-medium">{t('dashboard.widgetSettings.sparkline.enable')}</span>
+	                </label>
+	                <p className="mt-1 text-xs text-muted-foreground ml-5">
+	                  {t('dashboard.widgetSettings.sparkline.enableHint')}
+	                </p>
+	              </div>
 
               {sparklineEnabled && (
-                <>
-                  <div className="ml-5">
-                    <label className="text-sm font-medium">Sparkline Type</label>
-                    <Select
-                      value={sparklineType}
-                      onChange={(e) => setSparklineType(e.target.value as SparklineConfig['type'])}
-                      options={sparklineTypeOptions}
+	                <>
+	                  <div className="ml-5">
+	                    <label className="text-sm font-medium">{t('dashboard.widgetSettings.sparkline.type')}</label>
+	                    <Select
+	                      value={sparklineType}
+	                      onChange={(e) => setSparklineType(e.target.value as SparklineConfig['type'])}
+	                      options={sparklineTypeOptions}
                     />
                   </div>
 
-                  <div className="ml-5">
-                    <label className="text-sm font-medium">Data Column</label>
-                    <Select
-                      value={sparklineColumn}
-                      onChange={(e) => setSparklineColumn(e.target.value)}
-                      options={[
-                        { value: '', label: 'Use Value Column' },
-                        ...columns.map(col => ({ value: col, label: col })),
-                      ]}
-                    />
-                    <p className="mt-1 text-xs text-muted-foreground">
-                      Column to use for sparkline data (uses all rows)
-                    </p>
-                  </div>
-                </>
-              )}
+	                  <div className="ml-5">
+	                    <label className="text-sm font-medium">{t('dashboard.widgetSettings.sparkline.dataColumn')}</label>
+	                    <Select
+	                      value={sparklineColumn}
+	                      onChange={(e) => setSparklineColumn(e.target.value)}
+	                      options={[
+	                        { value: '', label: t('dashboard.widgetSettings.sparkline.useValueColumn') },
+	                        ...columns.map(col => ({ value: col, label: col })),
+	                      ]}
+	                    />
+	                    <p className="mt-1 text-xs text-muted-foreground">
+	                      {t('dashboard.widgetSettings.sparkline.dataColumnHint')}
+	                    </p>
+	                  </div>
+	                </>
+	              )}
             </>
           )}
 
           {/* Gauge Configuration */}
-          {showGaugeConfig && (
-            <>
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium mb-3">Gauge Configuration</h4>
-              </div>
+	          {showGaugeConfig && (
+	            <>
+	              <div className="border-t pt-4">
+	                <h4 className="text-sm font-medium mb-3">{t('dashboard.widgetSettings.gauge.title')}</h4>
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Value Column</label>
-                <Select
-                  value={valueColumn}
-                  onChange={(e) => setValueColumn(e.target.value)}
-                  options={[
-                    { value: '', label: 'First column (default)' },
-                    ...columns.map(col => ({ value: col, label: col })),
-                  ]}
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.counter.valueColumn')}</label>
+	                <Select
+	                  value={valueColumn}
+	                  onChange={(e) => setValueColumn(e.target.value)}
+	                  options={[
+	                    { value: '', label: t('dashboard.widgetSettings.columnDefaults.first') },
+	                    ...columns.map(col => ({ value: col, label: col })),
+	                  ]}
+	                />
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Label (optional)</label>
-                <Input
-                  value={counterLabel}
-                  onChange={(e) => setCounterLabel(e.target.value)}
-                  placeholder="e.g., CPU Usage"
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.counter.labelOptional')}</label>
+	                <Input
+	                  value={counterLabel}
+	                  onChange={(e) => setCounterLabel(e.target.value)}
+	                  placeholder={t('dashboard.widgetSettings.gauge.labelPlaceholderCpuUsage')}
+	                />
+	              </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Minimum Value</label>
-                  <Input
-                    type="number"
-                    value={gaugeMin}
-                    onChange={(e) => setGaugeMin(Number(e.target.value) || 0)}
+	              <div className="grid grid-cols-2 gap-4">
+	                <div>
+	                  <label className="text-sm font-medium">{t('dashboard.widgetSettings.gauge.minimum')}</label>
+	                  <Input
+	                    type="number"
+	                    value={gaugeMin}
+	                    onChange={(e) => setGaugeMin(Number(e.target.value) || 0)}
                     placeholder="0"
                   />
-                </div>
-                <div>
-                  <label className="text-sm font-medium">Maximum Value</label>
-                  <Input
-                    type="number"
-                    value={gaugeMax}
-                    onChange={(e) => setGaugeMax(Number(e.target.value) || 100)}
+	                </div>
+	                <div>
+	                  <label className="text-sm font-medium">{t('dashboard.widgetSettings.gauge.maximum')}</label>
+	                  <Input
+	                    type="number"
+	                    value={gaugeMax}
+	                    onChange={(e) => setGaugeMax(Number(e.target.value) || 100)}
                     placeholder="100"
                   />
                 </div>
@@ -998,60 +1000,60 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
                   <input
                     type="checkbox"
                     checked={gaugeShowPointer}
-                    onChange={(e) => setGaugeShowPointer(e.target.checked)}
-                    className="rounded border-input"
-                  />
-                  <span className="text-sm font-medium">Show Pointer</span>
-                </label>
-              </div>
-            </>
-          )}
+	                    onChange={(e) => setGaugeShowPointer(e.target.checked)}
+	                    className="rounded border-input"
+	                  />
+	                  <span className="text-sm font-medium">{t('dashboard.widgetSettings.gauge.showPointer')}</span>
+	                </label>
+	              </div>
+	            </>
+	          )}
 
           {/* Progress Bar Configuration */}
-          {showProgressConfig && (
-            <>
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium mb-3">Progress Bar Configuration</h4>
-              </div>
+	          {showProgressConfig && (
+	            <>
+	              <div className="border-t pt-4">
+	                <h4 className="text-sm font-medium mb-3">{t('dashboard.widgetSettings.progress.title')}</h4>
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Value Column</label>
-                <Select
-                  value={valueColumn}
-                  onChange={(e) => setValueColumn(e.target.value)}
-                  options={[
-                    { value: '', label: 'First column (default)' },
-                    ...columns.map(col => ({ value: col, label: col })),
-                  ]}
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.counter.valueColumn')}</label>
+	                <Select
+	                  value={valueColumn}
+	                  onChange={(e) => setValueColumn(e.target.value)}
+	                  options={[
+	                    { value: '', label: t('dashboard.widgetSettings.columnDefaults.first') },
+	                    ...columns.map(col => ({ value: col, label: col })),
+	                  ]}
+	                />
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Label (optional)</label>
-                <Input
-                  value={counterLabel}
-                  onChange={(e) => setCounterLabel(e.target.value)}
-                  placeholder="e.g., Tasks Completed"
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.counter.labelOptional')}</label>
+	                <Input
+	                  value={counterLabel}
+	                  onChange={(e) => setCounterLabel(e.target.value)}
+	                  placeholder={t('dashboard.widgetSettings.progress.labelPlaceholderTasksCompleted')}
+	                />
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Target Value</label>
-                <Input
-                  type="number"
-                  value={progressTargetValue}
-                  onChange={(e) => setProgressTargetValue(Number(e.target.value) || 100)}
-                  placeholder="100"
-                />
-                <p className="mt-1 text-xs text-muted-foreground">
-                  The value that represents 100% progress
-                </p>
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.progress.targetValue')}</label>
+	                <Input
+	                  type="number"
+	                  value={progressTargetValue}
+	                  onChange={(e) => setProgressTargetValue(Number(e.target.value) || 100)}
+	                  placeholder="100"
+	                />
+	                <p className="mt-1 text-xs text-muted-foreground">
+	                  {t('dashboard.widgetSettings.progress.targetValueHint')}
+	                </p>
+	              </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium">Progress Color</label>
-                  <div className="flex items-center gap-2 mt-1">
+	                <div>
+	                  <label className="text-sm font-medium">{t('dashboard.widgetSettings.progress.progressColor')}</label>
+	                  <div className="flex items-center gap-2 mt-1">
                     <input
                       type="color"
                       value={progressColor}
@@ -1068,95 +1070,95 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
                 </div>
                 <div className="flex items-end">
                   <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={progressShowPercentage}
-                      onChange={(e) => setProgressShowPercentage(e.target.checked)}
-                      className="rounded border-input"
-                    />
-                    <span className="text-sm font-medium">Show Percentage</span>
-                  </label>
-                </div>
-              </div>
-            </>
-          )}
+	                    <input
+	                      type="checkbox"
+	                      checked={progressShowPercentage}
+	                      onChange={(e) => setProgressShowPercentage(e.target.checked)}
+	                      className="rounded border-input"
+	                    />
+	                    <span className="text-sm font-medium">{t('dashboard.widgetSettings.progress.showPercentage')}</span>
+	                  </label>
+	                </div>
+	              </div>
+	            </>
+	          )}
 
           {/* Pivot Configuration */}
-          {showPivotConfig && (
-            <>
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium mb-3">Pivot Configuration</h4>
-              </div>
+	          {showPivotConfig && (
+	            <>
+	              <div className="border-t pt-4">
+	                <h4 className="text-sm font-medium mb-3">{t('dashboard.widgetSettings.pivot.title')}</h4>
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Row Grouping Column</label>
-                <Select
-                  value={rowGroupColumn}
-                  onChange={(e) => setRowGroupColumn(e.target.value)}
-                  options={[
-                    { value: '', label: 'First column (default)' },
-                    ...columns.map(col => ({ value: col, label: col })),
-                  ]}
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.pivot.rowGroupingColumn')}</label>
+	                <Select
+	                  value={rowGroupColumn}
+	                  onChange={(e) => setRowGroupColumn(e.target.value)}
+	                  options={[
+	                    { value: '', label: t('dashboard.widgetSettings.columnDefaults.first') },
+	                    ...columns.map(col => ({ value: col, label: col })),
+	                  ]}
+	                />
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Column Grouping Column</label>
-                <Select
-                  value={colGroupColumn}
-                  onChange={(e) => setColGroupColumn(e.target.value)}
-                  options={[
-                    { value: '', label: 'Second column (default)' },
-                    ...columns.map(col => ({ value: col, label: col })),
-                  ]}
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.pivot.columnGroupingColumn')}</label>
+	                <Select
+	                  value={colGroupColumn}
+	                  onChange={(e) => setColGroupColumn(e.target.value)}
+	                  options={[
+	                    { value: '', label: t('dashboard.widgetSettings.columnDefaults.second') },
+	                    ...columns.map(col => ({ value: col, label: col })),
+	                  ]}
+	                />
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Value Column</label>
-                <Select
-                  value={valueAggColumn}
-                  onChange={(e) => setValueAggColumn(e.target.value)}
-                  options={[
-                    { value: '', label: 'Third column (default)' },
-                    ...columns.map(col => ({ value: col, label: col })),
-                  ]}
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.pivot.valueColumn')}</label>
+	                <Select
+	                  value={valueAggColumn}
+	                  onChange={(e) => setValueAggColumn(e.target.value)}
+	                  options={[
+	                    { value: '', label: t('dashboard.widgetSettings.columnDefaults.third') },
+	                    ...columns.map(col => ({ value: col, label: col })),
+	                  ]}
+	                />
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Aggregation</label>
-                <Select
-                  value={aggregation}
-                  onChange={(e) => setAggregation((e.target.value as ChartConfig['aggregation']) || 'sum')}
-                  options={aggregationOptions}
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.pivot.aggregation')}</label>
+	                <Select
+	                  value={aggregation}
+	                  onChange={(e) => setAggregation((e.target.value as ChartConfig['aggregation']) || 'sum')}
+	                  options={aggregationOptions}
                 />
               </div>
             </>
           )}
 
           {/* Standard Chart Configuration */}
-          {showChartConfig && (
-            <>
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium mb-3">Chart Configuration</h4>
-              </div>
+	          {showChartConfig && (
+	            <>
+	              <div className="border-t pt-4">
+	                <h4 className="text-sm font-medium mb-3">{t('dashboard.widgetSettings.chart.title')}</h4>
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">X-Axis Column</label>
-                <Select
-                  value={xAxis}
-                  onChange={(e) => setXAxis(e.target.value)}
-                  options={[
-                    { value: '', label: 'Select column...' },
-                    ...columns.map(col => ({ value: col, label: col })),
-                  ]}
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.chart.xAxisColumn')}</label>
+	                <Select
+	                  value={xAxis}
+	                  onChange={(e) => setXAxis(e.target.value)}
+	                  options={[
+	                    { value: '', label: t('dashboard.widgetSettings.chart.selectColumnPlaceholder') },
+	                    ...columns.map(col => ({ value: col, label: col })),
+	                  ]}
+	                />
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Y-Axis Column(s)</label>
-                <div className="mt-2 space-y-2 max-h-32 overflow-y-auto border rounded-md p-2">
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.chart.yAxisColumns')}</label>
+	                <div className="mt-2 space-y-2 max-h-32 overflow-y-auto border rounded-md p-2">
                   {columns.map(col => (
                     <label key={col} className="flex items-center gap-2 cursor-pointer">
                       <input
@@ -1171,51 +1173,51 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
                 </div>
               </div>
 
-              <div>
-                <label className="flex items-center gap-2 cursor-pointer">
+	              <div>
+	                <label className="flex items-center gap-2 cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={showLegend}
-                    onChange={(e) => setShowLegend(e.target.checked)}
-                    className="rounded border-input"
-                  />
-                  <span className="text-sm font-medium">Show Legend</span>
-                </label>
-              </div>
+	                    checked={showLegend}
+	                    onChange={(e) => setShowLegend(e.target.checked)}
+	                    className="rounded border-input"
+	                  />
+	                  <span className="text-sm font-medium">{t('dashboard.widgetSettings.chart.showLegend')}</span>
+	                </label>
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Chart Title (optional)</label>
-                <Input
-                  value={chartTitle}
-                  onChange={(e) => setChartTitle(e.target.value)}
-                  placeholder="Chart title"
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.chart.chartTitleOptional')}</label>
+	                <Input
+	                  value={chartTitle}
+	                  onChange={(e) => setChartTitle(e.target.value)}
+	                  placeholder={t('dashboard.widgetSettings.chart.chartTitlePlaceholder')}
+	                />
+	              </div>
 
               {/* Stacking option for bar and area charts */}
-              {(chartType === 'bar' || chartType === 'area') && (
-                <div>
-                  <label className="text-sm font-medium">Stacking</label>
-                  <Select
-                    value={stacking || 'none'}
-                    onChange={(e) => setStacking(e.target.value)}
-                    options={stackingOptions}
-                  />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Stack multiple series on top of each other
-                  </p>
-                </div>
-              )}
+	              {(chartType === 'bar' || chartType === 'area') && (
+	                <div>
+	                  <label className="text-sm font-medium">{t('dashboard.widgetSettings.chart.stacking')}</label>
+	                  <Select
+	                    value={stacking || 'none'}
+	                    onChange={(e) => setStacking(e.target.value)}
+	                    options={stackingOptions}
+	                  />
+	                  <p className="mt-1 text-xs text-muted-foreground">
+	                    {t('dashboard.widgetSettings.chart.stackingHint')}
+	                  </p>
+	                </div>
+	              )}
 
               {/* Combo chart configuration */}
-              {chartType === 'combo' && yAxis.length > 0 && (
-                <>
-                  <div className="border-t pt-4">
-                    <h4 className="text-sm font-medium mb-3">Series Types</h4>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      Choose how each series should be displayed
-                    </p>
-                  </div>
+	              {chartType === 'combo' && yAxis.length > 0 && (
+	                <>
+	                  <div className="border-t pt-4">
+	                    <h4 className="text-sm font-medium mb-3">{t('dashboard.widgetSettings.combo.seriesTypes')}</h4>
+	                    <p className="text-xs text-muted-foreground mb-2">
+	                      {t('dashboard.widgetSettings.combo.seriesTypesHint')}
+	                    </p>
+	                  </div>
 
                   <div className="space-y-2">
                     {yAxis.map((col, index) => (
@@ -1232,133 +1234,133 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
 
                   <div>
                     <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={comboDualYAxis}
-                        onChange={(e) => setComboDualYAxis(e.target.checked)}
-                        className="rounded border-input"
-                      />
-                      <span className="text-sm font-medium">Dual Y-Axis</span>
-                    </label>
-                    <p className="mt-1 text-xs text-muted-foreground ml-5">
-                      Use separate Y-axis for different series (useful for different scales)
-                    </p>
-                  </div>
-                </>
-              )}
+	                      <input
+	                        type="checkbox"
+	                        checked={comboDualYAxis}
+	                        onChange={(e) => setComboDualYAxis(e.target.checked)}
+	                        className="rounded border-input"
+	                      />
+	                      <span className="text-sm font-medium">{t('dashboard.widgetSettings.combo.dualYAxis')}</span>
+	                    </label>
+	                    <p className="mt-1 text-xs text-muted-foreground ml-5">
+	                      {t('dashboard.widgetSettings.combo.dualYAxisHint')}
+	                    </p>
+	                  </div>
+	                </>
+	              )}
 
               {/* Time Series Features (line/area only) */}
-              {(chartType === 'line' || chartType === 'area') && (
-                <>
-                  <div className="border-t pt-4">
-                    <h4 className="text-sm font-medium mb-3">Time Series Features</h4>
-                  </div>
+	              {(chartType === 'line' || chartType === 'area') && (
+	                <>
+	                  <div className="border-t pt-4">
+	                    <h4 className="text-sm font-medium mb-3">{t('dashboard.widgetSettings.timeSeries.title')}</h4>
+	                  </div>
 
                   {/* Time Granularity */}
-                  <div>
-                    <label className="text-sm font-medium">Time Granularity</label>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      Aggregate data by time period (requires time-based X-axis)
-                    </p>
-                    <Select
-                      value={granularity}
-                      onChange={(e) => setGranularity(e.target.value)}
-                      options={granularityOptions}
+	                  <div>
+	                    <label className="text-sm font-medium">{t('dashboard.widgetSettings.timeSeries.granularity')}</label>
+	                    <p className="text-xs text-muted-foreground mb-2">
+	                      {t('dashboard.widgetSettings.timeSeries.granularityHint')}
+	                    </p>
+	                    <Select
+	                      value={granularity}
+	                      onChange={(e) => setGranularity(e.target.value)}
+	                      options={granularityOptions}
                     />
                   </div>
 
-                  {granularity && (
-                    <div className="ml-5">
-                      <label className="text-sm font-medium">Aggregation Function</label>
-                      <Select
-                        value={granularityAggregation}
-                        onChange={(e) => setGranularityAggregation(e.target.value as 'sum' | 'avg' | 'min' | 'max' | 'count')}
-                        options={granularityAggregationOptions}
+	                  {granularity && (
+	                    <div className="ml-5">
+	                      <label className="text-sm font-medium">{t('dashboard.widgetSettings.timeSeries.aggregationFunction')}</label>
+	                      <Select
+	                        value={granularityAggregation}
+	                        onChange={(e) => setGranularityAggregation(e.target.value as 'sum' | 'avg' | 'min' | 'max' | 'count')}
+	                        options={granularityAggregationOptions}
                       />
                     </div>
                   )}
 
-                  <div>
-                    <label className="flex items-center gap-2 cursor-pointer">
+	                  <div>
+	                    <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={rollingEnabled}
-                        onChange={(e) => setRollingEnabled(e.target.checked)}
-                        className="rounded border-input"
-                      />
-                      <span className="text-sm font-medium">Rolling Window</span>
-                    </label>
-                  </div>
+	                        checked={rollingEnabled}
+	                        onChange={(e) => setRollingEnabled(e.target.checked)}
+	                        className="rounded border-input"
+	                      />
+	                      <span className="text-sm font-medium">{t('dashboard.widgetSettings.timeSeries.rollingWindow')}</span>
+	                    </label>
+	                  </div>
 
-                  {rollingEnabled && (
-                    <div className="grid grid-cols-2 gap-4 ml-5">
-                      <div>
-                        <label className="text-sm font-medium">Periods</label>
-                        <Input
-                          type="number"
-                          min="2"
-                          value={rollingPeriods}
+	                  {rollingEnabled && (
+	                    <div className="grid grid-cols-2 gap-4 ml-5">
+	                      <div>
+	                        <label className="text-sm font-medium">{t('dashboard.widgetSettings.timeSeries.periods')}</label>
+	                        <Input
+	                          type="number"
+	                          min="2"
+	                          value={rollingPeriods}
                           onChange={(e) => setRollingPeriods(Number(e.target.value) || 7)}
                           placeholder="7"
                         />
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium">Function</label>
-                        <Select
-                          value={rollingFunction}
-                          onChange={(e) => setRollingFunction(e.target.value as 'mean' | 'sum' | 'min' | 'max')}
-                          options={rollingFunctionOptions}
+	                      </div>
+	                      <div>
+	                        <label className="text-sm font-medium">{t('dashboard.widgetSettings.timeSeries.function')}</label>
+	                        <Select
+	                          value={rollingFunction}
+	                          onChange={(e) => setRollingFunction(e.target.value as 'mean' | 'sum' | 'min' | 'max')}
+	                          options={rollingFunctionOptions}
                         />
                       </div>
                     </div>
                   )}
 
-                  <div>
-                    <label className="flex items-center gap-2 cursor-pointer">
+	                  <div>
+	                    <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={cumulativeEnabled}
-                        onChange={(e) => setCumulativeEnabled(e.target.checked)}
-                        className="rounded border-input"
-                      />
-                      <span className="text-sm font-medium">Cumulative Sum</span>
-                    </label>
-                    <p className="mt-1 text-xs text-muted-foreground ml-5">
-                      Show running total of values
-                    </p>
-                  </div>
-                </>
-              )}
+	                        checked={cumulativeEnabled}
+	                        onChange={(e) => setCumulativeEnabled(e.target.checked)}
+	                        className="rounded border-input"
+	                      />
+	                      <span className="text-sm font-medium">{t('dashboard.widgetSettings.timeSeries.cumulativeSum')}</span>
+	                    </label>
+	                    <p className="mt-1 text-xs text-muted-foreground ml-5">
+	                      {t('dashboard.widgetSettings.timeSeries.cumulativeSumHint')}
+	                    </p>
+	                  </div>
+	                </>
+	              )}
 
               {/* Data Zoom (bar/line/area) */}
-              {(chartType === 'bar' || chartType === 'line' || chartType === 'area') && (
-                <>
-                  <div className="border-t pt-4">
-                    <h4 className="text-sm font-medium mb-3">Data Zoom</h4>
-                  </div>
+	              {(chartType === 'bar' || chartType === 'line' || chartType === 'area') && (
+	                <>
+	                  <div className="border-t pt-4">
+	                    <h4 className="text-sm font-medium mb-3">{t('dashboard.widgetSettings.dataZoom.title')}</h4>
+	                  </div>
 
                   <div>
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={dataZoomEnabled}
-                        onChange={(e) => setDataZoomEnabled(e.target.checked)}
-                        className="rounded border-input"
-                      />
-                      <span className="text-sm font-medium">Enable Zoom</span>
-                    </label>
-                    <p className="mt-1 text-xs text-muted-foreground ml-5">
-                      Add zoom controls for large datasets
-                    </p>
-                  </div>
+	                      checked={dataZoomEnabled}
+	                      onChange={(e) => setDataZoomEnabled(e.target.checked)}
+	                      className="rounded border-input"
+	                    />
+	                    <span className="text-sm font-medium">{t('dashboard.widgetSettings.dataZoom.enable')}</span>
+	                  </label>
+	                  <p className="mt-1 text-xs text-muted-foreground ml-5">
+	                    {t('dashboard.widgetSettings.dataZoom.enableHint')}
+	                  </p>
+	                </div>
 
-                  {dataZoomEnabled && (
-                    <div className="ml-5">
-                      <label className="text-sm font-medium">Zoom Type</label>
-                      <Select
-                        value={dataZoomType}
-                        onChange={(e) => setDataZoomType(e.target.value as 'inside' | 'slider' | 'both')}
-                        options={dataZoomTypeOptions}
+	                  {dataZoomEnabled && (
+	                    <div className="ml-5">
+	                      <label className="text-sm font-medium">{t('dashboard.widgetSettings.dataZoom.zoomType')}</label>
+	                      <Select
+	                        value={dataZoomType}
+	                        onChange={(e) => setDataZoomType(e.target.value as 'inside' | 'slider' | 'both')}
+	                        options={dataZoomTypeOptions}
                       />
                     </div>
                   )}
@@ -1368,54 +1370,54 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
           )}
 
           {/* Heatmap Configuration */}
-          {showHeatmapConfig && (
-            <>
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium mb-3">Heatmap Configuration</h4>
-              </div>
+	          {showHeatmapConfig && (
+	            <>
+	              <div className="border-t pt-4">
+	                <h4 className="text-sm font-medium mb-3">{t('dashboard.widgetSettings.heatmap.title')}</h4>
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">X-Axis Column (Categories)</label>
-                <Select
-                  value={heatmapXColumn}
-                  onChange={(e) => setHeatmapXColumn(e.target.value)}
-                  options={[
-                    { value: '', label: 'First column (default)' },
-                    ...columns.map(col => ({ value: col, label: col })),
-                  ]}
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.heatmap.xAxisCategories')}</label>
+	                <Select
+	                  value={heatmapXColumn}
+	                  onChange={(e) => setHeatmapXColumn(e.target.value)}
+	                  options={[
+	                    { value: '', label: t('dashboard.widgetSettings.columnDefaults.first') },
+	                    ...columns.map(col => ({ value: col, label: col })),
+	                  ]}
+	                />
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Y-Axis Column (Categories)</label>
-                <Select
-                  value={heatmapYColumn}
-                  onChange={(e) => setHeatmapYColumn(e.target.value)}
-                  options={[
-                    { value: '', label: 'Second column (default)' },
-                    ...columns.map(col => ({ value: col, label: col })),
-                  ]}
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.heatmap.yAxisCategories')}</label>
+	                <Select
+	                  value={heatmapYColumn}
+	                  onChange={(e) => setHeatmapYColumn(e.target.value)}
+	                  options={[
+	                    { value: '', label: t('dashboard.widgetSettings.columnDefaults.second') },
+	                    ...columns.map(col => ({ value: col, label: col })),
+	                  ]}
+	                />
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Value Column</label>
-                <Select
-                  value={heatmapValueColumn}
-                  onChange={(e) => setHeatmapValueColumn(e.target.value)}
-                  options={[
-                    { value: '', label: 'Third column (default)' },
-                    ...columns.map(col => ({ value: col, label: col })),
-                  ]}
-                />
-              </div>
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.heatmap.valueColumn')}</label>
+	                <Select
+	                  value={heatmapValueColumn}
+	                  onChange={(e) => setHeatmapValueColumn(e.target.value)}
+	                  options={[
+	                    { value: '', label: t('dashboard.widgetSettings.columnDefaults.third') },
+	                    ...columns.map(col => ({ value: col, label: col })),
+	                  ]}
+	                />
+	              </div>
 
-              <div>
-                <label className="text-sm font-medium">Color Scheme</label>
-                <Select
-                  value={heatmapColorScheme}
-                  onChange={(e) => setHeatmapColorScheme(e.target.value)}
-                  options={heatmapColorSchemes}
+	              <div>
+	                <label className="text-sm font-medium">{t('dashboard.widgetSettings.heatmap.colorScheme')}</label>
+	                <Select
+	                  value={heatmapColorScheme}
+	                  onChange={(e) => setHeatmapColorScheme(e.target.value)}
+	                  options={heatmapColorSchemes}
                 />
               </div>
 
@@ -1424,27 +1426,27 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
                   <input
                     type="checkbox"
                     checked={heatmapShowValues}
-                    onChange={(e) => setHeatmapShowValues(e.target.checked)}
-                    className="rounded border-input"
-                  />
-                  <span className="text-sm font-medium">Show Values</span>
-                </label>
-                <p className="mt-1 text-xs text-muted-foreground ml-5">
-                  Display numeric values on each cell
-                </p>
-              </div>
-            </>
-          )}
+	                  onChange={(e) => setHeatmapShowValues(e.target.checked)}
+	                  className="rounded border-input"
+	                />
+	                <span className="text-sm font-medium">{t('dashboard.widgetSettings.heatmap.showValues')}</span>
+	              </label>
+	              <p className="mt-1 text-xs text-muted-foreground ml-5">
+	                {t('dashboard.widgetSettings.heatmap.showValuesHint')}
+	              </p>
+	            </div>
+	          </>
+	        )}
 
           {/* Table Column Links Configuration */}
-          {showTableConfig && (
-            <>
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium mb-1">Column Links (Drilldown)</h4>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Configure columns to be clickable links to other dashboards.
-                </p>
-              </div>
+	          {showTableConfig && (
+	            <>
+	              <div className="border-t pt-4">
+	                <h4 className="text-sm font-medium mb-1">{t('dashboard.widgetSettings.tableLinks.title')}</h4>
+	                <p className="text-xs text-muted-foreground mb-3">
+	                  {t('dashboard.widgetSettings.tableLinks.description')}
+	                </p>
+	              </div>
 
               <div className="space-y-2 max-h-48 overflow-y-auto">
                 {columns.map(col => {
@@ -1472,47 +1474,47 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
                         )}
                       </div>
 
-                      {linkConfig && isExpanded && (
-                        <div className="p-3 pt-0 space-y-3 border-t">
-                          <div>
-                            <label className="text-xs font-medium">Target Dashboard</label>
-                            <Select
-                              value={linkConfig.targetDashboardId}
-                              onChange={(e) => updateColumnLink(col, { targetDashboardId: e.target.value })}
-                              options={[
-                                { value: '', label: 'Select dashboard...' },
-                                ...dashboards.map(d => ({ value: d.id, label: d.name })),
-                              ]}
-                            />
-                          </div>
+	                      {linkConfig && isExpanded && (
+	                        <div className="p-3 pt-0 space-y-3 border-t">
+	                          <div>
+	                            <label className="text-xs font-medium">{t('dashboard.widgetSettings.tableLinks.targetDashboard')}</label>
+	                            <Select
+	                              value={linkConfig.targetDashboardId}
+	                              onChange={(e) => updateColumnLink(col, { targetDashboardId: e.target.value })}
+	                              options={[
+	                                { value: '', label: t('dashboard.widgetSettings.tableLinks.selectDashboardPlaceholder') },
+	                                ...dashboards.map(d => ({ value: d.id, label: d.name })),
+	                              ]}
+	                            />
+	                          </div>
 
-                          <div>
-                            <label className="text-xs font-medium">Parameter Mapping</label>
-                            <p className="text-xs text-muted-foreground mb-2">
-                              Use "@" for this cell value, or column names.
-                            </p>
-                            <ParameterMappingEditor
-                              mapping={linkConfig.parameterMapping}
-                              onChange={(mapping) => updateColumnLink(col, { parameterMapping: mapping })}
-                              availableSources={['@', ...columns]}
-                              sourcePlaceholder="Select source..."
-                            />
-                          </div>
+	                          <div>
+	                            <label className="text-xs font-medium">{t('dashboard.widgetSettings.tableLinks.parameterMapping')}</label>
+	                            <p className="text-xs text-muted-foreground mb-2">
+	                              {t('dashboard.widgetSettings.tableLinks.parameterMappingHint')}
+	                            </p>
+	                            <ParameterMappingEditor
+	                              mapping={linkConfig.parameterMapping}
+	                              onChange={(mapping) => updateColumnLink(col, { parameterMapping: mapping })}
+	                              availableSources={['@', ...columns]}
+	                              sourcePlaceholder={t('dashboard.parameterMappingEditor.sourcePlaceholder')}
+	                            />
+	                          </div>
 
-                          <div>
-                            <label className="text-xs font-medium">Display Text (optional)</label>
-                            <Input
-                              value={linkConfig.textTemplate || ''}
-                              onChange={(e) => updateColumnLink(col, { textTemplate: e.target.value || undefined })}
-                              placeholder="e.g., View {{@}}"
-                              className="text-sm"
-                            />
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {'Use {{@}} for cell value or {{column_name}}.'}
-                            </p>
-                          </div>
-                        </div>
-                      )}
+	                          <div>
+	                            <label className="text-xs font-medium">{t('dashboard.widgetSettings.tableLinks.displayTextOptional')}</label>
+	                            <Input
+	                              value={linkConfig.textTemplate || ''}
+	                              onChange={(e) => updateColumnLink(col, { textTemplate: e.target.value || undefined })}
+	                              placeholder={t('dashboard.widgetSettings.tableLinks.displayTextPlaceholder', { at: '{{@}}' })}
+	                              className="text-sm"
+	                            />
+	                            <p className="text-xs text-muted-foreground mt-1">
+	                              {t('dashboard.widgetSettings.tableLinks.displayTextHint', { at: '{{@}}', columnName: '{{column_name}}' })}
+	                            </p>
+	                          </div>
+	                        </div>
+	                      )}
                     </div>
                   )
                 })}
@@ -1521,65 +1523,65 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
           )}
 
           {/* Chart Drilldown Configuration */}
-          {showChartDrilldown && (
-            <>
-              <div className="border-t pt-4">
-                <h4 className="text-sm font-medium mb-1">Click Action (Drilldown)</h4>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Navigate to another dashboard when clicking chart elements.
-                </p>
-              </div>
+	          {showChartDrilldown && (
+	            <>
+	              <div className="border-t pt-4">
+	                <h4 className="text-sm font-medium mb-1">{t('dashboard.widgetSettings.drilldown.title')}</h4>
+	                <p className="text-xs text-muted-foreground mb-3">
+	                  {t('dashboard.widgetSettings.drilldown.description')}
+	                </p>
+	              </div>
 
               <div>
                 <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={drilldownEnabled}
-                    onChange={(e) => setDrilldownEnabled(e.target.checked)}
-                    className="rounded border-input"
-                  />
-                  <span className="text-sm font-medium">Enable drilldown</span>
-                </label>
-              </div>
+	                  <input
+	                    type="checkbox"
+	                    checked={drilldownEnabled}
+	                    onChange={(e) => setDrilldownEnabled(e.target.checked)}
+	                    className="rounded border-input"
+	                  />
+	                  <span className="text-sm font-medium">{t('dashboard.widgetSettings.drilldown.enable')}</span>
+	                </label>
+	              </div>
 
               {drilldownEnabled && (
                 <>
-                  <div>
-                    <label className="text-sm font-medium">Target Dashboard</label>
-                    <Select
-                      value={drilldownTargetDashboardId}
-                      onChange={(e) => setDrilldownTargetDashboardId(e.target.value)}
-                      options={[
-                        { value: '', label: 'Select dashboard...' },
-                        ...dashboards.map(d => ({ value: d.id, label: d.name })),
-                      ]}
-                    />
-                  </div>
+	                  <div>
+	                    <label className="text-sm font-medium">{t('dashboard.widgetSettings.drilldown.targetDashboard')}</label>
+	                    <Select
+	                      value={drilldownTargetDashboardId}
+	                      onChange={(e) => setDrilldownTargetDashboardId(e.target.value)}
+	                      options={[
+	                        { value: '', label: t('dashboard.widgetSettings.drilldown.selectDashboardPlaceholder') },
+	                        ...dashboards.map(d => ({ value: d.id, label: d.name })),
+	                      ]}
+	                    />
+	                  </div>
 
-                  <div>
-                    <label className="text-sm font-medium">Parameter Mapping</label>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      Map clicked data to dashboard parameters: name (X-axis), value (Y-axis), series, or column names.
-                    </p>
-                    <ParameterMappingEditor
-                      mapping={drilldownParameterMapping}
-                      onChange={setDrilldownParameterMapping}
-                      availableSources={['name', 'value', 'series', ...columns]}
-                      sourcePlaceholder="Select source..."
-                    />
-                  </div>
-                </>
-              )}
+	                  <div>
+	                    <label className="text-sm font-medium">{t('dashboard.widgetSettings.drilldown.parameterMapping')}</label>
+	                    <p className="text-xs text-muted-foreground mb-2">
+	                      {t('dashboard.widgetSettings.drilldown.parameterMappingHint')}
+	                    </p>
+	                    <ParameterMappingEditor
+	                      mapping={drilldownParameterMapping}
+	                      onChange={setDrilldownParameterMapping}
+	                      availableSources={['name', 'value', 'series', ...columns]}
+	                      sourcePlaceholder={t('dashboard.parameterMappingEditor.sourcePlaceholder')}
+	                    />
+	                  </div>
+	                </>
+	              )}
             </>
           )}
         </div>
       </DialogContent>
       <DialogFooter>
         <Button variant="outline" onClick={onClose} disabled={saving}>
-          Cancel
+          {t('common.cancel')}
         </Button>
         <Button onClick={handleSave} disabled={saving || !name.trim()}>
-          {saving ? 'Saving...' : 'Save'}
+          {saving ? t('common.saving') : t('common.save')}
         </Button>
       </DialogFooter>
     </Dialog>
