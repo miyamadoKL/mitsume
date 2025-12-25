@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import ReactMarkdown from 'react-markdown'
 
 interface MarkdownWidgetProps {
@@ -6,10 +7,12 @@ interface MarkdownWidgetProps {
 }
 
 export const MarkdownWidget: React.FC<MarkdownWidgetProps> = ({ content }) => {
+  const { t } = useTranslation()
+
   if (!content) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
-        No content
+        {t('dashboard.markdown.noContent')}
       </div>
     )
   }
