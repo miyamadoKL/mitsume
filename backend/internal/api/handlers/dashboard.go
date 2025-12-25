@@ -395,23 +395,14 @@ func (h *DashboardHandler) GetWidgetData(c *gin.Context) {
 		return
 	}
 
-	// Get widget
-	widgets, err := h.dashboardService.GetWidgets(ctx, dashboardID)
+	// Get widget (single query instead of fetching all widgets)
+	widget, err := h.dashboardService.GetWidget(ctx, dashboardID, widgetID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	var widget *models.Widget
-	for i := range widgets {
-		if widgets[i].ID == widgetID {
-			widget = &widgets[i]
-			break
+		if errors.Is(err, services.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "widget not found"})
+			return
 		}
-	}
-
-	if widget == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "widget not found"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -491,9 +482,170 @@ func extractParameters(queryText string) []string {
 	return params
 }
 
+// escapeString escapes a string for safe inclusion in SQL
+// Uses standard SQL escaping (single quotes doubled)
+func escapeString(s string) string {
+	return strings.ReplaceAll(s, "'", "''")
+}
+
+// isValidNumber checks if a string represents a valid number
+func isValidNumber(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	// Allow optional leading sign, digits, optional decimal point, optional digits
+	matched, _ := regexp.MatchString(`^-?\d+(\.\d+)?$`, s)
+	return matched
+}
+
+// isValidDate checks if a string represents a valid date (YYYY-MM-DD)
+func isValidDate(s string) bool {
+	s = strings.TrimSpace(s)
+	matched, _ := regexp.MatchString(`^\d{4}-\d{2}-\d{2}$`, s)
+	return matched
+}
+
+// isValidIdentifier checks if a string is a valid SQL identifier
+func isValidIdentifier(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	// Allow alphanumeric and underscore, must start with letter or underscore
+	matched, _ := regexp.MatchString(`^[a-zA-Z_][a-zA-Z0-9_]*$`, s)
+	return matched
+}
+
+// formatParameterValue formats a parameter value according to its SqlFormat
+// Returns the formatted value and any validation error
+func formatParameterValue(value interface{}, sqlFormat models.SqlFormat) (string, error) {
+	if value == nil {
+		return "", fmt.Errorf("null value")
+	}
+
+	// Convert to string first
+	var strValue string
+	switch v := value.(type) {
+	case string:
+		strValue = v
+	case float64:
+		if v == float64(int64(v)) {
+			strValue = fmt.Sprintf("%d", int64(v))
+		} else {
+			strValue = fmt.Sprintf("%g", v)
+		}
+	case bool:
+		strValue = fmt.Sprintf("%t", v)
+	case []interface{}:
+		// Handle arrays based on format
+		switch sqlFormat {
+		case models.SqlFormatStringList:
+			var parts []string
+			for _, item := range v {
+				s := fmt.Sprintf("%v", item)
+				parts = append(parts, fmt.Sprintf("'%s'", escapeString(s)))
+			}
+			return strings.Join(parts, ","), nil
+		case models.SqlFormatNumberList:
+			var parts []string
+			for _, item := range v {
+				s := fmt.Sprintf("%v", item)
+				if !isValidNumber(s) {
+					return "", fmt.Errorf("invalid number in list: %s", s)
+				}
+				parts = append(parts, s)
+			}
+			return strings.Join(parts, ","), nil
+		default:
+			// Default array handling
+			var parts []string
+			for _, item := range v {
+				parts = append(parts, fmt.Sprintf("%v", item))
+			}
+			strValue = strings.Join(parts, ",")
+		}
+	default:
+		strValue = fmt.Sprintf("%v", v)
+	}
+
+	// Format based on SqlFormat
+	switch sqlFormat {
+	case models.SqlFormatString:
+		// Escape and quote as string literal
+		return fmt.Sprintf("'%s'", escapeString(strValue)), nil
+
+	case models.SqlFormatNumber:
+		// Validate as number
+		if !isValidNumber(strValue) {
+			return "", fmt.Errorf("invalid number: %s", strValue)
+		}
+		return strValue, nil
+
+	case models.SqlFormatDate:
+		// Validate and format as date literal
+		if !isValidDate(strValue) {
+			return "", fmt.Errorf("invalid date format (expected YYYY-MM-DD): %s", strValue)
+		}
+		return fmt.Sprintf("DATE '%s'", strValue), nil
+
+	case models.SqlFormatIdentifier:
+		// Validate and quote as identifier
+		if !isValidIdentifier(strValue) {
+			return "", fmt.Errorf("invalid identifier: %s", strValue)
+		}
+		return fmt.Sprintf("\"%s\"", strValue), nil
+
+	case models.SqlFormatStringList:
+		// Format as comma-separated quoted strings
+		parts := strings.Split(strValue, ",")
+		var quoted []string
+		for _, part := range parts {
+			quoted = append(quoted, fmt.Sprintf("'%s'", escapeString(strings.TrimSpace(part))))
+		}
+		return strings.Join(quoted, ","), nil
+
+	case models.SqlFormatNumberList:
+		// Format as comma-separated numbers
+		parts := strings.Split(strValue, ",")
+		var numbers []string
+		for _, part := range parts {
+			part = strings.TrimSpace(part)
+			if !isValidNumber(part) {
+				return "", fmt.Errorf("invalid number in list: %s", part)
+			}
+			numbers = append(numbers, part)
+		}
+		return strings.Join(numbers, ","), nil
+
+	case models.SqlFormatRaw:
+		fallthrough
+	default:
+		// Raw format - escape single quotes for safety
+		return escapeString(strValue), nil
+	}
+}
+
+// getParameterDefinition finds a parameter definition by name
+func getParameterDefinition(defs []models.ParameterDefinition, name string) *models.ParameterDefinition {
+	for i := range defs {
+		if defs[i].Name == name {
+			return &defs[i]
+		}
+	}
+	return nil
+}
+
 // replaceParameters replaces {{param}} placeholders with provided values
 // Returns the resolved query and list of missing parameters
 func replaceParameters(queryText string, params map[string]interface{}) (string, []string) {
+	// Use replaceParametersWithDefs with no definitions (legacy behavior)
+	return replaceParametersWithDefs(queryText, params, nil)
+}
+
+// replaceParametersWithDefs replaces {{param}} placeholders with provided values
+// using parameter definitions for proper formatting and validation
+func replaceParametersWithDefs(queryText string, params map[string]interface{}, defs []models.ParameterDefinition) (string, []string) {
 	required := extractParameters(queryText)
 	var missing []string
 
@@ -501,37 +653,42 @@ func replaceParameters(queryText string, params map[string]interface{}) (string,
 	for _, paramName := range required {
 		placeholder := fmt.Sprintf("{{%s}}", paramName)
 		value, exists := params[paramName]
-		if !exists || value == nil {
+
+		// Get parameter definition if available
+		def := getParameterDefinition(defs, paramName)
+
+		// Check for empty/missing value
+		if !exists || value == nil || value == "" {
+			// Check empty behavior from definition
+			if def != nil {
+				switch def.EmptyBehavior {
+				case models.EmptyBehaviorNull:
+					result = strings.ReplaceAll(result, placeholder, "NULL")
+					continue
+				case models.EmptyBehaviorMatchNone:
+					result = strings.ReplaceAll(result, placeholder, "1=0")
+					continue
+				}
+			}
 			missing = append(missing, paramName)
 			continue
 		}
 
-		// Convert value to string representation for SQL
-		var strValue string
-		switch v := value.(type) {
-		case string:
-			strValue = v
-		case float64:
-			// JSON numbers are float64
-			if v == float64(int64(v)) {
-				strValue = fmt.Sprintf("%d", int64(v))
-			} else {
-				strValue = fmt.Sprintf("%g", v)
-			}
-		case bool:
-			strValue = fmt.Sprintf("%t", v)
-		case []interface{}:
-			// Array values for IN clauses
-			var parts []string
-			for _, item := range v {
-				parts = append(parts, fmt.Sprintf("%v", item))
-			}
-			strValue = strings.Join(parts, ",")
-		default:
-			strValue = fmt.Sprintf("%v", v)
+		// Determine SQL format
+		sqlFormat := models.SqlFormatRaw
+		if def != nil && def.SqlFormat != "" {
+			sqlFormat = def.SqlFormat
 		}
 
-		result = strings.ReplaceAll(result, placeholder, strValue)
+		// Format the value
+		formattedValue, err := formatParameterValue(value, sqlFormat)
+		if err != nil {
+			// Validation failed - treat as missing to prevent SQL injection
+			missing = append(missing, paramName)
+			continue
+		}
+
+		result = strings.ReplaceAll(result, placeholder, formattedValue)
 	}
 
 	return result, missing
@@ -577,23 +734,14 @@ func (h *DashboardHandler) GetWidgetDataWithParams(c *gin.Context) {
 		return
 	}
 
-	// Get widget
-	widgets, err := h.dashboardService.GetWidgets(ctx, dashboardID)
+	// Get widget (single query instead of fetching all widgets)
+	widget, err := h.dashboardService.GetWidget(ctx, dashboardID, widgetID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	var widget *models.Widget
-	for i := range widgets {
-		if widgets[i].ID == widgetID {
-			widget = &widgets[i]
-			break
+		if errors.Is(err, services.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "widget not found"})
+			return
 		}
-	}
-
-	if widget == nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "widget not found"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -609,11 +757,27 @@ func (h *DashboardHandler) GetWidgetDataWithParams(c *gin.Context) {
 		return
 	}
 
+	// Get dashboard to access parameter definitions for secure formatting
+	dashboard, err := h.dashboardService.GetDashboard(ctx, dashboardID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get dashboard"})
+		return
+	}
+
+	// Parse parameter definitions from dashboard
+	var paramDefs []models.ParameterDefinition
+	if len(dashboard.Parameters) > 0 {
+		if err := json.Unmarshal(dashboard.Parameters, &paramDefs); err != nil {
+			// Log but don't fail - fall back to raw format
+			paramDefs = nil
+		}
+	}
+
 	// Extract required parameters from query
 	requiredParams := extractParameters(savedQuery.QueryText)
 
-	// Replace parameters with provided values
-	resolvedQuery, missingParams := replaceParameters(savedQuery.QueryText, req.Parameters)
+	// Replace parameters with provided values using definitions for secure formatting
+	resolvedQuery, missingParams := replaceParametersWithDefs(savedQuery.QueryText, req.Parameters, paramDefs)
 
 	// If there are missing required parameters, return them
 	if len(missingParams) > 0 {
@@ -792,7 +956,8 @@ func (h *DashboardHandler) GetParameterOptions(c *gin.Context) {
 	}
 
 	// Replace parameters in the options query (for cascade/dependsOn)
-	resolvedQuery, _ := replaceParameters(savedQuery.QueryText, req.Parameters)
+	// Use secure formatting based on parameter definitions
+	resolvedQuery, _ := replaceParametersWithDefs(savedQuery.QueryText, req.Parameters, paramDefs)
 
 	// Execute the query
 	result, err := h.trinoService.ExecuteQueryWithCache(ctx, resolvedQuery, catalog, schema, int(services.CachePriorityNormal), paramDef.OptionsQueryID)
