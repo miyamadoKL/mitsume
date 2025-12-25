@@ -235,19 +235,22 @@ export const dashboardApi = {
   getWidgetData: async (
     dashboardId: string,
     widgetId: string,
-    parameters?: Record<string, unknown>
+    parameters?: Record<string, unknown>,
+    signal?: AbortSignal
   ): Promise<WidgetDataResponse> => {
     if (parameters && Object.keys(parameters).length > 0) {
       // POST with parameters
       const { data } = await api.post<WidgetDataResponse>(
         `/dashboards/${dashboardId}/widgets/${widgetId}/data`,
-        { parameters } as WidgetDataRequest
+        { parameters } as WidgetDataRequest,
+        { signal }
       )
       return data
     } else {
       // GET without parameters (backward compatible)
       const { data } = await api.get<WidgetDataResponse>(
-        `/dashboards/${dashboardId}/widgets/${widgetId}/data`
+        `/dashboards/${dashboardId}/widgets/${widgetId}/data`,
+        { signal }
       )
       return data
     }

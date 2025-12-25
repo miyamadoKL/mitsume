@@ -45,12 +45,13 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
   const [isRetrying, setIsRetrying] = useState(false)
   const [missingParams, setMissingParams] = useState<string[]>([])
   const lastParamsRef = useRef<Record<string, string> | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
 
   const isMarkdown = widget.chart_type === 'markdown'
   const hasQuery = !!widget.query_id
   const config = widget.chart_config as ChartConfig
 
-  const loadData = useCallback(async (params: Record<string, string>) => {
+  const loadData = useCallback(async (params: Record<string, string>, signal?: AbortSignal) => {
     lastParamsRef.current = params
     setLoading(true)
     setError(null)
@@ -59,7 +60,8 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
       const response: WidgetDataResponse = await dashboardApi.getWidgetData(
         dashboardId,
         widget.id,
-        params
+        params,
+        signal
       )
 
       // Report discovered parameters to parent
@@ -82,6 +84,10 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
         setData(response.query_result || null)
       }
     } catch (err) {
+      // Ignore abort errors - the request was intentionally cancelled
+      if (err instanceof Error && err.name === 'CanceledError') {
+        return
+      }
       setError(err)
     } finally {
       setLoading(false)
@@ -92,7 +98,13 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
     if (!lastParamsRef.current) return
     setIsRetrying(true)
     try {
-      await loadData(lastParamsRef.current)
+      // Cancel any pending request before retrying
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+      const controller = new AbortController()
+      abortControllerRef.current = controller
+      await loadData(lastParamsRef.current, controller.signal)
     } finally {
       setIsRetrying(false)
     }
@@ -102,7 +114,19 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
     if (isMarkdown) return  // Markdown widget doesn't need data loading
     if (!hasQuery) return   // No query associated with widget
 
-    loadData(parameterValues)
+    // Cancel any pending request before starting a new one
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort()
+    }
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
+    loadData(parameterValues, controller.signal)
+
+    // Cleanup: abort request when component unmounts or dependencies change
+    return () => {
+      controller.abort()
+    }
   }, [parameterValues, isMarkdown, hasQuery, refreshKey, loadData])
 
   // Render table cell with optional link
