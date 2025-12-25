@@ -589,3 +589,15 @@ export interface SetCatalogPermissionsRequest {
 export interface AssignRoleRequest {
   role_id: string
 }
+
+// Layout Template Types
+export interface LayoutTemplate {
+  id: string
+  name: string
+  description: string
+  thumbnail?: string
+  layout: Position[]
+  user_id?: string
+  is_system: boolean
+  created_at?: string
+}
