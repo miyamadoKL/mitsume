@@ -27,6 +27,8 @@ import type {
   DashboardPermission,
   GrantPermissionRequest,
   UpdateVisibilityRequest,
+  LayoutTemplate,
+  Position,
 } from '@/types'
 
 const api = axios.create({
@@ -330,6 +332,27 @@ export const subscriptionApi = {
   trigger: async (id: string): Promise<{ message: string }> => {
     const { data } = await api.post<{ message: string }>(`/subscriptions/${id}/trigger`)
     return data
+  },
+}
+
+// Layout Templates
+export const layoutTemplateApi = {
+  getAll: async (): Promise<LayoutTemplate[]> => {
+    const { data } = await api.get<LayoutTemplate[]>('/layout-templates')
+    return data
+  },
+
+  create: async (name: string, description: string, layout: Position[]): Promise<LayoutTemplate> => {
+    const { data } = await api.post<LayoutTemplate>('/layout-templates', {
+      name,
+      description,
+      layout,
+    })
+    return data
+  },
+
+  delete: async (id: string): Promise<void> => {
+    await api.delete(`/layout-templates/${id}`)
   },
 }
 
