@@ -313,7 +313,8 @@ export default function Alerts() {
                     {alert.condition_column} {getOperatorLabel(alert.condition_operator)} {alert.condition_value}
                   </p>
                   <p>
-                    <span className="font-medium">{t('alerts.interval')}:</span> {alert.check_interval_minutes} min
+                    <span className="font-medium">{t('alerts.interval')}:</span>{' '}
+                    {t('common.minutesShort', { minutes: alert.check_interval_minutes })}
                   </p>
                   {alert.last_triggered_at && (
                     <p className="text-xs text-muted-foreground">

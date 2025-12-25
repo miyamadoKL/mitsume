@@ -209,7 +209,7 @@ export const Dashboards: React.FC = () => {
                       size="sm"
                       variant="ghost"
                       onClick={(e) => handleDeleteClick(dashboard, e)}
-                      aria-label="Delete dashboard"
+                      aria-label={t('dashboard.deleteConfirm.title')}
                     >
                       <Trash2 className="h-4 w-4 text-muted-foreground" />
                     </Button>
