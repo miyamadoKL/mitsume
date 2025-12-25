@@ -20,6 +20,8 @@
     "next": "次へ",
     "search": "検索",
     "filter": "フィルター",
+    "row": "行",
+    "column": "列",
     "actions": "アクション",
     "name": "名前",
     "description": "説明",
@@ -34,6 +36,7 @@
     "export": "エクスポート",
     "exporting": "エクスポート中...",
     "updated": "更新日時: {{date}}",
+    "minutesShort": "{{minutes}}分",
     "null": "NULL",
     "system": "システム",
     "verified": "確認済み",
@@ -41,9 +44,12 @@
     "you": "あなた",
     "none": "なし",
     "all": "すべて",
+    "total": "合計",
     "noRoles": "ロールなし",
+    "notifications": "通知",
     "test": "テスト",
     "testSent": "テスト送信完了",
+    "closeNotification": "通知を閉じる",
     "webhookConfigured": "Webhook設定済み"
   },
   "nav": {
@@ -153,6 +159,16 @@
       "canEdit": "編集可",
       "viewOnly": "閲覧のみ",
       "public": "公開"
+    },
+    "parameters": {
+      "filters": "フィルター:",
+      "enterPlaceholder": "{{param}}を入力"
+    },
+    "pivot": {
+      "noData": "ピボットできるデータがありません"
+    },
+    "markdown": {
+      "noContent": "内容がありません"
     },
     "detail": {
       "toast": {
@@ -542,6 +558,10 @@
     "empty": "サブスクリプションがありません",
     "emptyDescription": "ダッシュボードの定期配信を設定してください",
     "unknownDashboard": "不明なダッシュボード",
+    "formats": {
+      "pdf": "PDF",
+      "png": "PNG"
+    },
     "selectDashboard": "ダッシュボードを選択",
     "selectChannel": "通知チャンネルを選択",
     "schedule": "スケジュール",
