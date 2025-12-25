@@ -265,6 +265,12 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
     widget.chart_config.drilldown?.parameterMapping || {}
   )
 
+  // Cross-filter config
+  const [crossFilterEnabled, setCrossFilterEnabled] = useState(!!widget.chart_config.crossFilter?.enabled)
+  const [crossFilterParameterMapping, setCrossFilterParameterMapping] = useState<Record<string, string>>(
+    widget.chart_config.crossFilter?.parameterMapping || {}
+  )
+
   const [columns, setColumns] = useState<string[]>([])
   const [loadingColumns, setLoadingColumns] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -363,6 +369,10 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
       setDrilldownEnabled(!!widget.chart_config.drilldown)
       setDrilldownTargetDashboardId(widget.chart_config.drilldown?.targetDashboardId || '')
       setDrilldownParameterMapping(widget.chart_config.drilldown?.parameterMapping || {})
+
+      // Cross-filter config
+      setCrossFilterEnabled(!!widget.chart_config.crossFilter?.enabled)
+      setCrossFilterParameterMapping(widget.chart_config.crossFilter?.parameterMapping || {})
 
       // Load columns if query is already selected
       if (widget.query_id) {
@@ -583,6 +593,14 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
           chartConfig.drilldown = {
             targetDashboardId: drilldownTargetDashboardId,
             parameterMapping: drilldownParameterMapping,
+          }
+        }
+
+        // Add cross-filter config if enabled
+        if (crossFilterEnabled && Object.keys(crossFilterParameterMapping).length > 0) {
+          chartConfig.crossFilter = {
+            enabled: true,
+            parameterMapping: crossFilterParameterMapping,
           }
         }
       }
@@ -1572,6 +1590,45 @@ export const WidgetSettingsDialog: React.FC<WidgetSettingsDialogProps> = ({
 	                  </div>
 	                </>
 	              )}
+            </>
+          )}
+
+          {/* Cross-filter Configuration */}
+          {showChartDrilldown && !drilldownEnabled && (
+            <>
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-medium mb-1">{t('dashboard.widgetSettings.crossFilter.title', 'Cross-filter')}</h4>
+                <p className="text-xs text-muted-foreground mb-3">
+                  {t('dashboard.widgetSettings.crossFilter.description', 'When clicking a data point, update dashboard filters')}
+                </p>
+
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={crossFilterEnabled}
+                      onChange={(e) => setCrossFilterEnabled(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm font-medium">{t('dashboard.widgetSettings.crossFilter.enable', 'Enable cross-filter')}</span>
+                  </label>
+                </div>
+              </div>
+
+              {crossFilterEnabled && (
+                <div>
+                  <label className="text-sm font-medium">{t('dashboard.widgetSettings.crossFilter.parameterMapping', 'Filter Mapping')}</label>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    {t('dashboard.widgetSettings.crossFilter.parameterMappingHint', 'Map clicked values to dashboard parameters')}
+                  </p>
+                  <ParameterMappingEditor
+                    mapping={crossFilterParameterMapping}
+                    onChange={setCrossFilterParameterMapping}
+                    availableSources={['name', 'value', 'series', ...columns]}
+                    sourcePlaceholder={t('dashboard.parameterMappingEditor.sourcePlaceholder')}
+                  />
+                </div>
+              )}
             </>
           )}
         </div>
