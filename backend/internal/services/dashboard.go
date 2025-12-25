@@ -170,6 +170,26 @@ func (s *DashboardService) GetWidgets(ctx context.Context, dashboardID uuid.UUID
 	return widgets, nil
 }
 
+// GetWidget returns a single widget by ID (optimized for single widget fetch)
+func (s *DashboardService) GetWidget(ctx context.Context, dashboardID, widgetID uuid.UUID) (*models.Widget, error) {
+	pool := database.GetPool()
+
+	var w models.Widget
+	err := pool.QueryRow(ctx,
+		`SELECT id, dashboard_id, name, query_id, chart_type, chart_config, position, created_at, updated_at
+		 FROM dashboard_widgets WHERE dashboard_id = $1 AND id = $2`,
+		dashboardID, widgetID,
+	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.CreatedAt, &w.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &w, nil
+}
+
 func (s *DashboardService) CreateWidget(ctx context.Context, dashboardID, userID uuid.UUID, req *models.CreateWidgetRequest) (*models.Widget, error) {
 	// Check edit permission
 	permLevel, err := s.permRepo.GetUserPermissionLevel(ctx, dashboardID, userID)
