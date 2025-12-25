@@ -1,4 +1,5 @@
 import React from 'react'
+import { useTranslation } from 'react-i18next'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
@@ -15,8 +16,11 @@ export const ParameterMappingEditor: React.FC<ParameterMappingEditorProps> = ({
   mapping,
   onChange,
   availableSources,
-  sourcePlaceholder = 'Select source...',
+  sourcePlaceholder,
 }) => {
+  const { t } = useTranslation()
+  const resolvedSourcePlaceholder = sourcePlaceholder ?? t('dashboard.parameterMappingEditor.sourcePlaceholder')
+
   const entries = Object.entries(mapping)
 
   const addEntry = () => {
@@ -51,13 +55,13 @@ export const ParameterMappingEditor: React.FC<ParameterMappingEditorProps> = ({
     <div className="space-y-2">
       {entries.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          No parameter mappings configured.
+          {t('dashboard.parameterMappingEditor.empty')}
         </p>
       )}
       {entries.map(([key, value], index) => (
         <div key={index} className="flex gap-2 items-center">
           <Input
-            placeholder="Parameter name"
+            placeholder={t('dashboard.parameterMappingEditor.parameterNamePlaceholder')}
             value={key}
             onChange={(e) => updateKey(key, e.target.value)}
             className="flex-1"
@@ -67,7 +71,7 @@ export const ParameterMappingEditor: React.FC<ParameterMappingEditorProps> = ({
             value={value}
             onChange={(e) => updateValue(key, e.target.value)}
             options={[
-              { value: '', label: sourcePlaceholder },
+              { value: '', label: resolvedSourcePlaceholder },
               ...availableSources.map(s => ({ value: s, label: s })),
             ]}
             className="flex-1"
@@ -83,7 +87,7 @@ export const ParameterMappingEditor: React.FC<ParameterMappingEditorProps> = ({
         </div>
       ))}
       <Button type="button" variant="outline" size="sm" onClick={addEntry}>
-        <Plus className="h-4 w-4 mr-1" /> Add Mapping
+        <Plus className="h-4 w-4 mr-1" /> {t('dashboard.parameterMappingEditor.addMapping')}
       </Button>
     </div>
   )

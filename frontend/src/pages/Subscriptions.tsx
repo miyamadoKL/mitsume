@@ -20,10 +20,10 @@ import type {
 } from '@/types'
 
 const commonCronPresets = [
-  { label: 'Every hour', value: '0 * * * *' },
-  { label: 'Every day at 9 AM', value: '0 9 * * *' },
-  { label: 'Every Monday at 9 AM', value: '0 9 * * 1' },
-  { label: 'Every 1st of month at 9 AM', value: '0 9 1 * *' },
+  { labelKey: 'subscriptions.cronPresets.everyHour', value: '0 * * * *' },
+  { labelKey: 'subscriptions.cronPresets.dailyAt9', value: '0 9 * * *' },
+  { labelKey: 'subscriptions.cronPresets.mondayAt9', value: '0 9 * * 1' },
+  { labelKey: 'subscriptions.cronPresets.firstOfMonthAt9', value: '0 9 1 * *' },
 ]
 
 const timezones = [
@@ -187,36 +187,38 @@ export default function Subscriptions() {
   }
 
   const getDashboardName = (dashboardId: string) => {
-    return dashboards.find((d) => d.id === dashboardId)?.name || 'Unknown Dashboard'
+    return dashboards.find((d) => d.id === dashboardId)?.name || t('subscriptions.unknownDashboard')
   }
 
   const describeCron = (cron: string) => {
     const preset = commonCronPresets.find((p) => p.value === cron)
-    if (preset) return preset.label
+    if (preset) return t(preset.labelKey)
 
     const parts = cron.split(' ')
     if (parts.length !== 5) return cron
 
     const [minute, hour, dom, _month, dow] = parts
-    let description = ''
+    const minuteLabel = minute.padStart(2, '0')
+    const hourLabel = hour.padStart(2, '0')
 
     if (dom === '*' && dow === '*') {
       if (hour === '*') {
-        description = `Every hour at :${minute.padStart(2, '0')}`
+        return t('subscriptions.cron.everyHourAt', { minute: minuteLabel })
       } else {
-        description = `Daily at ${hour}:${minute.padStart(2, '0')}`
+        return t('subscriptions.cron.dailyAt', { hour: hourLabel, minute: minuteLabel })
       }
     } else if (dow !== '*' && dom === '*') {
-      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-      const dayIndex = parseInt(dow)
-      description = `${days[dayIndex] || dow} at ${hour}:${minute.padStart(2, '0')}`
+      const dayKeys = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const
+      const dayIndex = Number.parseInt(dow, 10)
+      const day = Number.isFinite(dayIndex) && dayIndex >= 0 && dayIndex < dayKeys.length
+        ? t(`subscriptions.cron.days.${dayKeys[dayIndex]}`)
+        : dow
+      return t('subscriptions.cron.dayOfWeekAt', { day, hour: hourLabel, minute: minuteLabel })
     } else if (dom !== '*') {
-      description = `Day ${dom} at ${hour}:${minute.padStart(2, '0')}`
+      return t('subscriptions.cron.dayOfMonthAt', { day: dom, hour: hourLabel, minute: minuteLabel })
     } else {
-      description = cron
+      return cron
     }
-
-    return description
   }
 
   const toggleChannelSelection = (channelId: string) => {
@@ -392,7 +394,7 @@ export default function Subscriptions() {
                 onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, schedule_cron: e.target.value })}
               >
                 {commonCronPresets.map((preset) => (
-                  <option key={preset.value} value={preset.value}>{preset.label}</option>
+                  <option key={preset.value} value={preset.value}>{t(preset.labelKey)}</option>
                 ))}
               </Select>
               <p className="text-xs text-muted-foreground mt-1">

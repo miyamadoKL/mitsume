@@ -1,4 +1,5 @@
 import React, { Component, ErrorInfo, ReactNode } from 'react';
+import { WithTranslation, withTranslation } from 'react-i18next';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from './button';
 
@@ -13,8 +14,10 @@ interface State {
   error: Error | null;
 }
 
-export class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
+type ErrorBoundaryProps = Props & WithTranslation;
+
+class ErrorBoundaryBase extends Component<ErrorBoundaryProps, State> {
+  constructor(props: ErrorBoundaryProps) {
     super(props);
     this.state = { hasError: false, error: null };
   }
@@ -37,6 +40,8 @@ export class ErrorBoundary extends Component<Props, State> {
   };
 
   render() {
+    const { t } = this.props;
+
     if (this.state.hasError) {
       if (this.props.fallback) {
         return this.props.fallback;
@@ -48,15 +53,15 @@ export class ErrorBoundary extends Component<Props, State> {
             <AlertTriangle className="h-8 w-8 text-destructive" />
           </div>
           <h2 className="text-xl font-semibold text-foreground mb-2">
-            Something went wrong
+            {t('errorBoundary.title')}
           </h2>
           <p className="text-sm text-muted-foreground text-center max-w-md mb-6">
-            An unexpected error occurred. Please try refreshing the page or contact support if the problem persists.
+            {t('errorBoundary.message')}
           </p>
           {this.state.error && (
             <details className="mb-6 max-w-md">
               <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
-                Error details
+                {t('errorBoundary.details')}
               </summary>
               <pre className="mt-2 p-3 bg-muted rounded text-xs overflow-auto max-h-32">
                 {this.state.error.message}
@@ -65,11 +70,11 @@ export class ErrorBoundary extends Component<Props, State> {
           )}
           <div className="flex gap-3">
             <Button variant="outline" onClick={this.handleReset}>
-              Try Again
+              {t('common.tryAgain')}
             </Button>
             <Button onClick={this.handleReload}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Reload Page
+              {t('errorBoundary.reloadPage')}
             </Button>
           </div>
         </div>
@@ -79,6 +84,8 @@ export class ErrorBoundary extends Component<Props, State> {
     return this.props.children;
   }
 }
+
+export const ErrorBoundary = withTranslation()(ErrorBoundaryBase);
 
 // HOC for wrapping functional components
 export function withErrorBoundary<P extends object>(

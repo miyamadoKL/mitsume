@@ -12,6 +12,7 @@
     "update": "Update",
     "confirm": "Confirm",
     "close": "Close",
+    "done": "Done",
     "retry": "Retry",
     "retrying": "Retrying...",
     "tryAgain": "Try Again",
@@ -152,6 +153,292 @@
       "canEdit": "Can Edit",
       "viewOnly": "View Only",
       "public": "Public"
+    },
+    "detail": {
+      "toast": {
+        "refreshAll": "Refreshing all widgets",
+        "widgetDeleted": "Widget deleted",
+        "deleteWidgetFailed": "Failed to delete widget",
+        "widgetUpdated": "Widget updated",
+        "updateWidgetFailed": "Failed to update widget"
+      },
+      "noWidgetsYet": "No widgets yet",
+      "addWidgetDialog": {
+        "widgetName": "Widget Name",
+        "widgetNamePlaceholder": "Widget name",
+        "savedQuery": "Saved Query",
+        "selectQueryPlaceholder": "Select a query...",
+        "adding": "Adding..."
+      },
+      "autoRefreshOptions": {
+        "off": "Off",
+        "seconds30": "30s",
+        "minute1": "1m",
+        "minutes5": "5m",
+        "minutes10": "10m"
+      }
+    },
+    "shareDialog": {
+      "title": "Share Dashboard",
+      "publicDashboard": "Public Dashboard",
+      "privateDashboard": "Private Dashboard",
+      "publicDescription": "Anyone with access to the system can view this dashboard",
+      "privateDescription": "Only you and people with explicit permission can access",
+      "makePrivate": "Make Private",
+      "makePublic": "Make Public",
+      "addPeopleOrRoles": "Add People or Roles",
+      "grantType": {
+        "user": "User",
+        "role": "Role"
+      },
+      "userIdPlaceholder": "Enter user ID",
+      "selectRolePlaceholder": "Select role...",
+      "permissionLevel": {
+        "view": "Can View",
+        "edit": "Can Edit"
+      },
+      "peopleWithAccess": "People with Access",
+      "loading": "Loading...",
+      "noOneElse": "No one else has access to this dashboard",
+      "type": {
+        "user": "User",
+        "role": "Role"
+      },
+      "unknown": "Unknown",
+      "permissionItem": "{{type}} - {{level}}",
+      "toast": {
+        "nowPrivate": "Dashboard is now private",
+        "nowPublic": "Dashboard is now public",
+        "updateVisibilityFailed": "Failed to update visibility",
+        "enterUserEmail": "Please enter a user email",
+        "selectRole": "Please select a role",
+        "permissionGranted": "Permission granted",
+        "grantFailed": "Failed to grant permission",
+        "permissionRevoked": "Permission revoked",
+        "revokeFailed": "Failed to revoke permission"
+      }
+    },
+    "exportDialog": {
+      "title": "Export Dashboard",
+      "filenamePlaceholder": "dashboard",
+      "format": "Format",
+      "formats": {
+        "pdf": "PDF",
+        "png": "PNG Image"
+      },
+      "description": {
+        "pdf": "Creates a PDF document of the current dashboard view.",
+        "png": "Creates a high-resolution PNG image of the current dashboard view."
+      },
+      "toast": {
+        "failed": "Export failed",
+        "elementNotFound": "Dashboard element not found",
+        "complete": "Export complete",
+        "downloaded": "Downloaded {{filename}}"
+      }
+    },
+    "parameterMappingEditor": {
+      "empty": "No parameter mappings configured.",
+      "parameterNamePlaceholder": "Parameter name",
+      "sourcePlaceholder": "Select source...",
+      "addMapping": "Add Mapping"
+    },
+    "widgetSettings": {
+      "title": "Widget Settings",
+      "namePlaceholder": "Widget name",
+      "markdown": {
+        "content": "Content (Markdown)",
+        "placeholder": "Enter markdown content...",
+        "hint": "Supports Markdown: **bold**, *italic*, # headings, - lists, [links](url)"
+      },
+      "query": "Query",
+      "selectQueryPlaceholder": "Select a query...",
+      "loadingColumns": "Loading columns...",
+      "counter": {
+        "title": "Counter Configuration",
+        "valueColumn": "Value Column",
+        "labelOptional": "Label (optional)",
+        "labelPlaceholderTotalSales": "e.g., Total Sales",
+        "prefixOptional": "Prefix (optional)",
+        "prefixPlaceholder": "e.g., $",
+        "suffixOptional": "Suffix (optional)",
+        "suffixPlaceholder": "e.g., %"
+      },
+      "comparison": {
+        "title": "Comparison",
+        "type": "Comparison Type",
+        "targetValue": "Target Value",
+        "targetValuePlaceholder": "e.g., 100",
+        "showPercentChange": "Show Percent Change",
+        "invertColors": "Invert Colors",
+        "invertColorsHint": "Treat decrease as positive (green) and increase as negative (red)"
+      },
+      "conditionalFormatting": {
+        "title": "Conditional Formatting",
+        "addRule": "Add Rule",
+        "and": "and",
+        "background": "Background:",
+        "text": "Text:"
+      },
+      "sparkline": {
+        "title": "Sparkline",
+        "enable": "Enable Sparkline",
+        "enableHint": "Show a mini chart alongside the counter value",
+        "type": "Sparkline Type",
+        "dataColumn": "Data Column",
+        "useValueColumn": "Use Value Column",
+        "dataColumnHint": "Column to use for sparkline data (uses all rows)"
+      },
+      "gauge": {
+        "title": "Gauge Configuration",
+        "minimum": "Minimum Value",
+        "maximum": "Maximum Value",
+        "labelPlaceholderCpuUsage": "e.g., CPU Usage",
+        "showPointer": "Show Pointer"
+      },
+      "progress": {
+        "title": "Progress Bar Configuration",
+        "labelPlaceholderTasksCompleted": "e.g., Tasks Completed",
+        "targetValue": "Target Value",
+        "targetValueHint": "The value that represents 100% progress",
+        "progressColor": "Progress Color",
+        "showPercentage": "Show Percentage"
+      },
+      "pivot": {
+        "title": "Pivot Configuration",
+        "rowGroupingColumn": "Row Grouping Column",
+        "columnGroupingColumn": "Column Grouping Column",
+        "valueColumn": "Value Column",
+        "aggregation": "Aggregation"
+      },
+      "chart": {
+        "title": "Chart Configuration",
+        "xAxisColumn": "X-Axis Column",
+        "selectColumnPlaceholder": "Select column...",
+        "yAxisColumns": "Y-Axis Column(s)",
+        "showLegend": "Show Legend",
+        "chartTitleOptional": "Chart Title (optional)",
+        "chartTitlePlaceholder": "Chart title",
+        "stacking": "Stacking",
+        "stackingHint": "Stack multiple series on top of each other"
+      },
+      "combo": {
+        "seriesTypes": "Series Types",
+        "seriesTypesHint": "Choose how each series should be displayed",
+        "dualYAxis": "Dual Y-Axis",
+        "dualYAxisHint": "Use separate Y-axis for different series (useful for different scales)"
+      },
+      "timeSeries": {
+        "title": "Time Series Features",
+        "granularity": "Time Granularity",
+        "granularityHint": "Aggregate data by time period (requires time-based X-axis)",
+        "aggregationFunction": "Aggregation Function",
+        "rollingWindow": "Rolling Window",
+        "periods": "Periods",
+        "function": "Function",
+        "cumulativeSum": "Cumulative Sum",
+        "cumulativeSumHint": "Show running total of values"
+      },
+      "dataZoom": {
+        "title": "Data Zoom",
+        "enable": "Enable Zoom",
+        "enableHint": "Add zoom controls for large datasets",
+        "zoomType": "Zoom Type"
+      },
+      "heatmap": {
+        "title": "Heatmap Configuration",
+        "xAxisCategories": "X-Axis Column (Categories)",
+        "yAxisCategories": "Y-Axis Column (Categories)",
+        "valueColumn": "Value Column",
+        "colorScheme": "Color Scheme",
+        "showValues": "Show Values",
+        "showValuesHint": "Display numeric values on each cell"
+      },
+      "tableLinks": {
+        "title": "Column Links (Drilldown)",
+        "description": "Configure columns to be clickable links to other dashboards.",
+        "targetDashboard": "Target Dashboard",
+        "selectDashboardPlaceholder": "Select dashboard...",
+        "parameterMapping": "Parameter Mapping",
+        "parameterMappingHint": "Use \"@\" for this cell value, or column names.",
+        "displayTextOptional": "Display Text (optional)",
+        "displayTextPlaceholder": "e.g., View {{at}}",
+        "displayTextHint": "Use {{at}} for cell value or {{columnName}}."
+      },
+      "drilldown": {
+        "title": "Click Action (Drilldown)",
+        "description": "Navigate to another dashboard when clicking chart elements.",
+        "enable": "Enable drilldown",
+        "targetDashboard": "Target Dashboard",
+        "selectDashboardPlaceholder": "Select dashboard...",
+        "parameterMapping": "Parameter Mapping",
+        "parameterMappingHint": "Map clicked data to dashboard parameters: name (X-axis), value (Y-axis), series, or column names."
+      },
+      "columnDefaults": {
+        "first": "First column (default)",
+        "second": "Second column (default)",
+        "third": "Third column (default)"
+      },
+      "options": {
+        "seriesType": {
+          "bar": "Bar",
+          "line": "Line",
+          "area": "Area"
+        },
+        "heatmapColorScheme": {
+          "default": "Orange (default)",
+          "blue": "Blue",
+          "green": "Green",
+          "red": "Red",
+          "purple": "Purple",
+          "diverging": "Diverging (Red-Yellow-Green)"
+        },
+        "stacking": {
+          "none": "No stacking",
+          "normal": "Stacked",
+          "percent": "100% Stacked"
+        },
+        "aggregation": {
+          "sum": "Sum",
+          "count": "Count",
+          "avg": "Average",
+          "min": "Minimum",
+          "max": "Maximum"
+        },
+        "rollingFunction": {
+          "mean": "Moving Average",
+          "sum": "Moving Sum",
+          "min": "Moving Min",
+          "max": "Moving Max"
+        },
+        "dataZoomType": {
+          "slider": "Slider",
+          "inside": "Mouse Scroll",
+          "both": "Both"
+        },
+        "granularity": {
+          "none": "None (raw data)",
+          "hour": "Hourly",
+          "day": "Daily",
+          "week": "Weekly",
+          "month": "Monthly",
+          "quarter": "Quarterly",
+          "year": "Yearly"
+        },
+        "comparisonType": {
+          "none": "None",
+          "previous_row": "Previous Row",
+          "target": "Target Value"
+        },
+        "condition": {
+          "gt": "> (Greater than)",
+          "gte": ">= (Greater or equal)",
+          "lt": "< (Less than)",
+          "lte": "<= (Less or equal)",
+          "eq": "= (Equal to)",
+          "between": "Between"
+        }
+      }
     }
   },
   "alerts": {
@@ -254,6 +541,7 @@
     "edit": "Edit Subscription",
     "empty": "No subscriptions",
     "emptyDescription": "Set up scheduled dashboard delivery",
+    "unknownDashboard": "Unknown Dashboard",
     "selectDashboard": "Select Dashboard",
     "selectChannel": "Select Notification Channel",
     "schedule": "Schedule",
@@ -275,6 +563,21 @@
       "dailyAt9": "Every day at 9 AM",
       "mondayAt9": "Every Monday at 9 AM",
       "firstOfMonthAt9": "Every 1st of month at 9 AM"
+    },
+    "cron": {
+      "everyHourAt": "Every hour at :{{minute}}",
+      "dailyAt": "Daily at {{hour}}:{{minute}}",
+      "dayOfWeekAt": "{{day}} at {{hour}}:{{minute}}",
+      "dayOfMonthAt": "Day {{day}} at {{hour}}:{{minute}}",
+      "days": {
+        "sun": "Sun",
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat"
+      }
     },
     "toast": {
       "created": "Subscription created",
@@ -479,6 +782,12 @@
       "business": "Business",
       "nature": "Nature"
     }
+  },
+  "errorBoundary": {
+    "title": "Something went wrong",
+    "message": "An unexpected error occurred. Please try refreshing the page or contact support if the problem persists.",
+    "details": "Error details",
+    "reloadPage": "Reload Page"
   },
   "errorState": {
     "default": {

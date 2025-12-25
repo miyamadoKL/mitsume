@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { Layout } from 'react-grid-layout'
 import { dashboardApi, queryApi } from '@/services/api'
 import type { Dashboard, SavedQuery, ChartType, CreateWidgetRequest, Widget, PermissionLevel } from '@/types'
@@ -18,18 +19,8 @@ import { extractAllParameters } from '@/lib/params'
 import { ArrowLeft, Plus, Loader2, Edit, Save, RefreshCw, Share2, Eye, Globe } from 'lucide-react'
 import { getImplementedChartTypeOptions } from '@/lib/chart-options'
 
-const autoRefreshOptions: { value: string; label: string }[] = [
-  { value: '0', label: 'Off' },
-  { value: '30', label: '30s' },
-  { value: '60', label: '1m' },
-  { value: '300', label: '5m' },
-  { value: '600', label: '10m' },
-]
-
-// Get chart types from single source of truth
-const chartTypes = getImplementedChartTypeOptions()
-
 export const DashboardDetail: React.FC = () => {
+  const { t } = useTranslation()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
@@ -59,6 +50,19 @@ export const DashboardDetail: React.FC = () => {
 
   // Ref for export functionality
   const dashboardContentRef = useRef<HTMLDivElement>(null)
+
+  const autoRefreshOptions: { value: string; label: string }[] = [
+    { value: '0', label: t('dashboard.detail.autoRefreshOptions.off') },
+    { value: '30', label: t('dashboard.detail.autoRefreshOptions.seconds30') },
+    { value: '60', label: t('dashboard.detail.autoRefreshOptions.minute1') },
+    { value: '300', label: t('dashboard.detail.autoRefreshOptions.minutes5') },
+    { value: '600', label: t('dashboard.detail.autoRefreshOptions.minutes10') },
+  ]
+
+  const chartTypeOptions = getImplementedChartTypeOptions().map(option => ({
+    ...option,
+    label: t(`chart.types.${option.value}`, { defaultValue: option.label }),
+  }))
 
   // Permission helpers
   const myPermission: PermissionLevel = dashboard?.my_permission || 'owner'
@@ -124,7 +128,7 @@ export const DashboardDetail: React.FC = () => {
       }
     }
     setRefreshKeys(prev => ({ ...prev, ...newKeys }))
-    toast.success('Refreshing all widgets')
+    toast.success(t('dashboard.detail.toast.refreshAll'))
   }
 
   // Auto-refresh effect
@@ -228,9 +232,9 @@ export const DashboardDetail: React.FC = () => {
         ...prev,
         widgets: prev.widgets?.filter(w => w.id !== widgetId),
       } : null)
-      toast.success('Widget deleted')
+      toast.success(t('dashboard.detail.toast.widgetDeleted'))
     } catch (err) {
-      toast.error('Failed to delete widget', getErrorMessage(err))
+      toast.error(t('dashboard.detail.toast.deleteWidgetFailed'), getErrorMessage(err))
     }
   }
 
@@ -249,9 +253,9 @@ export const DashboardDetail: React.FC = () => {
       } : null)
       setSettingsDialogOpen(false)
       setEditingWidget(null)
-      toast.success('Widget updated')
+      toast.success(t('dashboard.detail.toast.widgetUpdated'))
     } catch (err) {
-      toast.error('Failed to update widget', getErrorMessage(err))
+      toast.error(t('dashboard.detail.toast.updateWidgetFailed'), getErrorMessage(err))
       throw err
     }
   }
@@ -288,19 +292,19 @@ export const DashboardDetail: React.FC = () => {
               {myPermission === 'view' && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600">
                   <Eye className="h-3 w-3" />
-                  View Only
+                  {t('dashboard.permissions.viewOnly')}
                 </span>
               )}
               {myPermission === 'edit' && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-blue-100 text-blue-600">
                   <Edit className="h-3 w-3" />
-                  Can Edit
+                  {t('dashboard.permissions.canEdit')}
                 </span>
               )}
               {dashboard.is_public && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-600">
                   <Globe className="h-3 w-3" />
-                  Public
+                  {t('dashboard.permissions.public')}
                 </span>
               )}
             </div>
@@ -313,7 +317,7 @@ export const DashboardDetail: React.FC = () => {
           {/* Auto-refresh selector */}
           {!editMode && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Auto:</span>
+              <span className="text-sm text-muted-foreground">{t('dashboard.autoRefresh')}:</span>
               <Select
                 value={String(autoRefreshInterval)}
                 onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
@@ -326,7 +330,7 @@ export const DashboardDetail: React.FC = () => {
           {!editMode && (
             <Button variant="outline" onClick={handleRefreshAll}>
               <RefreshCw className="h-4 w-4 mr-2" />
-              Refresh
+              {t('dashboard.refresh')}
             </Button>
           )}
           {/* Export button */}
@@ -340,7 +344,7 @@ export const DashboardDetail: React.FC = () => {
           {isOwner && !editMode && (
             <Button variant="outline" onClick={() => setShareDialogOpen(true)}>
               <Share2 className="h-4 w-4 mr-2" />
-              Share
+              {t('dashboard.share')}
             </Button>
           )}
           {/* Edit button (only for edit permission or owner) */}
@@ -350,13 +354,13 @@ export const DashboardDetail: React.FC = () => {
               onClick={() => setEditMode(!editMode)}
             >
               {editMode ? <Save className="h-4 w-4 mr-2" /> : <Edit className="h-4 w-4 mr-2" />}
-              {editMode ? 'Done' : 'Edit'}
+              {editMode ? t('common.done') : t('common.edit')}
             </Button>
           )}
           {editMode && (
             <Button onClick={() => setAddWidgetOpen(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Widget
+              {t('dashboard.addWidget')}
             </Button>
           )}
         </div>
@@ -382,10 +386,10 @@ export const DashboardDetail: React.FC = () => {
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
-            <p className="mb-4">No widgets yet</p>
+            <p className="mb-4">{t('dashboard.detail.noWidgetsYet')}</p>
             <Button onClick={() => { setEditMode(true); setAddWidgetOpen(true); }}>
               <Plus className="h-4 w-4 mr-2" />
-              Add Widget
+              {t('dashboard.addWidget')}
             </Button>
           </div>
         )}
@@ -393,45 +397,45 @@ export const DashboardDetail: React.FC = () => {
 
       <Dialog open={addWidgetOpen} onClose={() => setAddWidgetOpen(false)}>
         <DialogHeader>
-          <DialogTitle>Add Widget</DialogTitle>
+          <DialogTitle>{t('dashboard.addWidget')}</DialogTitle>
         </DialogHeader>
         <DialogContent>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Widget Name</label>
+              <label className="text-sm font-medium">{t('dashboard.detail.addWidgetDialog.widgetName')}</label>
               <Input
                 value={widgetName}
                 onChange={(e) => setWidgetName(e.target.value)}
-                placeholder="Widget name"
+                placeholder={t('dashboard.detail.addWidgetDialog.widgetNamePlaceholder')}
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Saved Query</label>
+              <label className="text-sm font-medium">{t('dashboard.detail.addWidgetDialog.savedQuery')}</label>
               <Select
                 value={selectedQueryId}
                 onChange={(e) => setSelectedQueryId(e.target.value)}
                 options={[
-                  { value: '', label: 'Select a query...' },
+                  { value: '', label: t('dashboard.detail.addWidgetDialog.selectQueryPlaceholder') },
                   ...savedQueries.map(q => ({ value: q.id, label: q.name })),
                 ]}
               />
             </div>
             <div>
-              <label className="text-sm font-medium">Chart Type</label>
+              <label className="text-sm font-medium">{t('dashboard.widget.chartType')}</label>
               <Select
                 value={chartType}
                 onChange={(e) => setChartType(e.target.value as ChartType)}
-                options={chartTypes}
+                options={chartTypeOptions}
               />
             </div>
           </div>
         </DialogContent>
         <DialogFooter>
           <Button variant="outline" onClick={() => setAddWidgetOpen(false)}>
-            Cancel
+            {t('common.cancel')}
           </Button>
           <Button onClick={handleAddWidget} disabled={saving || !widgetName.trim()}>
-            {saving ? 'Adding...' : 'Add Widget'}
+            {saving ? t('dashboard.detail.addWidgetDialog.adding') : t('dashboard.addWidget')}
           </Button>
         </DialogFooter>
       </Dialog>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -16,17 +17,13 @@ interface ShareDashboardDialogProps {
   onUpdate: (dashboard: Dashboard) => void
 }
 
-const permissionLevelOptions = [
-  { value: 'view', label: 'Can View' },
-  { value: 'edit', label: 'Can Edit' },
-]
-
 export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
   open,
   onClose,
   dashboard,
   onUpdate,
 }) => {
+  const { t } = useTranslation()
   const [permissions, setPermissions] = useState<DashboardPermission[]>([])
   const [roles, setRoles] = useState<RoleWithCatalogs[]>([])
   const [loading, setLoading] = useState(false)
@@ -74,19 +71,19 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
       await dashboardApi.updateVisibility(dashboard.id, { is_public: !isPublic })
       setIsPublic(!isPublic)
       onUpdate({ ...dashboard, is_public: !isPublic })
-      toast.success(isPublic ? 'Dashboard is now private' : 'Dashboard is now public')
+      toast.success(isPublic ? t('dashboard.shareDialog.toast.nowPrivate') : t('dashboard.shareDialog.toast.nowPublic'))
     } catch (err) {
-      toast.error('Failed to update visibility', getErrorMessage(err))
+      toast.error(t('dashboard.shareDialog.toast.updateVisibilityFailed'), getErrorMessage(err))
     }
   }
 
   const handleGrantPermission = async () => {
     if (grantType === 'user' && !userEmail.trim()) {
-      toast.error('Please enter a user email')
+      toast.error(t('dashboard.shareDialog.toast.enterUserEmail'))
       return
     }
     if (grantType === 'role' && !selectedRoleId) {
-      toast.error('Please select a role')
+      toast.error(t('dashboard.shareDialog.toast.selectRole'))
       return
     }
 
@@ -103,9 +100,9 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
       setPermissions([...permissions, newPermission])
       setUserEmail('')
       setSelectedRoleId('')
-      toast.success('Permission granted')
+      toast.success(t('dashboard.shareDialog.toast.permissionGranted'))
     } catch (err) {
-      toast.error('Failed to grant permission', getErrorMessage(err))
+      toast.error(t('dashboard.shareDialog.toast.grantFailed'), getErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -115,10 +112,20 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
     try {
       await dashboardApi.revokePermission(dashboard.id, permissionId)
       setPermissions(permissions.filter(p => p.id !== permissionId))
-      toast.success('Permission revoked')
+      toast.success(t('dashboard.shareDialog.toast.permissionRevoked'))
     } catch (err) {
-      toast.error('Failed to revoke permission', getErrorMessage(err))
+      toast.error(t('dashboard.shareDialog.toast.revokeFailed'), getErrorMessage(err))
     }
+  }
+
+  const permissionLevelOptions = [
+    { value: 'view', label: t('dashboard.shareDialog.permissionLevel.view') },
+    { value: 'edit', label: t('dashboard.shareDialog.permissionLevel.edit') },
+  ]
+
+  const permissionLevelLabel = (level: string) => {
+    if (level === 'view' || level === 'edit') return t(`dashboard.shareDialog.permissionLevel.${level}`)
+    return level
   }
 
   const getPermissionIcon = (level: string) => {
@@ -135,7 +142,7 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
   return (
     <Dialog open={open} onClose={onClose}>
       <DialogHeader>
-        <DialogTitle>Share Dashboard</DialogTitle>
+        <DialogTitle>{t('dashboard.shareDialog.title')}</DialogTitle>
       </DialogHeader>
       <DialogContent>
         <div className="space-y-6">
@@ -149,30 +156,30 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
               )}
               <div>
                 <p className="font-medium">
-                  {isPublic ? 'Public Dashboard' : 'Private Dashboard'}
+                  {isPublic ? t('dashboard.shareDialog.publicDashboard') : t('dashboard.shareDialog.privateDashboard')}
                 </p>
                 <p className="text-sm text-muted-foreground">
                   {isPublic
-                    ? 'Anyone with access to the system can view this dashboard'
-                    : 'Only you and people with explicit permission can access'}
+                    ? t('dashboard.shareDialog.publicDescription')
+                    : t('dashboard.shareDialog.privateDescription')}
                 </p>
               </div>
             </div>
             <Button variant="outline" size="sm" onClick={handleTogglePublic}>
-              {isPublic ? 'Make Private' : 'Make Public'}
+              {isPublic ? t('dashboard.shareDialog.makePrivate') : t('dashboard.shareDialog.makePublic')}
             </Button>
           </div>
 
           {/* Add Permission Form */}
           <div className="space-y-3">
-            <h3 className="text-sm font-medium">Add People or Roles</h3>
+            <h3 className="text-sm font-medium">{t('dashboard.shareDialog.addPeopleOrRoles')}</h3>
             <div className="flex gap-2">
               <Select
                 value={grantType}
                 onChange={(e) => setGrantType(e.target.value as 'user' | 'role')}
                 options={[
-                  { value: 'user', label: 'User' },
-                  { value: 'role', label: 'Role' },
+                  { value: 'user', label: t('dashboard.shareDialog.grantType.user') },
+                  { value: 'role', label: t('dashboard.shareDialog.grantType.role') },
                 ]}
                 className="w-24"
               />
@@ -180,7 +187,7 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
                 <Input
                   value={userEmail}
                   onChange={(e) => setUserEmail(e.target.value)}
-                  placeholder="Enter user ID"
+                  placeholder={t('dashboard.shareDialog.userIdPlaceholder')}
                   className="flex-1"
                 />
               ) : (
@@ -188,7 +195,7 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
                   value={selectedRoleId}
                   onChange={(e) => setSelectedRoleId(e.target.value)}
                   options={[
-                    { value: '', label: 'Select role...' },
+                    { value: '', label: t('dashboard.shareDialog.selectRolePlaceholder') },
                     ...roles.map(r => ({ value: r.id, label: r.name })),
                   ]}
                   className="flex-1"
@@ -208,12 +215,12 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
 
           {/* Permission List */}
           <div className="space-y-2">
-            <h3 className="text-sm font-medium">People with Access</h3>
+            <h3 className="text-sm font-medium">{t('dashboard.shareDialog.peopleWithAccess')}</h3>
             {loading ? (
-              <p className="text-sm text-muted-foreground">Loading...</p>
+              <p className="text-sm text-muted-foreground">{t('dashboard.shareDialog.loading')}</p>
             ) : permissions.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No one else has access to this dashboard
+                {t('dashboard.shareDialog.noOneElse')}
               </p>
             ) : (
               <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -226,10 +233,13 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
                       {getPermissionIcon(perm.permission_level)}
                       <div>
                         <p className="text-sm font-medium">
-                          {perm.user_name || perm.user_email || perm.role_name || 'Unknown'}
+                          {perm.user_name || perm.user_email || perm.role_name || t('dashboard.shareDialog.unknown')}
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {perm.role_id ? 'Role' : 'User'} - Can {perm.permission_level}
+                          {t('dashboard.shareDialog.permissionItem', {
+                            type: perm.role_id ? t('dashboard.shareDialog.type.role') : t('dashboard.shareDialog.type.user'),
+                            level: permissionLevelLabel(perm.permission_level),
+                          })}
                         </p>
                       </div>
                     </div>
@@ -249,7 +259,7 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
       </DialogContent>
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>
-          Done
+          {t('common.done')}
         </Button>
       </DialogFooter>
     </Dialog>
