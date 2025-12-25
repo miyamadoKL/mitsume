@@ -35,6 +35,15 @@ const sqlFormatOptions: { value: SqlFormat; label: string }[] = [
   { value: 'number_list', label: 'Number List' },
 ]
 
+const defaultSqlFormatByType: Record<ParameterType, SqlFormat> = {
+  text: 'string',
+  number: 'number',
+  date: 'date',
+  daterange: 'date',
+  select: 'string',
+  multiselect: 'string_list',
+}
+
 export const ParameterSettingsDialog: React.FC<ParameterSettingsDialogProps> = ({
   open,
   onClose,
@@ -71,7 +80,7 @@ export const ParameterSettingsDialog: React.FC<ParameterSettingsDialogProps> = (
         type: 'text' as ParameterType,
         label: name,
         required: false,
-        sql_format: 'raw' as SqlFormat,
+        sql_format: defaultSqlFormatByType.text,
       }))
     setLocalParams(prev => [...prev, ...newParams])
   }, [localParams, discoveredParameters])
@@ -82,7 +91,7 @@ export const ParameterSettingsDialog: React.FC<ParameterSettingsDialogProps> = (
       type: 'text',
       label: '',
       required: false,
-      sql_format: 'raw',
+      sql_format: defaultSqlFormatByType.text,
     }
     setLocalParams(prev => [...prev, newParam])
   }, [])
@@ -187,7 +196,24 @@ export const ParameterSettingsDialog: React.FC<ParameterSettingsDialogProps> = (
                     <div className="grid grid-cols-3 gap-2">
                       <Select
                         value={param.type}
-                        onChange={(e) => handleUpdateParameter(index, { type: e.target.value as ParameterType })}
+                        onChange={(e) => {
+                          const nextType = e.target.value as ParameterType
+                          const nextDefaultFormat = defaultSqlFormatByType[nextType]
+                          const updates: Partial<ParameterDefinition> = {
+                            type: nextType,
+                            sql_format: nextDefaultFormat,
+                          }
+                          // Initialize daterange targets (optional); backend also supports default name_start/name_end.
+                          if (nextType === 'daterange' && !param.targets) {
+                            updates.targets = param.name
+                              ? { start: `${param.name}_start`, end: `${param.name}_end` }
+                              : { start: '', end: '' }
+                          }
+                          if (nextType !== 'daterange' && param.targets) {
+                            updates.targets = undefined
+                          }
+                          handleUpdateParameter(index, updates)
+                        }}
                         options={parameterTypeOptions}
                       />
                       <Select
@@ -201,6 +227,38 @@ export const ParameterSettingsDialog: React.FC<ParameterSettingsDialogProps> = (
                         onChange={(e) => handleUpdateParameter(index, { default_value: e.target.value || undefined })}
                       />
                     </div>
+
+                    {/* Date range placeholder mapping (optional) */}
+                    {param.type === 'daterange' && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          placeholder={t('dashboard.parameters.dateRangeStartTarget', {
+                            defaultValue: `Start placeholder (default: ${param.name ? `${param.name}_start` : 'name_start'})`,
+                          })}
+                          value={param.targets?.start || ''}
+                          onChange={(e) => {
+                            const nextStart = e.target.value
+                            const nextEnd = param.targets?.end || ''
+                            handleUpdateParameter(index, {
+                              targets: nextStart || nextEnd ? { start: nextStart, end: nextEnd } : undefined,
+                            })
+                          }}
+                        />
+                        <Input
+                          placeholder={t('dashboard.parameters.dateRangeEndTarget', {
+                            defaultValue: `End placeholder (default: ${param.name ? `${param.name}_end` : 'name_end'})`,
+                          })}
+                          value={param.targets?.end || ''}
+                          onChange={(e) => {
+                            const nextEnd = e.target.value
+                            const nextStart = param.targets?.start || ''
+                            handleUpdateParameter(index, {
+                              targets: nextStart || nextEnd ? { start: nextStart, end: nextEnd } : undefined,
+                            })
+                          }}
+                        />
+                      </div>
+                    )}
 
                     <div className="flex items-center gap-4">
                       <label className="flex items-center gap-2 text-sm">

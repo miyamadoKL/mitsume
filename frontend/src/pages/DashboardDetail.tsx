@@ -183,6 +183,7 @@ export const DashboardDetail: React.FC = () => {
   // Apply draft values to widgets and URL
   const handleApplyParameters = useCallback(() => {
     setAppliedValues({ ...draftValues })
+    const defsByName = new Map((dashboard?.parameters || []).map(def => [def.name, def]))
     // Update URL with applied values
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
@@ -193,12 +194,19 @@ export const DashboardDetail: React.FC = () => {
       // Add new p_ params
       Object.entries(draftValues).forEach(([name, value]) => {
         if (value) {
-          next.set(`p_${name}`, value)
+          const def = defsByName.get(name)
+          if (def?.type === 'daterange') {
+            const [start, end] = value.split(',')
+            if (start) next.set(`p_${name}_start`, start)
+            if (end) next.set(`p_${name}_end`, end)
+          } else {
+            next.set(`p_${name}`, value)
+          }
         }
       })
       return next
     })
-  }, [draftValues, setSearchParams])
+  }, [draftValues, setSearchParams, dashboard?.parameters])
 
   // Clear/reset all parameters
   const handleResetParameters = useCallback(() => {

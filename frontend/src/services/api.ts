@@ -238,8 +238,8 @@ export const dashboardApi = {
     parameters?: Record<string, unknown>,
     signal?: AbortSignal
   ): Promise<WidgetDataResponse> => {
-    if (parameters && Object.keys(parameters).length > 0) {
-      // POST with parameters
+    // Always POST when parameters are provided (even if empty) so the server can return required/missing.
+    if (parameters !== undefined) {
       const { data } = await api.post<WidgetDataResponse>(
         `/dashboards/${dashboardId}/widgets/${widgetId}/data`,
         { parameters } as WidgetDataRequest,
