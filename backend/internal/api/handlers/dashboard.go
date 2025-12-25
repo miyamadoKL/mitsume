@@ -1,8 +1,12 @@
 package handlers
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -466,4 +470,361 @@ func (h *DashboardHandler) GetWidgetData(c *gin.Context) {
 		WidgetID:    widgetID,
 		QueryResult: result,
 	})
+}
+
+// extractParameters extracts parameter names from SQL query ({{param}} syntax)
+func extractParameters(queryText string) []string {
+	re := regexp.MustCompile(`\{\{([^}]+)\}\}`)
+	matches := re.FindAllStringSubmatch(queryText, -1)
+
+	seen := make(map[string]bool)
+	var params []string
+	for _, match := range matches {
+		if len(match) > 1 {
+			paramName := strings.TrimSpace(match[1])
+			if !seen[paramName] {
+				seen[paramName] = true
+				params = append(params, paramName)
+			}
+		}
+	}
+	return params
+}
+
+// replaceParameters replaces {{param}} placeholders with provided values
+// Returns the resolved query and list of missing parameters
+func replaceParameters(queryText string, params map[string]interface{}) (string, []string) {
+	required := extractParameters(queryText)
+	var missing []string
+
+	result := queryText
+	for _, paramName := range required {
+		placeholder := fmt.Sprintf("{{%s}}", paramName)
+		value, exists := params[paramName]
+		if !exists || value == nil {
+			missing = append(missing, paramName)
+			continue
+		}
+
+		// Convert value to string representation for SQL
+		var strValue string
+		switch v := value.(type) {
+		case string:
+			strValue = v
+		case float64:
+			// JSON numbers are float64
+			if v == float64(int64(v)) {
+				strValue = fmt.Sprintf("%d", int64(v))
+			} else {
+				strValue = fmt.Sprintf("%g", v)
+			}
+		case bool:
+			strValue = fmt.Sprintf("%t", v)
+		case []interface{}:
+			// Array values for IN clauses
+			var parts []string
+			for _, item := range v {
+				parts = append(parts, fmt.Sprintf("%v", item))
+			}
+			strValue = strings.Join(parts, ",")
+		default:
+			strValue = fmt.Sprintf("%v", v)
+		}
+
+		result = strings.ReplaceAll(result, placeholder, strValue)
+	}
+
+	return result, missing
+}
+
+// GetWidgetDataWithParams executes the widget's query with parameter substitution.
+// POST /dashboards/:id/widgets/:widgetId/data
+func (h *DashboardHandler) GetWidgetDataWithParams(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.MustGet("userID").(uuid.UUID)
+
+	dashboardID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid dashboard id"})
+		return
+	}
+	widgetID, err := uuid.Parse(c.Param("widgetId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid widget id"})
+		return
+	}
+
+	// Parse request body
+	var req models.WidgetDataRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	// Check if user has at least view permission on the dashboard
+	permLevel, err := h.dashboardService.GetUserPermissionLevel(ctx, dashboardID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "dashboard not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if !permLevel.CanView() {
+		c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+		return
+	}
+
+	// Get widget
+	widgets, err := h.dashboardService.GetWidgets(ctx, dashboardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	var widget *models.Widget
+	for i := range widgets {
+		if widgets[i].ID == widgetID {
+			widget = &widgets[i]
+			break
+		}
+	}
+
+	if widget == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "widget not found"})
+		return
+	}
+
+	if widget.QueryID == nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "widget has no associated query"})
+		return
+	}
+
+	// Get the saved query
+	savedQuery, err := h.queryService.GetSavedQueryByID(ctx, *widget.QueryID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "query not found"})
+		return
+	}
+
+	// Extract required parameters from query
+	requiredParams := extractParameters(savedQuery.QueryText)
+
+	// Replace parameters with provided values
+	resolvedQuery, missingParams := replaceParameters(savedQuery.QueryText, req.Parameters)
+
+	// If there are missing required parameters, return them
+	if len(missingParams) > 0 {
+		c.JSON(http.StatusOK, models.WidgetDataResponse{
+			WidgetID:           widgetID,
+			RequiredParameters: requiredParams,
+			MissingParameters:  missingParams,
+		})
+		return
+	}
+
+	// Get dashboard owner for permission check
+	ownerID, err := h.dashboardService.GetDashboardOwner(ctx, dashboardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if the dashboard owner has access to the catalog
+	catalog := ""
+	schema := ""
+	if savedQuery.Catalog != nil {
+		catalog = *savedQuery.Catalog
+	}
+	if savedQuery.SchemaName != nil {
+		schema = *savedQuery.SchemaName
+	}
+
+	if h.roleService != nil && catalog != "" {
+		hasAccess, err := h.roleService.CanUserAccessCatalog(ctx, ownerID, catalog)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasAccess {
+			c.JSON(http.StatusForbidden, gin.H{"error": "dashboard owner does not have access to the data source"})
+			return
+		}
+	}
+
+	// Execute the resolved query with caching
+	// Note: Cache key should include parameters for uniqueness
+	result, err := h.trinoService.ExecuteQueryWithCache(ctx, resolvedQuery, catalog, schema, int(services.CachePriorityNormal), widget.QueryID)
+	if err != nil {
+		c.JSON(http.StatusOK, models.WidgetDataResponse{
+			WidgetID:           widgetID,
+			Error:              err.Error(),
+			RequiredParameters: requiredParams,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.WidgetDataResponse{
+		WidgetID:           widgetID,
+		QueryResult:        result,
+		RequiredParameters: requiredParams,
+	})
+}
+
+// GetParameterOptions executes the options query for a parameter with dynamic options.
+// POST /dashboards/:id/parameters/:name/options
+func (h *DashboardHandler) GetParameterOptions(c *gin.Context) {
+	ctx := c.Request.Context()
+	userID := c.MustGet("userID").(uuid.UUID)
+
+	dashboardID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid dashboard id"})
+		return
+	}
+
+	paramName := c.Param("name")
+	if paramName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "parameter name is required"})
+		return
+	}
+
+	// Parse request body for dependent parameter values
+	var req models.ParameterOptionsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		// Empty body is acceptable
+		req = models.ParameterOptionsRequest{}
+	}
+
+	// Check if user has at least view permission on the dashboard
+	permLevel, err := h.dashboardService.GetUserPermissionLevel(ctx, dashboardID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "dashboard not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if !permLevel.CanView() {
+		c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+		return
+	}
+
+	// Get dashboard to access parameter definitions
+	dashboard, err := h.dashboardService.GetDashboard(ctx, dashboardID, userID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "dashboard not found"})
+		return
+	}
+
+	// Parse parameter definitions from JSON
+	var paramDefs []models.ParameterDefinition
+	if len(dashboard.Parameters) > 0 {
+		if err := json.Unmarshal(dashboard.Parameters, &paramDefs); err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to parse parameters"})
+			return
+		}
+	}
+
+	// Find the parameter definition
+	var paramDef *models.ParameterDefinition
+	for i := range paramDefs {
+		if paramDefs[i].Name == paramName {
+			paramDef = &paramDefs[i]
+			break
+		}
+	}
+
+	if paramDef == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "parameter not found"})
+		return
+	}
+
+	// Check if parameter has optionsQueryId
+	if paramDef.OptionsQueryID == nil {
+		// Return static options if available
+		if paramDef.Options != nil {
+			c.JSON(http.StatusOK, paramDef.Options)
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": "parameter has no options query"})
+		return
+	}
+
+	// Get the options query
+	savedQuery, err := h.queryService.GetSavedQueryByID(ctx, *paramDef.OptionsQueryID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "options query not found"})
+		return
+	}
+
+	// Get dashboard owner for permission check
+	ownerID, err := h.dashboardService.GetDashboardOwner(ctx, dashboardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Check if the dashboard owner has access to the catalog
+	catalog := ""
+	schema := ""
+	if savedQuery.Catalog != nil {
+		catalog = *savedQuery.Catalog
+	}
+	if savedQuery.SchemaName != nil {
+		schema = *savedQuery.SchemaName
+	}
+
+	if h.roleService != nil && catalog != "" {
+		hasAccess, err := h.roleService.CanUserAccessCatalog(ctx, ownerID, catalog)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasAccess {
+			c.JSON(http.StatusForbidden, gin.H{"error": "dashboard owner does not have access to the data source"})
+			return
+		}
+	}
+
+	// Replace parameters in the options query (for cascade/dependsOn)
+	resolvedQuery, _ := replaceParameters(savedQuery.QueryText, req.Parameters)
+
+	// Execute the query
+	result, err := h.trinoService.ExecuteQueryWithCache(ctx, resolvedQuery, catalog, schema, int(services.CachePriorityNormal), paramDef.OptionsQueryID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Convert query result to options
+	// First column = value, second column = label (optional)
+	const maxOptions = 200
+	options := make([]models.ParameterOption, 0, min(len(result.Rows), maxOptions))
+
+	for i, row := range result.Rows {
+		if i >= maxOptions {
+			break
+		}
+		if len(row) == 0 {
+			continue
+		}
+
+		value := fmt.Sprintf("%v", row[0])
+		label := value
+		if len(row) > 1 && row[1] != nil {
+			label = fmt.Sprintf("%v", row[1])
+		}
+
+		options = append(options, models.ParameterOption{
+			Value: value,
+			Label: label,
+		})
+	}
+
+	c.JSON(http.StatusOK, options)
 }

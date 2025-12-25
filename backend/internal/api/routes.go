@@ -99,6 +99,10 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 
 			// Widget data (executes query using dashboard owner's permissions)
 			protected.GET("/dashboards/:id/widgets/:widgetId/data", dashboardHandler.GetWidgetData)
+			protected.POST("/dashboards/:id/widgets/:widgetId/data", dashboardHandler.GetWidgetDataWithParams)
+
+			// Parameter dynamic options
+			protected.POST("/dashboards/:id/parameters/:name/options", dashboardHandler.GetParameterOptions)
 
 			// Notification channels
 			protected.GET("/notification-channels", notificationHandler.GetChannels)
