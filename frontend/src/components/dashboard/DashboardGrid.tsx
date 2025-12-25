@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import GridLayout, { Layout, WidthProvider } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
+import './DashboardGrid.css'
 
 const ResponsiveGridLayout = WidthProvider(GridLayout)
 import type { Dashboard, Widget, SavedQuery } from '@/types'
@@ -9,13 +10,14 @@ import { ChartWidget } from './ChartWidget'
 import { queryApi } from '@/services/api'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Trash2, Settings, RefreshCw } from 'lucide-react'
+import { Trash2, Settings, RefreshCw, Copy } from 'lucide-react'
 
 interface DashboardGridProps {
   dashboard: Dashboard
   onLayoutChange?: (layout: Layout[]) => void
   editable?: boolean
   onDeleteWidget?: (widgetId: string) => void
+  onDuplicateWidget?: (widget: Widget) => void
   onSettingsClick?: (widget: Widget) => void
   parameterValues?: Record<string, string>
   refreshKeys?: Record<string, number>  // Per-widget refresh keys
@@ -27,6 +29,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
   onLayoutChange,
   editable = false,
   onDeleteWidget,
+  onDuplicateWidget,
   onSettingsClick,
   parameterValues = {},
   refreshKeys = {},
@@ -74,9 +77,17 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     }
   }
 
+  const isEmpty = !dashboard.widgets || dashboard.widgets.length === 0
+  const gridClassName = [
+    'layout',
+    'dashboard-grid',
+    editable ? 'editing' : '',
+    editable && isEmpty ? 'empty' : '',
+  ].filter(Boolean).join(' ')
+
   return (
     <ResponsiveGridLayout
-      className="layout"
+      className={gridClassName}
       layout={layout}
       cols={12}
       rowHeight={80}
@@ -112,6 +123,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                       size="icon"
                       className="h-6 w-6"
                       onClick={() => onSettingsClick?.(widget)}
+                      title="Settings"
                     >
                       <Settings className="h-3 w-3" />
                     </Button>
@@ -119,7 +131,17 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6"
+                      onClick={() => onDuplicateWidget?.(widget)}
+                      title="Duplicate"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
                       onClick={() => onDeleteWidget?.(widget.id)}
+                      title="Delete"
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>

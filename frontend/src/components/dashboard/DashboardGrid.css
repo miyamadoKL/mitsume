@@ -1,0 +1,104 @@
+/* Dashboard Grid Editing Styles */
+
+/* Grid lines visible in edit mode */
+.dashboard-grid.editing {
+  background-image:
+    linear-gradient(to right, rgba(229, 231, 235, 0.5) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(229, 231, 235, 0.5) 1px, transparent 1px);
+  background-size: calc(100% / 12) 80px;
+  background-position: 0 0;
+  min-height: 400px;
+  position: relative;
+}
+
+/* Grid lines overlay for better visibility */
+.dashboard-grid.editing::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  border: 1px dashed rgba(156, 163, 175, 0.3);
+  border-radius: 4px;
+  z-index: 0;
+}
+
+/* Highlight widget being dragged */
+.react-grid-item.react-draggable-dragging {
+  box-shadow: 0 0 0 2px #3b82f6, 0 10px 25px -5px rgba(0, 0, 0, 0.25);
+  z-index: 100 !important;
+  opacity: 0.9;
+}
+
+/* Highlight widget being resized */
+.react-grid-item.resizing {
+  box-shadow: 0 0 0 2px #3b82f6;
+  z-index: 100 !important;
+}
+
+/* Placeholder styling for drag target */
+.react-grid-item.react-grid-placeholder {
+  background: rgba(59, 130, 246, 0.15) !important;
+  border: 2px dashed #3b82f6 !important;
+  border-radius: 8px;
+  transition: all 100ms ease;
+}
+
+/* Resize handle styling */
+.react-resizable-handle {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.react-grid-item:hover .react-resizable-handle {
+  opacity: 1;
+}
+
+.react-resizable-handle::after {
+  content: '';
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid rgba(0, 0, 0, 0.3);
+  border-bottom: 2px solid rgba(0, 0, 0, 0.3);
+  border-radius: 0 0 2px 0;
+}
+
+/* Empty grid state */
+.dashboard-grid.editing.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+}
+
+.dashboard-grid.editing.empty::after {
+  content: 'Drag widgets here or click "Add Widget"';
+  color: #9ca3af;
+  font-size: 14px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+/* Column indicators on hover during drag */
+.dashboard-grid.editing .column-indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: calc(100% / 12);
+  border-left: 1px dashed rgba(59, 130, 246, 0.3);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+
+.dashboard-grid.dragging .column-indicator {
+  opacity: 1;
+}
