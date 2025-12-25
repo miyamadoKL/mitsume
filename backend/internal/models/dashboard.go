@@ -112,3 +112,20 @@ type GrantDashboardPermissionRequest struct {
 type UpdateDashboardVisibilityRequest struct {
 	IsPublic bool `json:"is_public"`
 }
+
+// LayoutTemplate represents a saved layout template
+type LayoutTemplate struct {
+	ID          uuid.UUID       `json:"id"`
+	UserID      *uuid.UUID      `json:"user_id,omitempty"`
+	Name        string          `json:"name"`
+	Description string          `json:"description"`
+	Layout      json.RawMessage `json:"layout"`
+	IsSystem    bool            `json:"is_system"`
+	CreatedAt   time.Time       `json:"created_at"`
+}
+
+type CreateLayoutTemplateRequest struct {
+	Name        string          `json:"name" binding:"required"`
+	Description string          `json:"description"`
+	Layout      json.RawMessage `json:"layout" binding:"required"`
+}

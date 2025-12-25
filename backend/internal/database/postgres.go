@@ -263,6 +263,19 @@ func RunMigrations() error {
 		// Add catalog and schema to saved_queries for widget data execution
 		`ALTER TABLE saved_queries ADD COLUMN IF NOT EXISTS catalog VARCHAR(255)`,
 		`ALTER TABLE saved_queries ADD COLUMN IF NOT EXISTS schema_name VARCHAR(255)`,
+
+		// Layout templates for dashboard creation
+		`CREATE TABLE IF NOT EXISTS layout_templates (
+			id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+			user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+			name VARCHAR(255) NOT NULL,
+			description TEXT,
+			layout JSONB NOT NULL,
+			is_system BOOLEAN DEFAULT FALSE,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		)`,
+
+		`CREATE INDEX IF NOT EXISTS idx_layout_templates_user_id ON layout_templates(user_id) WHERE user_id IS NOT NULL`,
 	}
 
 	for _, migration := range migrations {

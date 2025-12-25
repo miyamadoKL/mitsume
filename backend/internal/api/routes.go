@@ -14,6 +14,7 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 	// Repositories
 	userRepo := repository.NewPostgresUserRepository(database.GetPool())
 	roleRepo := repository.NewPostgresRoleRepository(database.GetPool())
+	layoutTemplateRepo := repository.NewPostgresLayoutTemplateRepository(database.GetPool())
 
 	// Services
 	authService := services.NewAuthService(cfg, userRepo, roleRepo)
@@ -36,6 +37,7 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 	alertHandler := handlers.NewAlertHandler(alertService, notificationService)
 	subscriptionHandler := handlers.NewSubscriptionHandler(subscriptionService)
 	roleHandler := handlers.NewRoleHandler(roleService, trinoService) // Role handler uses non-cached version for catalog listing
+	layoutTemplateHandler := handlers.NewLayoutTemplateHandler(layoutTemplateRepo)
 
 	// Middleware
 	r.Use(middleware.CORSMiddleware(cfg.Server.FrontendURL))
@@ -124,6 +126,11 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 			protected.PUT("/subscriptions/:id", subscriptionHandler.UpdateSubscription)
 			protected.DELETE("/subscriptions/:id", subscriptionHandler.DeleteSubscription)
 			protected.POST("/subscriptions/:id/trigger", subscriptionHandler.TriggerSubscription)
+
+			// Layout templates
+			protected.GET("/layout-templates", layoutTemplateHandler.GetLayoutTemplates)
+			protected.POST("/layout-templates", layoutTemplateHandler.CreateLayoutTemplate)
+			protected.DELETE("/layout-templates/:id", layoutTemplateHandler.DeleteLayoutTemplate)
 
 			// Admin routes (requires admin role)
 			admin := protected.Group("/admin")
