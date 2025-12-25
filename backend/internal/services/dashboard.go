@@ -143,6 +143,23 @@ func (s *DashboardService) DeleteDashboard(ctx context.Context, id, userID uuid.
 	return nil
 }
 
+// GetDashboardParameters returns the dashboard parameters JSON without loading widgets.
+// Permission checks must be performed by the caller.
+func (s *DashboardService) GetDashboardParameters(ctx context.Context, dashboardID uuid.UUID) (json.RawMessage, error) {
+	pool := database.GetPool()
+
+	var params json.RawMessage
+	err := pool.QueryRow(ctx, `SELECT COALESCE(parameters, '[]') FROM dashboards WHERE id = $1`, dashboardID).Scan(&params)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return params, nil
+}
+
 // Widget CRUD operations
 
 func (s *DashboardService) GetWidgets(ctx context.Context, dashboardID uuid.UUID) ([]models.Widget, error) {
