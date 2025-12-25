@@ -132,6 +132,40 @@
     "autoRefresh": "自動更新",
     "empty": "ダッシュボードがありません",
     "emptyDescription": "最初のダッシュボードを作成してください",
+    "quickAdd": {
+      "title": "クイック追加"
+    },
+    "templates": {
+      "selectTemplate": "テンプレートを選択",
+      "blank": {
+        "name": "空白",
+        "description": "空のダッシュボードから始める"
+      },
+      "kpi-row-chart": {
+        "name": "KPI行 + チャート",
+        "description": "上部にKPI、下部にメインチャート"
+      },
+      "two-column": {
+        "name": "2カラム",
+        "description": "横並びのチャート2つ"
+      },
+      "three-column": {
+        "name": "3カラム",
+        "description": "同じ幅のチャート3つ"
+      },
+      "main-sidebar": {
+        "name": "メイン + サイドバー",
+        "description": "大きなメイン領域とサイドバー"
+      },
+      "grid-2x2": {
+        "name": "グリッド 2x2",
+        "description": "2x2の均等グリッド"
+      },
+      "executive-summary": {
+        "name": "エグゼクティブサマリー",
+        "description": "KPI、チャート2つ、テーブルの構成"
+      }
+    },
     "createDialog": {
       "title": "ダッシュボード作成",
       "name": "ダッシュボード名",
@@ -159,8 +193,11 @@
         "refreshAll": "すべてのウィジェットを更新しています",
         "widgetDeleted": "ウィジェットを削除しました",
         "deleteWidgetFailed": "ウィジェットの削除に失敗しました",
+        "widgetDuplicated": "ウィジェットを複製しました",
+        "duplicateWidgetFailed": "ウィジェットの複製に失敗しました",
         "widgetUpdated": "ウィジェットを更新しました",
-        "updateWidgetFailed": "ウィジェットの更新に失敗しました"
+        "updateWidgetFailed": "ウィジェットの更新に失敗しました",
+        "addWidgetFailed": "ウィジェットの追加に失敗しました"
       },
       "noWidgetsYet": "ウィジェットがありません",
       "addWidgetDialog": {

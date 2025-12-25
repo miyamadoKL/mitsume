@@ -132,6 +132,40 @@
     "autoRefresh": "Auto Refresh",
     "empty": "No dashboards yet",
     "emptyDescription": "Create your first dashboard to visualize your data",
+    "quickAdd": {
+      "title": "Quick Add"
+    },
+    "templates": {
+      "selectTemplate": "Select a template",
+      "blank": {
+        "name": "Blank",
+        "description": "Start with an empty dashboard"
+      },
+      "kpi-row-chart": {
+        "name": "KPI Row + Chart",
+        "description": "Top KPIs with main chart below"
+      },
+      "two-column": {
+        "name": "Two Column",
+        "description": "Side by side charts"
+      },
+      "three-column": {
+        "name": "Three Column",
+        "description": "Three equal width charts"
+      },
+      "main-sidebar": {
+        "name": "Main + Sidebar",
+        "description": "Large main area with sidebar"
+      },
+      "grid-2x2": {
+        "name": "Grid 2x2",
+        "description": "2x2 grid of equal charts"
+      },
+      "executive-summary": {
+        "name": "Executive Summary",
+        "description": "KPIs on top, two charts below, table at bottom"
+      }
+    },
     "createDialog": {
       "title": "Create Dashboard",
       "name": "Dashboard Name",
@@ -159,8 +193,11 @@
         "refreshAll": "Refreshing all widgets",
         "widgetDeleted": "Widget deleted",
         "deleteWidgetFailed": "Failed to delete widget",
+        "widgetDuplicated": "Widget duplicated",
+        "duplicateWidgetFailed": "Failed to duplicate widget",
         "widgetUpdated": "Widget updated",
-        "updateWidgetFailed": "Failed to update widget"
+        "updateWidgetFailed": "Failed to update widget",
+        "addWidgetFailed": "Failed to add widget"
       },
       "noWidgetsYet": "No widgets yet",
       "addWidgetDialog": {
