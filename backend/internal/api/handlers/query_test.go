@@ -22,7 +22,7 @@ func init() {
 func setupQueryHandlerTest() (*QueryHandler, *repository.MockTrinoExecutor, *repository.MockQueryHistoryRecorder) {
 	mockTrino := repository.NewMockTrinoExecutor()
 	mockHistory := repository.NewMockQueryHistoryRecorder()
-	handler := NewQueryHandler(mockTrino, mockHistory, nil)
+	handler := NewQueryHandler(mockTrino, mockHistory, nil, "memory", "default")
 	return handler, mockTrino, mockHistory
 }
 
