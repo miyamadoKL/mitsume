@@ -2,9 +2,8 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 import ReactECharts from 'echarts-for-react'
-import type { Widget, QueryResult, ChartConfig } from '@/types'
-import { queryApi } from '@/services/api'
-import { replaceParameters, hasUnresolvedParameters, ParameterValidationError } from '@/lib/params'
+import type { Widget, QueryResult, ChartConfig, WidgetDataResponse } from '@/types'
+import { dashboardApi } from '@/services/api'
 import {
   getColumnLinkConfig,
   resolveTableDrilldown,
@@ -24,46 +23,76 @@ import { BarChart3 } from 'lucide-react'
 
 interface ChartWidgetProps {
   widget: Widget
-  savedQueryText?: string
+  dashboardId: string
   parameterValues?: Record<string, string>
   refreshKey?: number  // Increment to trigger refresh
+  onParametersDiscovered?: (widgetId: string, requiredParams: string[], missingParams: string[]) => void
+  onCrossFilter?: (parameterUpdates: Record<string, string>) => void
 }
 
 export const ChartWidget: React.FC<ChartWidgetProps> = ({
   widget,
-  savedQueryText,
+  dashboardId,
   parameterValues = {},
   refreshKey = 0,
+  onParametersDiscovered,
+  onCrossFilter,
 }) => {
   const navigate = useNavigate()
   const [data, setData] = useState<QueryResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [isRetrying, setIsRetrying] = useState(false)
-  const lastQueryRef = useRef<string | null>(null)
+  const [missingParams, setMissingParams] = useState<string[]>([])
+  const lastParamsRef = useRef<Record<string, string> | null>(null)
 
   const isMarkdown = widget.chart_type === 'markdown'
+  const hasQuery = !!widget.query_id
   const config = widget.chart_config as ChartConfig
 
-  const loadData = useCallback(async (query: string) => {
-    lastQueryRef.current = query
+  const loadData = useCallback(async (params: Record<string, string>) => {
+    lastParamsRef.current = params
     setLoading(true)
     setError(null)
+    setMissingParams([])
     try {
-      const result = await queryApi.execute(query)
-      setData(result)
+      const response: WidgetDataResponse = await dashboardApi.getWidgetData(
+        dashboardId,
+        widget.id,
+        params
+      )
+
+      // Report discovered parameters to parent
+      if (onParametersDiscovered) {
+        onParametersDiscovered(
+          widget.id,
+          response.required_parameters || [],
+          response.missing_parameters || []
+        )
+      }
+
+      if (response.error) {
+        setError(new Error(response.error))
+        setData(null)
+      } else if (response.missing_parameters && response.missing_parameters.length > 0) {
+        // Server indicates missing parameters
+        setMissingParams(response.missing_parameters)
+        setData(null)
+      } else {
+        setData(response.query_result || null)
+      }
     } catch (err) {
       setError(err)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [dashboardId, widget.id, onParametersDiscovered])
 
   const handleRetry = useCallback(async () => {
-    if (!lastQueryRef.current) return
+    if (!lastParamsRef.current) return
     setIsRetrying(true)
     try {
-      await loadData(lastQueryRef.current)
+      await loadData(lastParamsRef.current)
     } finally {
       setIsRetrying(false)
     }
@@ -71,28 +100,10 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
 
   useEffect(() => {
     if (isMarkdown) return  // Markdown widget doesn't need data loading
-    if (savedQueryText) {
-      // Check if there are unresolved parameters
-      if (hasUnresolvedParameters(savedQueryText, parameterValues)) {
-        setData(null)
-        setError(null)
-        return
-      }
+    if (!hasQuery) return   // No query associated with widget
 
-      try {
-        const resolvedQuery = replaceParameters(savedQueryText, parameterValues)
-        loadData(resolvedQuery)
-      } catch (err) {
-        if (err instanceof ParameterValidationError) {
-          // Handle SQL injection attempt - show error instead of executing
-          setError(new Error('Invalid parameter value: potential SQL injection detected'))
-          setData(null)
-        } else {
-          throw err
-        }
-      }
-    }
-  }, [savedQueryText, parameterValues, isMarkdown, refreshKey, loadData])
+    loadData(parameterValues)
+  }, [parameterValues, isMarkdown, hasQuery, refreshKey, loadData])
 
   // Render table cell with optional link
   const renderTableCell = useCallback((
@@ -124,11 +135,8 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
     return String(cell ?? '')
   }, [config.columnLinks])
 
-  // Handle chart click for drilldown
+  // Handle chart click for drilldown or cross-filter
   const handleChartClick = useCallback((params: { name: string; value: unknown; seriesName?: string; dataIndex?: number }) => {
-    const drilldownConfig = config.drilldown
-    if (!drilldownConfig) return
-
     const clickData: ChartClickData = {
       name: params.name,
       value: params.value,
@@ -139,15 +147,57 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
     // Get corresponding row data if available
     const row = data?.rows[params.dataIndex ?? 0]
 
-    const url = resolveChartDrilldown(
-      drilldownConfig,
-      clickData,
-      data?.columns,
-      row
-    )
+    // Drilldown takes priority over cross-filter
+    const drilldownConfig = config.drilldown
+    if (drilldownConfig) {
+      const url = resolveChartDrilldown(
+        drilldownConfig,
+        clickData,
+        data?.columns,
+        row
+      )
+      navigate(url)
+      return
+    }
 
-    navigate(url)
-  }, [config.drilldown, data, navigate])
+    // Cross-filter: update parameters on the same dashboard
+    const crossFilterConfig = config.crossFilter
+    if (crossFilterConfig?.enabled && onCrossFilter) {
+      const parameterUpdates: Record<string, string> = {}
+
+      for (const [paramName, source] of Object.entries(crossFilterConfig.parameterMapping)) {
+        let value: string | undefined
+
+        switch (source) {
+          case 'name':
+            value = clickData.name
+            break
+          case 'value':
+            value = String(clickData.value ?? '')
+            break
+          case 'series':
+            value = clickData.seriesName
+            break
+          default:
+            // Column name: get value from row data
+            if (data?.columns && row) {
+              const colIndex = data.columns.indexOf(source)
+              if (colIndex >= 0 && row[colIndex] !== undefined) {
+                value = String(row[colIndex])
+              }
+            }
+        }
+
+        if (value !== undefined) {
+          parameterUpdates[paramName] = value
+        }
+      }
+
+      if (Object.keys(parameterUpdates).length > 0) {
+        onCrossFilter(parameterUpdates)
+      }
+    }
+  }, [config.drilldown, config.crossFilter, data, navigate, onCrossFilter])
 
   // Build chart options using the centralized builder
   const chartOptions = useMemo(
@@ -179,12 +229,12 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
   }
 
   if (!data) {
-    const needsParams = savedQueryText && hasUnresolvedParameters(savedQueryText, parameterValues)
+    const needsParams = missingParams.length > 0
     return (
       <div className="flex items-center justify-center h-full">
         <EmptyState
           title={needsParams ? 'Parameters Required' : 'No Data'}
-          description={needsParams ? 'Enter parameter values above to load data' : 'No data available for this widget'}
+          description={needsParams ? `Enter values for: ${missingParams.join(', ')}` : 'No data available for this widget'}
           icon={BarChart3}
           className="py-6"
         />
@@ -231,11 +281,12 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
     return <PivotWidget data={data} config={widget.chart_config} />
   }
 
-  // Add cursor pointer style if drilldown is configured
+  // Add cursor pointer style if drilldown or cross-filter is configured
+  const hasClickHandler = config.drilldown || config.crossFilter?.enabled
   const chartStyle: React.CSSProperties = {
     height: '100%',
     width: '100%',
-    cursor: config.drilldown ? 'pointer' : 'default',
+    cursor: hasClickHandler ? 'pointer' : 'default',
   }
 
   return (
@@ -243,7 +294,7 @@ export const ChartWidget: React.FC<ChartWidgetProps> = ({
       option={chartOptions}
       style={chartStyle}
       opts={{ renderer: 'canvas' }}
-      onEvents={config.drilldown ? { click: handleChartClick } : undefined}
+      onEvents={hasClickHandler ? { click: handleChartClick } : undefined}
     />
   )
 }
