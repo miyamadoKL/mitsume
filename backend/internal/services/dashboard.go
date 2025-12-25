@@ -65,14 +65,15 @@ func (s *DashboardService) CreateDashboard(ctx context.Context, userID uuid.UUID
 	pool := database.GetPool()
 
 	defaultLayout, _ := json.Marshal([]interface{}{})
+	defaultParams, _ := json.Marshal([]interface{}{})
 
 	var d models.Dashboard
 	err := pool.QueryRow(ctx,
-		`INSERT INTO dashboards (user_id, name, description, layout, is_public)
-		 VALUES ($1, $2, $3, $4, false)
-		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), created_at, updated_at`,
-		userID, req.Name, req.Description, defaultLayout,
-	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.CreatedAt, &d.UpdatedAt)
+		`INSERT INTO dashboards (user_id, name, description, layout, is_public, parameters)
+		 VALUES ($1, $2, $3, $4, false, $5)
+		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'), created_at, updated_at`,
+		userID, req.Name, req.Description, defaultLayout, defaultParams,
+	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -100,11 +101,12 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id, userID uuid.
 		 SET name = COALESCE(NULLIF($3, ''), name),
 		     description = COALESCE($4, description),
 		     layout = COALESCE($5, layout),
+		     parameters = COALESCE($6, parameters),
 		     updated_at = CURRENT_TIMESTAMP
 		 WHERE id = $1
-		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), created_at, updated_at`,
-		id, userID, req.Name, req.Description, req.Layout,
-	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.CreatedAt, &d.UpdatedAt)
+		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'), created_at, updated_at`,
+		id, userID, req.Name, req.Description, req.Layout, req.Parameters,
+	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
