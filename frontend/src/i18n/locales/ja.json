@@ -148,7 +148,12 @@
       "refresh": "更新",
       "settings": "設定",
       "duplicate": "複製",
-      "delete": "削除"
+      "delete": "削除",
+      "previewMode": "プレビュー:",
+      "previewAuto": "自動",
+      "previewDesktop": "デスクトップ",
+      "previewTablet": "タブレット",
+      "previewMobile": "モバイル"
     },
     "templates": {
       "selectTemplate": "テンプレートを選択",

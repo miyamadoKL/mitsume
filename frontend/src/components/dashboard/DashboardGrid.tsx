@@ -1,16 +1,20 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import GridLayout, { Layout, WidthProvider } from 'react-grid-layout'
+import { Responsive, WidthProvider, Layout, Layouts } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import './DashboardGrid.css'
 
-const ResponsiveGridLayout = WidthProvider(GridLayout)
+const ResponsiveGridLayout = WidthProvider(Responsive)
 import type { Dashboard, Widget } from '@/types'
 import { ChartWidget } from './ChartWidget'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Trash2, Settings, RefreshCw, Copy } from 'lucide-react'
+import { Trash2, Settings, RefreshCw, Copy, Monitor, Tablet, Smartphone } from 'lucide-react'
+
+// Responsive breakpoints
+const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480 }
+const cols = { lg: 12, md: 10, sm: 6, xs: 4 }
 
 interface DashboardGridProps {
   dashboard: Dashboard
@@ -24,6 +28,15 @@ interface DashboardGridProps {
   onRefreshWidget?: (widgetId: string) => void
   onParametersDiscovered?: (widgetId: string, requiredParams: string[], missingParams: string[]) => void
   onCrossFilter?: (parameterUpdates: Record<string, string>) => void
+}
+
+// Preview width presets
+type PreviewMode = 'auto' | 'desktop' | 'tablet' | 'mobile'
+const previewWidths: Record<PreviewMode, number | undefined> = {
+  auto: undefined,
+  desktop: 1400,
+  tablet: 800,
+  mobile: 400,
 }
 
 export const DashboardGrid: React.FC<DashboardGridProps> = ({
@@ -40,19 +53,57 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
   onCrossFilter,
 }) => {
   const { t } = useTranslation()
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('auto')
+  const [currentBreakpoint, setCurrentBreakpoint] = useState<string>('lg')
 
-  const layout: Layout[] = dashboard.widgets?.map(widget => ({
-    i: widget.id,
-    x: widget.position.x,
-    y: widget.position.y,
-    w: widget.position.w,
-    h: widget.position.h,
-  })) || []
+  // Generate layouts for all breakpoints from the base layout
+  const generateLayouts = (): Layouts => {
+    const baseLayout: Layout[] = dashboard.widgets?.map(widget => ({
+      i: widget.id,
+      x: widget.position.x,
+      y: widget.position.y,
+      w: widget.position.w,
+      h: widget.position.h,
+      minW: 2,
+      minH: 2,
+    })) || []
 
-  const handleLayoutChange = (newLayout: Layout[]) => {
-    if (onLayoutChange && editable) {
-      onLayoutChange(newLayout)
+    // For smaller screens, adjust widget widths to fit
+    const mdLayout = baseLayout.map(item => ({
+      ...item,
+      w: Math.min(item.w, cols.md),
+      x: Math.min(item.x, cols.md - Math.min(item.w, cols.md)),
+    }))
+
+    const smLayout = baseLayout.map(item => ({
+      ...item,
+      w: Math.min(item.w, cols.sm),
+      x: 0, // Stack widgets on small screens
+    }))
+
+    const xsLayout = baseLayout.map(item => ({
+      ...item,
+      w: cols.xs, // Full width on mobile
+      x: 0,
+    }))
+
+    return {
+      lg: baseLayout,
+      md: mdLayout,
+      sm: smLayout,
+      xs: xsLayout,
     }
+  }
+
+  const handleLayoutChange = (currentLayout: Layout[], _allLayouts: Layouts) => {
+    // Only propagate changes for the lg (desktop) layout
+    if (onLayoutChange && editable && currentBreakpoint === 'lg') {
+      onLayoutChange(currentLayout)
+    }
+  }
+
+  const handleBreakpointChange = (newBreakpoint: string) => {
+    setCurrentBreakpoint(newBreakpoint)
   }
 
   const isEmpty = !dashboard.widgets || dashboard.widgets.length === 0
@@ -74,83 +125,150 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     )
   }
 
+  const previewWidth = previewWidths[previewMode]
+
   return (
-    <ResponsiveGridLayout
-      className={gridClassName}
-      layout={layout}
-      cols={12}
-      rowHeight={80}
-      onLayoutChange={handleLayoutChange}
-      isDraggable={editable}
-      isResizable={editable}
-      draggableHandle=".drag-handle"
-    >
-      {dashboard.widgets?.map(widget => (
-        <div key={widget.id}>
-          <Card className="h-full flex flex-col">
-            <CardHeader className="py-2 px-4 flex flex-row items-center justify-between space-y-0">
-              <CardTitle className="text-sm font-medium drag-handle cursor-move">
-                {widget.name}
-              </CardTitle>
-              <div className="flex gap-1">
-                {/* Refresh button - only for data widgets, not markdown */}
-                {!editable && widget.chart_type !== 'markdown' && widget.query_id && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => onRefreshWidget?.(widget.id)}
-                    title={t('dashboard.grid.refresh')}
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                  </Button>
-                )}
-                {editable && (
-                  <>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={() => onSettingsClick?.(widget)}
-                      title={t('dashboard.grid.settings')}
-                    >
-                      <Settings className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={() => onDuplicateWidget?.(widget)}
-                      title={t('dashboard.grid.duplicate')}
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-6 w-6"
-                      onClick={() => onDeleteWidget?.(widget.id)}
-                      title={t('dashboard.grid.delete')}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </>
-                )}
-              </div>
-            </CardHeader>
-            <CardContent className="flex-1 p-2 pt-0">
-              <ChartWidget
-                widget={widget}
-                dashboardId={dashboard.id}
-                parameterValues={parameterValues}
-                refreshKey={refreshKeys[widget.id] || 0}
-                onParametersDiscovered={onParametersDiscovered}
-                onCrossFilter={onCrossFilter}
-              />
-            </CardContent>
-          </Card>
+    <div>
+      {/* Preview mode selector (only in edit mode) */}
+      {editable && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-sm text-muted-foreground">{t('dashboard.grid.previewMode', 'Preview:')}</span>
+          <div className="flex border rounded-md">
+            <Button
+              variant={previewMode === 'auto' ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={() => setPreviewMode('auto')}
+              className="rounded-r-none px-2"
+              title={t('dashboard.grid.previewAuto', 'Auto')}
+            >
+              Auto
+            </Button>
+            <Button
+              variant={previewMode === 'desktop' ? 'secondary' : 'ghost'}
+              size="icon"
+              onClick={() => setPreviewMode('desktop')}
+              className="rounded-none border-l px-2"
+              title={t('dashboard.grid.previewDesktop', 'Desktop')}
+            >
+              <Monitor className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={previewMode === 'tablet' ? 'secondary' : 'ghost'}
+              size="icon"
+              onClick={() => setPreviewMode('tablet')}
+              className="rounded-none border-l px-2"
+              title={t('dashboard.grid.previewTablet', 'Tablet')}
+            >
+              <Tablet className="h-4 w-4" />
+            </Button>
+            <Button
+              variant={previewMode === 'mobile' ? 'secondary' : 'ghost'}
+              size="icon"
+              onClick={() => setPreviewMode('mobile')}
+              className="rounded-l-none border-l px-2"
+              title={t('dashboard.grid.previewMobile', 'Mobile')}
+            >
+              <Smartphone className="h-4 w-4" />
+            </Button>
+          </div>
+          <span className="text-xs text-muted-foreground">
+            ({currentBreakpoint.toUpperCase()})
+          </span>
         </div>
-      ))}
-    </ResponsiveGridLayout>
+      )}
+
+      <div
+        style={previewWidth ? {
+          maxWidth: previewWidth,
+          margin: '0 auto',
+          border: '1px dashed var(--border)',
+          borderRadius: '8px',
+          padding: '8px',
+        } : undefined}
+      >
+        <ResponsiveGridLayout
+          className={gridClassName}
+          layouts={generateLayouts()}
+          breakpoints={breakpoints}
+          cols={cols}
+          rowHeight={80}
+          onLayoutChange={handleLayoutChange}
+          onBreakpointChange={handleBreakpointChange}
+          isDraggable={editable}
+          isResizable={editable}
+          draggableHandle=".drag-handle"
+          compactType="vertical"
+          preventCollision={false}
+          width={previewWidth}
+        >
+          {dashboard.widgets?.map(widget => (
+            <div key={widget.id}>
+              <Card className="h-full flex flex-col">
+                <CardHeader className="py-2 px-4 flex flex-row items-center justify-between space-y-0">
+                  <CardTitle className="text-sm font-medium drag-handle cursor-move">
+                    {widget.name}
+                  </CardTitle>
+                  <div className="flex gap-1">
+                    {/* Refresh button - only for data widgets, not markdown */}
+                    {!editable && widget.chart_type !== 'markdown' && widget.query_id && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => onRefreshWidget?.(widget.id)}
+                        title={t('dashboard.grid.refresh')}
+                      >
+                        <RefreshCw className="h-3 w-3" />
+                      </Button>
+                    )}
+                    {editable && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => onSettingsClick?.(widget)}
+                          title={t('dashboard.grid.settings')}
+                        >
+                          <Settings className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => onDuplicateWidget?.(widget)}
+                          title={t('dashboard.grid.duplicate')}
+                        >
+                          <Copy className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => onDeleteWidget?.(widget.id)}
+                          title={t('dashboard.grid.delete')}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </CardHeader>
+                <CardContent className="flex-1 p-2 pt-0">
+                  <ChartWidget
+                    widget={widget}
+                    dashboardId={dashboard.id}
+                    parameterValues={parameterValues}
+                    refreshKey={refreshKeys[widget.id] || 0}
+                    onParametersDiscovered={onParametersDiscovered}
+                    onCrossFilter={onCrossFilter}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          ))}
+        </ResponsiveGridLayout>
+      </div>
+    </div>
   )
 }

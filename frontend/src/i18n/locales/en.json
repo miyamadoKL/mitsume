@@ -148,7 +148,12 @@
       "refresh": "Refresh",
       "settings": "Settings",
       "duplicate": "Duplicate",
-      "delete": "Delete"
+      "delete": "Delete",
+      "previewMode": "Preview:",
+      "previewAuto": "Auto",
+      "previewDesktop": "Desktop",
+      "previewTablet": "Tablet",
+      "previewMobile": "Mobile"
     },
     "templates": {
       "selectTemplate": "Select a template",
