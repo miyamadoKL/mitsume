@@ -135,6 +135,13 @@
     "quickAdd": {
       "title": "Quick Add"
     },
+    "grid": {
+      "emptyState": "Click \"Add Widget\" or use the Quick Add panel above to add widgets",
+      "refresh": "Refresh",
+      "settings": "Settings",
+      "duplicate": "Duplicate",
+      "delete": "Delete"
+    },
     "templates": {
       "selectTemplate": "Select a template",
       "blank": {

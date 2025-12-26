@@ -135,6 +135,13 @@
     "quickAdd": {
       "title": "クイック追加"
     },
+    "grid": {
+      "emptyState": "「ウィジェットを追加」をクリックするか、上のクイック追加パネルからウィジェットを追加してください",
+      "refresh": "更新",
+      "settings": "設定",
+      "duplicate": "複製",
+      "delete": "削除"
+    },
     "templates": {
       "selectTemplate": "テンプレートを選択",
       "blank": {

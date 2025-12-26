@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import GridLayout, { Layout, WidthProvider } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
@@ -35,6 +36,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
   refreshKeys = {},
   onRefreshWidget,
 }) => {
+  const { t } = useTranslation()
   const [savedQueries, setSavedQueries] = useState<Record<string, SavedQuery>>({})
 
   useEffect(() => {
@@ -85,6 +87,17 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     editable && isEmpty ? 'empty' : '',
   ].filter(Boolean).join(' ')
 
+  // Show empty state message when in edit mode with no widgets
+  if (editable && isEmpty) {
+    return (
+      <div className={gridClassName}>
+        <p className="text-muted-foreground text-sm">
+          {t('dashboard.grid.emptyState')}
+        </p>
+      </div>
+    )
+  }
+
   return (
     <ResponsiveGridLayout
       className={gridClassName}
@@ -111,7 +124,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                     size="icon"
                     className="h-6 w-6"
                     onClick={() => onRefreshWidget?.(widget.id)}
-                    title="Refresh"
+                    title={t('dashboard.grid.refresh')}
                   >
                     <RefreshCw className="h-3 w-3" />
                   </Button>
@@ -123,7 +136,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                       size="icon"
                       className="h-6 w-6"
                       onClick={() => onSettingsClick?.(widget)}
-                      title="Settings"
+                      title={t('dashboard.grid.settings')}
                     >
                       <Settings className="h-3 w-3" />
                     </Button>
@@ -132,7 +145,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                       size="icon"
                       className="h-6 w-6"
                       onClick={() => onDuplicateWidget?.(widget)}
-                      title="Duplicate"
+                      title={t('dashboard.grid.duplicate')}
                     >
                       <Copy className="h-3 w-3" />
                     </Button>
@@ -141,7 +154,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
                       size="icon"
                       className="h-6 w-6"
                       onClick={() => onDeleteWidget?.(widget.id)}
-                      title="Delete"
+                      title={t('dashboard.grid.delete')}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
