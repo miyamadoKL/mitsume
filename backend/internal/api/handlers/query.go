@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"errors"
 	"log"
 	"net/http"
 
@@ -15,13 +16,23 @@ type QueryHandler struct {
 	trinoExecutor   repository.CachedTrinoExecutor
 	historyRecorder repository.QueryHistoryRecorder
 	roleService     *services.RoleService
+	defaultCatalog  string
+	defaultSchema   string
 }
 
-func NewQueryHandler(trinoExecutor repository.CachedTrinoExecutor, historyRecorder repository.QueryHistoryRecorder, roleService *services.RoleService) *QueryHandler {
+func NewQueryHandler(
+	trinoExecutor repository.CachedTrinoExecutor,
+	historyRecorder repository.QueryHistoryRecorder,
+	roleService *services.RoleService,
+	defaultCatalog string,
+	defaultSchema string,
+) *QueryHandler {
 	return &QueryHandler{
 		trinoExecutor:   trinoExecutor,
 		historyRecorder: historyRecorder,
 		roleService:     roleService,
+		defaultCatalog:  defaultCatalog,
+		defaultSchema:   defaultSchema,
 	}
 }
 
@@ -34,21 +45,27 @@ func (h *QueryHandler) ExecuteQuery(c *gin.Context) {
 		return
 	}
 
-	// Check catalog access permission if catalog is specified
-	if h.roleService != nil && req.Catalog != "" {
-		hasAccess, err := h.roleService.CanUserAccessCatalog(c.Request.Context(), userID, req.Catalog)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	catalog := req.Catalog
+	if catalog == "" {
+		catalog = h.defaultCatalog
+	}
+	schema := req.Schema
+	if schema == "" {
+		schema = h.defaultSchema
+	}
+
+	// Enforce catalog permission based on referenced catalogs + effective catalog
+	if err := enforceCatalogAccess(c.Request.Context(), h.roleService, userID, req.Query, catalog); err != nil {
+		if errors.Is(err, ErrCatalogAccessDenied) || errors.Is(err, ErrShowCatalogsForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
 			return
 		}
-		if !hasAccess {
-			c.JSON(http.StatusForbidden, gin.H{"error": "access denied to catalog"})
-			return
-		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
 	// Execute query with caching (LOW priority for ad-hoc queries)
-	result, err := h.trinoExecutor.ExecuteQueryWithCache(c.Request.Context(), req.Query, req.Catalog, req.Schema, int(services.CachePriorityLow), nil)
+	result, err := h.trinoExecutor.ExecuteQueryWithCache(c.Request.Context(), req.Query, catalog, schema, int(services.CachePriorityLow), nil)
 	if err != nil {
 		// Save error to history
 		errMsg := err.Error()

@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import type { QueryResult, ChartConfig } from '@/types'
 
 interface PivotWidgetProps {
@@ -38,6 +39,8 @@ function formatValue(value: number, aggregation: AggregationType): string {
 }
 
 export const PivotWidget: React.FC<PivotWidgetProps> = ({ data, config }) => {
+  const { t } = useTranslation()
+
   const pivotData = useMemo(() => {
     const rowGroupIdx = config.rowGroupColumn
       ? data.columns.indexOf(config.rowGroupColumn)
@@ -103,15 +106,15 @@ export const PivotWidget: React.FC<PivotWidgetProps> = ({ data, config }) => {
       colTotals,
       grandTotal,
       aggregation,
-      rowGroupLabel: config.rowGroupColumn || data.columns[rowGroupIdx] || 'Row',
-      colGroupLabel: config.colGroupColumn || data.columns[colGroupIdx] || 'Column',
+      rowGroupLabel: config.rowGroupColumn || data.columns[rowGroupIdx] || t('common.row'),
+      colGroupLabel: config.colGroupColumn || data.columns[colGroupIdx] || t('common.column'),
     }
-  }, [data, config])
+  }, [data, config, t])
 
   if (pivotData.rows.length === 0 || pivotData.cols.length === 0) {
     return (
       <div className="flex items-center justify-center h-full text-muted-foreground">
-        No data to pivot
+        {t('dashboard.pivot.noData')}
       </div>
     )
   }
@@ -130,7 +133,7 @@ export const PivotWidget: React.FC<PivotWidgetProps> = ({ data, config }) => {
               </th>
             ))}
             <th className="px-2 py-1 text-right font-medium bg-muted/80">
-              Total
+              {t('common.total')}
             </th>
           </tr>
         </thead>
@@ -152,7 +155,7 @@ export const PivotWidget: React.FC<PivotWidgetProps> = ({ data, config }) => {
             </tr>
           ))}
           <tr className="border-t-2 bg-muted/30">
-            <td className="px-2 py-1 font-medium">Total</td>
+            <td className="px-2 py-1 font-medium">{t('common.total')}</td>
             {pivotData.cols.map(col => (
               <td key={col} className="px-2 py-1 text-right font-medium tabular-nums">
                 {formatValue(

@@ -28,10 +28,10 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService, cfg)
-	queryHandler := handlers.NewQueryHandler(cachedTrinoService, queryService, roleService)
+	queryHandler := handlers.NewQueryHandler(cachedTrinoService, queryService, roleService, cfg.Trino.Catalog, cfg.Trino.Schema)
 	savedQueryHandler := handlers.NewSavedQueryHandler(queryService)
-	dashboardHandler := handlers.NewDashboardHandler(dashboardService, cachedTrinoService, queryService, roleService)
-	exportHandler := handlers.NewExportHandler(trinoService) // Export uses non-cached version
+	dashboardHandler := handlers.NewDashboardHandler(dashboardService, cachedTrinoService, queryService, roleService, cfg.Trino.Catalog, cfg.Trino.Schema)
+	exportHandler := handlers.NewExportHandler(trinoService, roleService, cfg.Trino.Catalog, cfg.Trino.Schema) // Export uses non-cached version
 	notificationHandler := handlers.NewNotificationHandler(notificationService)
 	alertHandler := handlers.NewAlertHandler(alertService, notificationService)
 	subscriptionHandler := handlers.NewSubscriptionHandler(subscriptionService)
@@ -99,6 +99,10 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 
 			// Widget data (executes query using dashboard owner's permissions)
 			protected.GET("/dashboards/:id/widgets/:widgetId/data", dashboardHandler.GetWidgetData)
+			protected.POST("/dashboards/:id/widgets/:widgetId/data", dashboardHandler.GetWidgetDataWithParams)
+
+			// Parameter dynamic options
+			protected.POST("/dashboards/:id/parameters/:name/options", dashboardHandler.GetParameterOptions)
 
 			// Notification channels
 			protected.GET("/notification-channels", notificationHandler.GetChannels)

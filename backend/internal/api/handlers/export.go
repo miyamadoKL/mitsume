@@ -1,23 +1,37 @@
 package handlers
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/mitsume/backend/internal/models"
 	"github.com/mitsume/backend/internal/repository"
+	"github.com/mitsume/backend/internal/services"
 	"github.com/mitsume/backend/internal/utils"
 )
 
 type ExportHandler struct {
-	trinoExecutor repository.TrinoExecutor
+	trinoExecutor  repository.TrinoExecutor
+	roleService    *services.RoleService
+	defaultCatalog string
+	defaultSchema  string
 }
 
-func NewExportHandler(trinoExecutor repository.TrinoExecutor) *ExportHandler {
+func NewExportHandler(
+	trinoExecutor repository.TrinoExecutor,
+	roleService *services.RoleService,
+	defaultCatalog string,
+	defaultSchema string,
+) *ExportHandler {
 	return &ExportHandler{
-		trinoExecutor: trinoExecutor,
+		trinoExecutor:  trinoExecutor,
+		roleService:    roleService,
+		defaultCatalog: defaultCatalog,
+		defaultSchema:  defaultSchema,
 	}
 }
 
@@ -37,13 +51,33 @@ func (h *ExportHandler) ExportTSV(c *gin.Context) {
 }
 
 func (h *ExportHandler) export(c *gin.Context, format string) {
+	userID := c.MustGet("userID").(uuid.UUID)
+
 	var req ExportRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	result, err := h.trinoExecutor.ExecuteQuery(c.Request.Context(), req.Query, req.Catalog, req.Schema)
+	catalog := req.Catalog
+	if catalog == "" {
+		catalog = h.defaultCatalog
+	}
+	schema := req.Schema
+	if schema == "" {
+		schema = h.defaultSchema
+	}
+
+	if err := enforceCatalogAccess(c.Request.Context(), h.roleService, userID, req.Query, catalog); err != nil {
+		if errors.Is(err, ErrCatalogAccessDenied) || errors.Is(err, ErrShowCatalogsForbidden) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	result, err := h.trinoExecutor.ExecuteQuery(c.Request.Context(), req.Query, catalog, schema)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

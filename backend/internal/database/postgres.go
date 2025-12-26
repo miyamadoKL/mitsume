@@ -263,6 +263,9 @@ func RunMigrations() error {
 		// Add catalog and schema to saved_queries for widget data execution
 		`ALTER TABLE saved_queries ADD COLUMN IF NOT EXISTS catalog VARCHAR(255)`,
 		`ALTER TABLE saved_queries ADD COLUMN IF NOT EXISTS schema_name VARCHAR(255)`,
+
+		// Add parameters JSONB column to dashboards for typed parameter definitions
+		`ALTER TABLE dashboards ADD COLUMN IF NOT EXISTS parameters JSONB DEFAULT '[]'`,
 	}
 
 	for _, migration := range migrations {

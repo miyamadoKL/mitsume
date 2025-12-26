@@ -27,6 +27,8 @@ import type {
   DashboardPermission,
   GrantPermissionRequest,
   UpdateVisibilityRequest,
+  WidgetDataRequest,
+  WidgetDataResponse,
 } from '@/types'
 
 const api = axios.create({
@@ -227,6 +229,44 @@ export const dashboardApi = {
 
   updateVisibility: async (dashboardId: string, req: UpdateVisibilityRequest): Promise<void> => {
     await api.put(`/dashboards/${dashboardId}/visibility`, req)
+  },
+
+  // Widget Data
+  getWidgetData: async (
+    dashboardId: string,
+    widgetId: string,
+    parameters?: Record<string, unknown>,
+    signal?: AbortSignal
+  ): Promise<WidgetDataResponse> => {
+    // Always POST when parameters are provided (even if empty) so the server can return required/missing.
+    if (parameters !== undefined) {
+      const { data } = await api.post<WidgetDataResponse>(
+        `/dashboards/${dashboardId}/widgets/${widgetId}/data`,
+        { parameters } as WidgetDataRequest,
+        { signal }
+      )
+      return data
+    } else {
+      // GET without parameters (backward compatible)
+      const { data } = await api.get<WidgetDataResponse>(
+        `/dashboards/${dashboardId}/widgets/${widgetId}/data`,
+        { signal }
+      )
+      return data
+    }
+  },
+
+  // Parameter Options (for dynamic select/multiselect)
+  getParameterOptions: async (
+    dashboardId: string,
+    parameterName: string,
+    dependentValues?: Record<string, unknown>
+  ): Promise<{ value: string; label: string }[]> => {
+    const { data } = await api.post<{ value: string; label: string }[]>(
+      `/dashboards/${dashboardId}/parameters/${encodeURIComponent(parameterName)}/options`,
+      { parameters: dependentValues || {} }
+    )
+    return data
   },
 }
 

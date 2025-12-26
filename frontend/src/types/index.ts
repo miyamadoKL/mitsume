@@ -42,6 +42,35 @@ export interface QueryResult {
 
 export type PermissionLevel = 'view' | 'edit' | 'owner' | ''
 
+// Parameter Definition Types for Dashboard Filters
+export type ParameterType = 'text' | 'number' | 'date' | 'daterange' | 'select' | 'multiselect'
+export type SqlFormat = 'raw' | 'string' | 'number' | 'date' | 'identifier' | 'string_list' | 'number_list'
+export type EmptyBehavior = 'missing' | 'null' | 'match_none'
+
+export interface ParameterOption {
+  value: string
+  label: string
+}
+
+export interface DateRangeTargets {
+  start: string
+  end: string
+}
+
+export interface ParameterDefinition {
+  name: string
+  type: ParameterType
+  label?: string
+  required?: boolean
+  sql_format?: SqlFormat
+  targets?: DateRangeTargets
+  default_value?: string | string[] | { start: string; end: string }
+  options?: ParameterOption[]
+  options_query_id?: string
+  depends_on?: string[]
+  empty_behavior?: EmptyBehavior
+}
+
 export interface DashboardPermission {
   id: string
   dashboard_id: string
@@ -62,6 +91,7 @@ export interface Dashboard {
   description: string | null
   layout: LayoutItem[]
   is_public?: boolean
+  parameters?: ParameterDefinition[]
   created_at: string
   updated_at: string
   widgets?: Widget[]
@@ -124,6 +154,12 @@ export interface ColumnLinkConfig {
 
 export interface ChartDrilldownConfig {
   targetDashboardId: string        // Dashboard ID to navigate to
+  parameterMapping: Record<string, string>  // Param name → "name"|"value"|"series"|column name
+}
+
+// Cross-filter: clicking on a chart updates parameters on the same dashboard
+export interface CrossFilterConfig {
+  enabled: boolean
   parameterMapping: Record<string, string>  // Param name → "name"|"value"|"series"|column name
 }
 
@@ -326,6 +362,9 @@ export interface ChartConfig {
   // Drilldown config
   columnLinks?: ColumnLinkConfig[]     // Table column link settings
   drilldown?: ChartDrilldownConfig     // Chart drilldown settings
+
+  // Cross-filter config
+  crossFilter?: CrossFilterConfig      // Cross-filter settings for same-dashboard filtering
 
   // ============================================
   // Nested configs for specific chart types
@@ -588,4 +627,17 @@ export interface SetCatalogPermissionsRequest {
 
 export interface AssignRoleRequest {
   role_id: string
+}
+
+// Widget Data API Types
+export interface WidgetDataRequest {
+  parameters?: Record<string, unknown>
+}
+
+export interface WidgetDataResponse {
+  widget_id: string
+  query_result?: QueryResult
+  error?: string
+  required_parameters?: string[]
+  missing_parameters?: string[]
 }
