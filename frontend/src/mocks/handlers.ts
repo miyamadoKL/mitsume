@@ -308,6 +308,36 @@ export const handlers = [
     }
     return HttpResponse.json({ error: 'Not found' }, { status: 404 })
   }),
+
+  // Layout templates handler
+  http.get('/api/layout-templates', () => {
+    return HttpResponse.json([])
+  }),
+
+  // Roles handler (for admin pages)
+  http.get('/api/roles', () => {
+    return HttpResponse.json([])
+  }),
+
+  // Notification channels handler
+  http.get('/api/notification-channels', () => {
+    return HttpResponse.json([])
+  }),
+
+  // Alerts handler
+  http.get('/api/alerts', () => {
+    return HttpResponse.json([])
+  }),
+
+  // Subscriptions handler
+  http.get('/api/subscriptions', () => {
+    return HttpResponse.json([])
+  }),
+
+  // Users handler
+  http.get('/api/users', () => {
+    return HttpResponse.json([])
+  }),
 ]
 
 export const errorHandlers = {

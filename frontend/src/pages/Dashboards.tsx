@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { dashboardApi } from '@/services/api'
-import type { Dashboard } from '@/types'
+import { dashboardApi, layoutTemplateApi } from '@/services/api'
+import type { Dashboard, LayoutTemplate } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '@/components/ui/dialog'
+import { LayoutTemplateSelector } from '@/components/dashboard/LayoutTemplateSelector'
+import { systemLayoutTemplates } from '@/lib/layout-templates'
 import { formatDate } from '@/lib/utils'
 import { toast } from '@/stores/toastStore'
 import { getErrorMessage } from '@/lib/errors'
@@ -66,6 +68,8 @@ export const Dashboards: React.FC = () => {
   const [dashboardToDelete, setDashboardToDelete] = useState<Dashboard | null>(null)
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
+  const [selectedTemplate, setSelectedTemplate] = useState<LayoutTemplate>(systemLayoutTemplates[0])
+  const [customTemplates, setCustomTemplates] = useState<LayoutTemplate[]>([])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -95,6 +99,15 @@ export const Dashboards: React.FC = () => {
     loadDashboards()
   }, [loadDashboards])
 
+  // Load custom templates when create dialog opens
+  useEffect(() => {
+    if (createDialogOpen) {
+      layoutTemplateApi.getAll()
+        .then(templates => setCustomTemplates(templates.filter(t => !t.is_system)))
+        .catch(err => console.error('Failed to load custom templates:', err))
+    }
+  }, [createDialogOpen])
+
   const handleCreate = async () => {
     if (!name.trim()) return
     setSaving(true)
@@ -103,10 +116,25 @@ export const Dashboards: React.FC = () => {
         name,
         description: description || undefined,
       })
+
+      // Create widgets for the selected template (parallel execution for performance)
+      if (selectedTemplate.layout.length > 0) {
+        const widgetPromises = selectedTemplate.layout.map((pos, i) =>
+          dashboardApi.createWidget(dashboard.id, {
+            name: `${t('dashboard.widget.title')} ${i + 1}`,
+            chart_type: 'bar',
+            chart_config: {},
+            position: pos,
+          })
+        )
+        await Promise.all(widgetPromises)
+      }
+
       setDashboards([dashboard, ...dashboards])
       setCreateDialogOpen(false)
       setName('')
       setDescription('')
+      setSelectedTemplate(systemLayoutTemplates[0])
       toast.success(t('success.created'), `"${dashboard.name}"`)
       navigate(`/dashboards/${dashboard.id}`)
     } catch (err) {
@@ -236,24 +264,31 @@ export const Dashboards: React.FC = () => {
         <DialogHeader>
           <DialogTitle>{t('dashboard.createDialog.title')}</DialogTitle>
         </DialogHeader>
-        <DialogContent>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-medium">{t('dashboard.createDialog.name')}</label>
-              <Input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('dashboard.createDialog.namePlaceholder')}
-              />
+        <DialogContent className="max-w-2xl">
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm font-medium">{t('dashboard.createDialog.name')}</label>
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t('dashboard.createDialog.namePlaceholder')}
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">{t('savedQueries.saveDialog.description')}</label>
+                <Input
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder={t('savedQueries.saveDialog.descriptionPlaceholder')}
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-sm font-medium">{t('savedQueries.saveDialog.description')}</label>
-              <Input
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder={t('savedQueries.saveDialog.descriptionPlaceholder')}
-              />
-            </div>
+            <LayoutTemplateSelector
+              selectedId={selectedTemplate.id}
+              onSelect={setSelectedTemplate}
+              customTemplates={customTemplates}
+            />
           </div>
         </DialogContent>
         <DialogFooter>

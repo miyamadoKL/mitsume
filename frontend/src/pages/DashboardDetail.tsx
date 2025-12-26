@@ -2,12 +2,13 @@ import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Layout } from 'react-grid-layout'
-import { dashboardApi, queryApi } from '@/services/api'
-import type { Dashboard, SavedQuery, ChartType, CreateWidgetRequest, Widget, PermissionLevel, ParameterDefinition } from '@/types'
+import { dashboardApi, queryApi, layoutTemplateApi } from '@/services/api'
+import type { Dashboard, SavedQuery, ChartType, CreateWidgetRequest, Widget, PermissionLevel, LayoutTemplate, ParameterDefinition } from '@/types'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
 import { DashboardParameters } from '@/components/dashboard/DashboardParameters'
 import { WidgetSettingsDialog } from '@/components/dashboard/WidgetSettingsDialog'
 import { ShareDashboardDialog } from '@/components/dashboard/ShareDashboardDialog'
+import { QuickAddPanel } from '@/components/dashboard/QuickAddPanel'
 import { ParameterSettingsDialog } from '@/components/dashboard/ParameterSettingsDialog'
 import { DashboardExportButton } from '@/components/export/DashboardExportButton'
 import { Button } from '@/components/ui/button'
@@ -17,7 +18,9 @@ import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '
 import { toast } from '@/stores/toastStore'
 import { getErrorMessage } from '@/lib/errors'
 import { extractAllParameters } from '@/lib/params'
-import { ArrowLeft, Plus, Loader2, Edit, Save, RefreshCw, Share2, Eye, Globe, SlidersHorizontal, Link2 } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2, Edit, Save, RefreshCw, Share2, Eye, Globe, LayoutTemplate as LayoutTemplateIcon, SlidersHorizontal, Link2 } from 'lucide-react'
+import { LayoutTemplateSelector } from '@/components/dashboard/LayoutTemplateSelector'
+import { systemLayoutTemplates } from '@/lib/layout-templates'
 import { getImplementedChartTypeOptions } from '@/lib/chart-options'
 
 export const DashboardDetail: React.FC = () => {
@@ -51,6 +54,12 @@ export const DashboardDetail: React.FC = () => {
 
   // Share dialog state
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
+
+  // Template dialog state
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [customTemplates, setCustomTemplates] = useState<LayoutTemplate[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState<LayoutTemplate>(systemLayoutTemplates[0])
+  const [applyingTemplate, setApplyingTemplate] = useState(false)
 
   // Parameter settings dialog state
   const [paramSettingsOpen, setParamSettingsOpen] = useState(false)
@@ -303,6 +312,15 @@ export const DashboardDetail: React.FC = () => {
     return () => clearInterval(interval)
   }, [autoRefreshInterval, dashboard?.widgets])
 
+  // Load custom templates when template dialog opens
+  useEffect(() => {
+    if (templateDialogOpen) {
+      layoutTemplateApi.getAll()
+        .then(templates => setCustomTemplates(templates.filter(t => !t.is_system)))
+        .catch(err => console.error('Failed to load custom templates:', err))
+    }
+  }, [templateDialogOpen])
+
   const loadDashboard = async () => {
     if (!id) return
     try {
@@ -387,6 +405,37 @@ export const DashboardDetail: React.FC = () => {
     }
   }
 
+  const handleQuickAddWidget = async (type: ChartType) => {
+    if (!id) return
+    setSaving(true)
+
+    const maxY = dashboard?.widgets?.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0) || 0
+    const widgetCount = (dashboard?.widgets?.length || 0) + 1
+
+    const req: CreateWidgetRequest = {
+      name: `${t(`chart.types.${type}`)} ${widgetCount}`,
+      query_id: undefined,
+      chart_type: type,
+      chart_config: type === 'markdown' ? { content: '' } : {},
+      position: { x: 0, y: maxY, w: 6, h: 3 },
+    }
+
+    try {
+      const widget = await dashboardApi.createWidget(id, req)
+      setDashboard(prev => prev ? {
+        ...prev,
+        widgets: [...(prev.widgets || []), widget],
+      } : null)
+      // Open settings dialog for the new widget
+      setEditingWidget(widget)
+      setSettingsDialogOpen(true)
+    } catch (err) {
+      toast.error(t('dashboard.detail.toast.addWidgetFailed'), getErrorMessage(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const handleDeleteWidget = async (widgetId: string) => {
     if (!id) return
     try {
@@ -398,6 +447,39 @@ export const DashboardDetail: React.FC = () => {
       toast.success(t('dashboard.detail.toast.widgetDeleted'))
     } catch (err) {
       toast.error(t('dashboard.detail.toast.deleteWidgetFailed'), getErrorMessage(err))
+    }
+  }
+
+  const handleDuplicateWidget = async (widget: Widget) => {
+    if (!id) return
+    setSaving(true)
+    try {
+      // Position duplicate slightly below the original widget (offset by 1 row)
+      const newY = widget.position.y + widget.position.h
+
+      // Deep copy chart_config to avoid shared reference issues
+      const chartConfigCopy = widget.chart_config
+        ? JSON.parse(JSON.stringify(widget.chart_config))
+        : {}
+
+      const req: CreateWidgetRequest = {
+        name: `${widget.name} (Copy)`,
+        query_id: widget.query_id || undefined,
+        chart_type: widget.chart_type,
+        chart_config: chartConfigCopy,
+        position: { x: widget.position.x, y: newY, w: widget.position.w, h: widget.position.h },
+      }
+
+      const newWidget = await dashboardApi.createWidget(id, req)
+      setDashboard(prev => prev ? {
+        ...prev,
+        widgets: [...(prev.widgets || []), newWidget],
+      } : null)
+      toast.success(t('dashboard.detail.toast.widgetDuplicated'))
+    } catch (err) {
+      toast.error(t('dashboard.detail.toast.duplicateWidgetFailed'), getErrorMessage(err))
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -427,6 +509,80 @@ export const DashboardDetail: React.FC = () => {
     setWidgetName('')
     setSelectedQueryId('')
     setChartType('bar')
+  }
+
+  const handleApplyTemplate = async (replaceExisting: boolean) => {
+    if (!id || !selectedTemplate) return
+    setApplyingTemplate(true)
+
+    // Save current state for rollback
+    const previousWidgets = dashboard?.widgets || []
+
+    try {
+      // Delete existing widgets if replaceExisting is true
+      if (replaceExisting && previousWidgets.length > 0) {
+        const deleteResults = await Promise.allSettled(
+          previousWidgets.map(w => dashboardApi.deleteWidget(id, w.id))
+        )
+        const deleteFailed = deleteResults.filter(r => r.status === 'rejected')
+        if (deleteFailed.length > 0) {
+          throw new Error(t('dashboard.applyTemplate.deleteError'))
+        }
+      }
+
+      // Calculate starting Y position for new widgets
+      const startY = replaceExisting ? 0 : (
+        previousWidgets.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0)
+      )
+
+      // Create new widgets in parallel
+      if (selectedTemplate.layout.length > 0) {
+        const widgetPromises = selectedTemplate.layout.map((pos, i) =>
+          dashboardApi.createWidget(id, {
+            name: `${t('dashboard.widget.title')} ${(replaceExisting ? 0 : previousWidgets.length) + i + 1}`,
+            chart_type: 'bar',
+            chart_config: {},
+            position: { ...pos, y: pos.y + startY },
+          })
+        )
+
+        const results = await Promise.allSettled(widgetPromises)
+        const createdWidgets = results
+          .filter((r): r is PromiseFulfilledResult<Widget> => r.status === 'fulfilled')
+          .map(r => r.value)
+        const failedCount = results.filter(r => r.status === 'rejected').length
+
+        // Update state with created widgets
+        setDashboard(prev => prev ? {
+          ...prev,
+          widgets: replaceExisting ? createdWidgets : [...(prev.widgets || []), ...createdWidgets],
+        } : null)
+
+        if (failedCount > 0) {
+          toast.error(
+            t('dashboard.applyTemplate.partialError'),
+            t('dashboard.applyTemplate.partialErrorDetail', { count: failedCount })
+          )
+        } else {
+          toast.success(t('dashboard.applyTemplate.success'))
+        }
+      } else {
+        // Blank template - just clear widgets
+        setDashboard(prev => prev ? {
+          ...prev,
+          widgets: replaceExisting ? [] : prev.widgets,
+        } : null)
+        toast.success(t('dashboard.applyTemplate.success'))
+      }
+
+      setTemplateDialogOpen(false)
+    } catch (err) {
+      toast.error(t('dashboard.applyTemplate.error'), getErrorMessage(err))
+      // Rollback to previous state on complete failure
+      setDashboard(prev => prev ? { ...prev, widgets: previousWidgets } : null)
+    } finally {
+      setApplyingTemplate(false)
+    }
   }
 
   if (loading) {
@@ -529,6 +685,10 @@ export const DashboardDetail: React.FC = () => {
           )}
           {editMode && (
             <>
+              <Button variant="outline" onClick={() => setTemplateDialogOpen(true)}>
+                <LayoutTemplateIcon className="h-4 w-4 mr-2" />
+                {t('dashboard.applyTemplate.button')}
+              </Button>
               <Button variant="outline" onClick={() => setParamSettingsOpen(true)}>
                 <SlidersHorizontal className="h-4 w-4 mr-2" />
                 {t('dashboard.parameters.settings', 'Parameters')}
@@ -555,12 +715,14 @@ export const DashboardDetail: React.FC = () => {
       />
 
       <div className="flex-1 overflow-auto p-4" ref={dashboardContentRef}>
+        {editMode && <QuickAddPanel onAddWidget={handleQuickAddWidget} />}
         {dashboard.widgets && dashboard.widgets.length > 0 ? (
           <DashboardGrid
             dashboard={dashboard}
             onLayoutChange={handleLayoutChange}
             editable={editMode}
             onDeleteWidget={handleDeleteWidget}
+            onDuplicateWidget={handleDuplicateWidget}
             onSettingsClick={handleSettingsClick}
             parameterValues={appliedValues}
             refreshKeys={refreshKeys}
@@ -646,6 +808,45 @@ export const DashboardDetail: React.FC = () => {
           onUpdate={setDashboard}
         />
       )}
+
+      {/* Template Dialog */}
+      <Dialog open={templateDialogOpen} onClose={() => setTemplateDialogOpen(false)}>
+        <DialogHeader>
+          <DialogTitle>{t('dashboard.applyTemplate.title')}</DialogTitle>
+        </DialogHeader>
+        <DialogContent className="max-w-2xl">
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {t('dashboard.applyTemplate.description')}
+            </p>
+            <LayoutTemplateSelector
+              selectedId={selectedTemplate.id}
+              onSelect={setSelectedTemplate}
+              customTemplates={customTemplates}
+            />
+          </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>
+            {t('common.cancel')}
+          </Button>
+          {dashboard?.widgets && dashboard.widgets.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => handleApplyTemplate(false)}
+              disabled={applyingTemplate}
+            >
+              {applyingTemplate ? t('common.loading') : t('dashboard.applyTemplate.addWidgets')}
+            </Button>
+          )}
+          <Button
+            onClick={() => handleApplyTemplate(true)}
+            disabled={applyingTemplate}
+          >
+            {applyingTemplate ? t('common.loading') : t('dashboard.applyTemplate.replaceAll')}
+          </Button>
+        </DialogFooter>
+      </Dialog>
 
       {/* Parameter Settings Dialog */}
       {canEdit && (

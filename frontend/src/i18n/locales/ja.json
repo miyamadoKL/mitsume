@@ -138,6 +138,47 @@
     "autoRefresh": "自動更新",
     "empty": "ダッシュボードがありません",
     "emptyDescription": "最初のダッシュボードを作成してください",
+    "quickAdd": {
+      "title": "クイック追加"
+    },
+    "grid": {
+      "emptyState": "「ウィジェットを追加」をクリックするか、上のクイック追加パネルからウィジェットを追加してください",
+      "refresh": "更新",
+      "settings": "設定",
+      "duplicate": "複製",
+      "delete": "削除"
+    },
+    "templates": {
+      "selectTemplate": "テンプレートを選択",
+      "blank": {
+        "name": "空白",
+        "description": "空のダッシュボードから始める"
+      },
+      "kpi-row-chart": {
+        "name": "KPI行 + チャート",
+        "description": "上部にKPI、下部にメインチャート"
+      },
+      "two-column": {
+        "name": "2カラム",
+        "description": "横並びのチャート2つ"
+      },
+      "three-column": {
+        "name": "3カラム",
+        "description": "同じ幅のチャート3つ"
+      },
+      "main-sidebar": {
+        "name": "メイン + サイドバー",
+        "description": "大きなメイン領域とサイドバー"
+      },
+      "grid-2x2": {
+        "name": "グリッド 2x2",
+        "description": "2x2の均等グリッド"
+      },
+      "executive-summary": {
+        "name": "エグゼクティブサマリー",
+        "description": "KPI、チャート2つ、テーブルの構成"
+      }
+    },
     "createDialog": {
       "title": "ダッシュボード作成",
       "name": "ダッシュボード名",
@@ -160,6 +201,18 @@
       "viewOnly": "閲覧のみ",
       "public": "公開"
     },
+    "applyTemplate": {
+      "button": "テンプレート適用",
+      "title": "テンプレート適用",
+      "description": "このダッシュボードに適用するレイアウトテンプレートを選択してください。既存のウィジェットをすべて置き換えるか、テンプレートのウィジェットを追加することができます。",
+      "replaceAll": "すべて置換",
+      "addWidgets": "ウィジェットを追加",
+      "success": "テンプレートを適用しました",
+      "error": "テンプレートの適用に失敗しました",
+      "deleteError": "既存ウィジェットの削除に失敗しました",
+      "partialError": "一部のウィジェットの作成に失敗しました",
+      "partialErrorDetail": "{{count}}個のウィジェットを作成できませんでした"
+    },
     "parameters": {
       "filters": "フィルター:",
       "enterPlaceholder": "{{param}}を入力"
@@ -175,8 +228,11 @@
         "refreshAll": "すべてのウィジェットを更新しています",
         "widgetDeleted": "ウィジェットを削除しました",
         "deleteWidgetFailed": "ウィジェットの削除に失敗しました",
+        "widgetDuplicated": "ウィジェットを複製しました",
+        "duplicateWidgetFailed": "ウィジェットの複製に失敗しました",
         "widgetUpdated": "ウィジェットを更新しました",
-        "updateWidgetFailed": "ウィジェットの更新に失敗しました"
+        "updateWidgetFailed": "ウィジェットの更新に失敗しました",
+        "addWidgetFailed": "ウィジェットの追加に失敗しました"
       },
       "noWidgetsYet": "ウィジェットがありません",
       "addWidgetDialog": {
