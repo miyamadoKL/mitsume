@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { dashboardApi } from '@/services/api'
+import { dashboardApi, layoutTemplateApi } from '@/services/api'
 import type { Dashboard, LayoutTemplate } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -69,6 +69,7 @@ export const Dashboards: React.FC = () => {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [selectedTemplate, setSelectedTemplate] = useState<LayoutTemplate>(systemLayoutTemplates[0])
+  const [customTemplates, setCustomTemplates] = useState<LayoutTemplate[]>([])
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
 
@@ -97,6 +98,15 @@ export const Dashboards: React.FC = () => {
   useEffect(() => {
     loadDashboards()
   }, [loadDashboards])
+
+  // Load custom templates when create dialog opens
+  useEffect(() => {
+    if (createDialogOpen) {
+      layoutTemplateApi.getAll()
+        .then(templates => setCustomTemplates(templates.filter(t => !t.is_system)))
+        .catch(err => console.error('Failed to load custom templates:', err))
+    }
+  }, [createDialogOpen])
 
   const handleCreate = async () => {
     if (!name.trim()) return
@@ -277,6 +287,7 @@ export const Dashboards: React.FC = () => {
             <LayoutTemplateSelector
               selectedId={selectedTemplate.id}
               onSelect={setSelectedTemplate}
+              customTemplates={customTemplates}
             />
           </div>
         </DialogContent>

@@ -2,8 +2,8 @@ import React, { useEffect, useState, useMemo, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Layout } from 'react-grid-layout'
-import { dashboardApi, queryApi } from '@/services/api'
-import type { Dashboard, SavedQuery, ChartType, CreateWidgetRequest, Widget, PermissionLevel } from '@/types'
+import { dashboardApi, queryApi, layoutTemplateApi } from '@/services/api'
+import type { Dashboard, SavedQuery, ChartType, CreateWidgetRequest, Widget, PermissionLevel, LayoutTemplate } from '@/types'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
 import { DashboardParameters } from '@/components/dashboard/DashboardParameters'
 import { WidgetSettingsDialog } from '@/components/dashboard/WidgetSettingsDialog'
@@ -17,7 +17,9 @@ import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '
 import { toast } from '@/stores/toastStore'
 import { getErrorMessage } from '@/lib/errors'
 import { extractAllParameters } from '@/lib/params'
-import { ArrowLeft, Plus, Loader2, Edit, Save, RefreshCw, Share2, Eye, Globe } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2, Edit, Save, RefreshCw, Share2, Eye, Globe, LayoutTemplate as LayoutTemplateIcon } from 'lucide-react'
+import { LayoutTemplateSelector } from '@/components/dashboard/LayoutTemplateSelector'
+import { systemLayoutTemplates } from '@/lib/layout-templates'
 import { getImplementedChartTypeOptions } from '@/lib/chart-options'
 
 export const DashboardDetail: React.FC = () => {
@@ -48,6 +50,12 @@ export const DashboardDetail: React.FC = () => {
 
   // Share dialog state
   const [shareDialogOpen, setShareDialogOpen] = useState(false)
+
+  // Template dialog state
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [customTemplates, setCustomTemplates] = useState<LayoutTemplate[]>([])
+  const [selectedTemplate, setSelectedTemplate] = useState<LayoutTemplate>(systemLayoutTemplates[0])
+  const [applyingTemplate, setApplyingTemplate] = useState(false)
 
   // Ref for export functionality
   const dashboardContentRef = useRef<HTMLDivElement>(null)
@@ -140,6 +148,15 @@ export const DashboardDetail: React.FC = () => {
     }, autoRefreshInterval * 1000)
     return () => clearInterval(interval)
   }, [autoRefreshInterval, dashboard?.widgets])
+
+  // Load custom templates when template dialog opens
+  useEffect(() => {
+    if (templateDialogOpen) {
+      layoutTemplateApi.getAll()
+        .then(templates => setCustomTemplates(templates.filter(t => !t.is_system)))
+        .catch(err => console.error('Failed to load custom templates:', err))
+    }
+  }, [templateDialogOpen])
 
   const loadDashboard = async () => {
     if (!id) return
@@ -331,6 +348,80 @@ export const DashboardDetail: React.FC = () => {
     setChartType('bar')
   }
 
+  const handleApplyTemplate = async (replaceExisting: boolean) => {
+    if (!id || !selectedTemplate) return
+    setApplyingTemplate(true)
+
+    // Save current state for rollback
+    const previousWidgets = dashboard?.widgets || []
+
+    try {
+      // Delete existing widgets if replaceExisting is true
+      if (replaceExisting && previousWidgets.length > 0) {
+        const deleteResults = await Promise.allSettled(
+          previousWidgets.map(w => dashboardApi.deleteWidget(id, w.id))
+        )
+        const deleteFailed = deleteResults.filter(r => r.status === 'rejected')
+        if (deleteFailed.length > 0) {
+          throw new Error(t('dashboard.applyTemplate.deleteError'))
+        }
+      }
+
+      // Calculate starting Y position for new widgets
+      const startY = replaceExisting ? 0 : (
+        previousWidgets.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0)
+      )
+
+      // Create new widgets in parallel
+      if (selectedTemplate.layout.length > 0) {
+        const widgetPromises = selectedTemplate.layout.map((pos, i) =>
+          dashboardApi.createWidget(id, {
+            name: `${t('dashboard.widget.title')} ${(replaceExisting ? 0 : previousWidgets.length) + i + 1}`,
+            chart_type: 'bar',
+            chart_config: {},
+            position: { ...pos, y: pos.y + startY },
+          })
+        )
+
+        const results = await Promise.allSettled(widgetPromises)
+        const createdWidgets = results
+          .filter((r): r is PromiseFulfilledResult<Widget> => r.status === 'fulfilled')
+          .map(r => r.value)
+        const failedCount = results.filter(r => r.status === 'rejected').length
+
+        // Update state with created widgets
+        setDashboard(prev => prev ? {
+          ...prev,
+          widgets: replaceExisting ? createdWidgets : [...(prev.widgets || []), ...createdWidgets],
+        } : null)
+
+        if (failedCount > 0) {
+          toast.error(
+            t('dashboard.applyTemplate.partialError'),
+            t('dashboard.applyTemplate.partialErrorDetail', { count: failedCount })
+          )
+        } else {
+          toast.success(t('dashboard.applyTemplate.success'))
+        }
+      } else {
+        // Blank template - just clear widgets
+        setDashboard(prev => prev ? {
+          ...prev,
+          widgets: replaceExisting ? [] : prev.widgets,
+        } : null)
+        toast.success(t('dashboard.applyTemplate.success'))
+      }
+
+      setTemplateDialogOpen(false)
+    } catch (err) {
+      toast.error(t('dashboard.applyTemplate.error'), getErrorMessage(err))
+      // Rollback to previous state on complete failure
+      setDashboard(prev => prev ? { ...prev, widgets: previousWidgets } : null)
+    } finally {
+      setApplyingTemplate(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -423,10 +514,16 @@ export const DashboardDetail: React.FC = () => {
             </Button>
           )}
           {editMode && (
-            <Button onClick={() => setAddWidgetOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              {t('dashboard.addWidget')}
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setTemplateDialogOpen(true)}>
+                <LayoutTemplateIcon className="h-4 w-4 mr-2" />
+                {t('dashboard.applyTemplate.button')}
+              </Button>
+              <Button onClick={() => setAddWidgetOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                {t('dashboard.addWidget')}
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -529,6 +626,45 @@ export const DashboardDetail: React.FC = () => {
           onUpdate={setDashboard}
         />
       )}
+
+      {/* Template Dialog */}
+      <Dialog open={templateDialogOpen} onClose={() => setTemplateDialogOpen(false)}>
+        <DialogHeader>
+          <DialogTitle>{t('dashboard.applyTemplate.title')}</DialogTitle>
+        </DialogHeader>
+        <DialogContent className="max-w-2xl">
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              {t('dashboard.applyTemplate.description')}
+            </p>
+            <LayoutTemplateSelector
+              selectedId={selectedTemplate.id}
+              onSelect={setSelectedTemplate}
+              customTemplates={customTemplates}
+            />
+          </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>
+            {t('common.cancel')}
+          </Button>
+          {dashboard?.widgets && dashboard.widgets.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={() => handleApplyTemplate(false)}
+              disabled={applyingTemplate}
+            >
+              {applyingTemplate ? t('common.loading') : t('dashboard.applyTemplate.addWidgets')}
+            </Button>
+          )}
+          <Button
+            onClick={() => handleApplyTemplate(true)}
+            disabled={applyingTemplate}
+          >
+            {applyingTemplate ? t('common.loading') : t('dashboard.applyTemplate.replaceAll')}
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   )
 }

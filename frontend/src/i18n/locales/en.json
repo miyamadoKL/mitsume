@@ -195,6 +195,18 @@
       "viewOnly": "View Only",
       "public": "Public"
     },
+    "applyTemplate": {
+      "button": "Apply Template",
+      "title": "Apply Template",
+      "description": "Choose a layout template to apply to this dashboard. You can replace all existing widgets or add the template widgets alongside them.",
+      "replaceAll": "Replace All",
+      "addWidgets": "Add Widgets",
+      "success": "Template applied successfully",
+      "error": "Failed to apply template",
+      "deleteError": "Failed to delete existing widgets",
+      "partialError": "Some widgets failed to create",
+      "partialErrorDetail": "{{count}} widget(s) could not be created"
+    },
     "detail": {
       "toast": {
         "refreshAll": "Refreshing all widgets",

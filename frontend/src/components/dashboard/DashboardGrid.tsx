@@ -51,16 +51,21 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
       .map(w => w.query_id!)
 
     const uniqueIds = [...new Set(queryIds)]
-    const queries: Record<string, SavedQuery> = {}
+    if (uniqueIds.length === 0) return
 
-    for (const id of uniqueIds) {
-      try {
-        const query = await queryApi.getSavedById(id)
-        queries[id] = query
-      } catch (err) {
-        console.error(`Failed to load query ${id}:`, err)
+    // Fetch all queries in parallel for better performance
+    const results = await Promise.allSettled(
+      uniqueIds.map(id => queryApi.getSavedById(id))
+    )
+
+    const queries: Record<string, SavedQuery> = {}
+    results.forEach((result, index) => {
+      if (result.status === 'fulfilled') {
+        queries[uniqueIds[index]] = result.value
+      } else {
+        console.error(`Failed to load query ${uniqueIds[index]}:`, result.reason)
       }
-    }
+    })
 
     setSavedQueries(queries)
   }

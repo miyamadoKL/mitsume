@@ -2,6 +2,7 @@ package models
 
 import (
 	"encoding/json"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -172,20 +173,21 @@ func ValidateLayout(layoutJSON json.RawMessage) ([]LayoutPosition, error) {
 	}
 
 	for i, pos := range positions {
+		idxStr := strconv.Itoa(i)
 		if pos.X < 0 || pos.X >= MaxGridColumns {
-			return nil, &ValidationError{Field: "layout", Message: "invalid x position at index " + string(rune('0'+i))}
+			return nil, &ValidationError{Field: "layout", Message: "invalid x position at index " + idxStr}
 		}
 		if pos.Y < 0 || pos.Y > MaxGridRows {
-			return nil, &ValidationError{Field: "layout", Message: "invalid y position at index " + string(rune('0'+i))}
+			return nil, &ValidationError{Field: "layout", Message: "invalid y position at index " + idxStr}
 		}
 		if pos.W < MinWidgetWidth || pos.W > MaxWidgetWidth {
-			return nil, &ValidationError{Field: "layout", Message: "invalid width at index " + string(rune('0'+i))}
+			return nil, &ValidationError{Field: "layout", Message: "invalid width at index " + idxStr}
 		}
 		if pos.H < MinWidgetHeight || pos.H > MaxWidgetHeight {
-			return nil, &ValidationError{Field: "layout", Message: "invalid height at index " + string(rune('0'+i))}
+			return nil, &ValidationError{Field: "layout", Message: "invalid height at index " + idxStr}
 		}
 		if pos.X+pos.W > MaxGridColumns {
-			return nil, &ValidationError{Field: "layout", Message: "widget exceeds grid bounds at index " + string(rune('0'+i))}
+			return nil, &ValidationError{Field: "layout", Message: "widget exceeds grid bounds at index " + idxStr}
 		}
 	}
 
