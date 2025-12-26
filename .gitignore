@@ -43,3 +43,6 @@ coverage/
 .tmp*
 .gocache/
 .gomodcache/
+
+# Local dev scripts
+frontend/scripts/find-untranslated-ui-strings.mjs
