@@ -107,17 +107,17 @@ export const Dashboards: React.FC = () => {
         description: description || undefined,
       })
 
-      // Create widgets for the selected template
+      // Create widgets for the selected template (parallel execution for performance)
       if (selectedTemplate.layout.length > 0) {
-        for (let i = 0; i < selectedTemplate.layout.length; i++) {
-          const pos = selectedTemplate.layout[i]
-          await dashboardApi.createWidget(dashboard.id, {
+        const widgetPromises = selectedTemplate.layout.map((pos, i) =>
+          dashboardApi.createWidget(dashboard.id, {
             name: `${t('dashboard.widget.title')} ${i + 1}`,
             chart_type: 'bar',
             chart_config: {},
             position: pos,
           })
-        }
+        )
+        await Promise.all(widgetPromises)
       }
 
       setDashboards([dashboard, ...dashboards])
