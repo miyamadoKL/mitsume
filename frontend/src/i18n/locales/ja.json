@@ -136,6 +136,8 @@
     "export": "エクスポート",
     "refresh": "更新",
     "autoRefresh": "自動更新",
+    "undo": "元に戻す (Ctrl+Z)",
+    "redo": "やり直し (Ctrl+Shift+Z)",
     "empty": "ダッシュボードがありません",
     "emptyDescription": "最初のダッシュボードを作成してください",
     "quickAdd": {

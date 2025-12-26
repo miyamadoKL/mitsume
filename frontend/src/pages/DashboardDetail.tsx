@@ -18,7 +18,8 @@ import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '
 import { toast } from '@/stores/toastStore'
 import { getErrorMessage } from '@/lib/errors'
 import { extractAllParameters } from '@/lib/params'
-import { ArrowLeft, Plus, Loader2, Edit, Save, RefreshCw, Share2, Eye, Globe, LayoutTemplate as LayoutTemplateIcon, SlidersHorizontal, Link2 } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2, Edit, Save, RefreshCw, Share2, Eye, Globe, LayoutTemplate as LayoutTemplateIcon, SlidersHorizontal, Link2, Undo2, Redo2 } from 'lucide-react'
+import { useUndoRedo, WidgetSnapshot } from '@/hooks/useUndoRedo'
 import { LayoutTemplateSelector } from '@/components/dashboard/LayoutTemplateSelector'
 import { systemLayoutTemplates } from '@/lib/layout-templates'
 import { getImplementedChartTypeOptions } from '@/lib/chart-options'
@@ -64,6 +65,25 @@ export const DashboardDetail: React.FC = () => {
   // Parameter settings dialog state
   const [paramSettingsOpen, setParamSettingsOpen] = useState(false)
 
+  // Undo/Redo for widget changes in edit mode
+  const [widgetHistory, historyActions] = useUndoRedo<WidgetSnapshot>(
+    { widgets: [] },
+    (a, b) => {
+      if (a.widgets.length !== b.widgets.length) return false
+      return a.widgets.every((w, i) => {
+        const other = b.widgets[i]
+        return (
+          w.id === other.id &&
+          w.name === other.name &&
+          w.position.x === other.position.x &&
+          w.position.y === other.position.y &&
+          w.position.w === other.position.w &&
+          w.position.h === other.position.h
+        )
+      })
+    }
+  )
+
   // Ref for export functionality
   const dashboardContentRef = useRef<HTMLDivElement>(null)
 
@@ -94,6 +114,85 @@ export const DashboardDetail: React.FC = () => {
       loadSavedQueries()
     }
   }, [id])
+
+  // Initialize widget history when entering edit mode
+  useEffect(() => {
+    if (editMode && dashboard?.widgets) {
+      const snapshot: WidgetSnapshot = {
+        widgets: dashboard.widgets.map(w => ({
+          id: w.id,
+          name: w.name,
+          query_id: w.query_id || undefined,
+          chart_type: w.chart_type,
+          chart_config: w.chart_config,
+          position: w.position,
+        })),
+      }
+      historyActions.set(snapshot, true) // Skip adding to history - just set initial state
+      historyActions.clear() // Clear any previous history
+    }
+  }, [editMode])
+
+  // Helper to record current widget state to history
+  const recordWidgetSnapshot = useCallback(() => {
+    if (!dashboard?.widgets) return
+    const snapshot: WidgetSnapshot = {
+      widgets: dashboard.widgets.map(w => ({
+        id: w.id,
+        name: w.name,
+        query_id: w.query_id || undefined,
+        chart_type: w.chart_type,
+        chart_config: w.chart_config,
+        position: w.position,
+      })),
+    }
+    historyActions.set(snapshot)
+  }, [dashboard?.widgets, historyActions])
+
+  // Handle undo action
+  const handleUndo = useCallback(() => {
+    if (!historyActions.canUndo || !dashboard) return
+    historyActions.undo()
+  }, [historyActions, dashboard])
+
+  // Handle redo action
+  const handleRedo = useCallback(() => {
+    if (!historyActions.canRedo || !dashboard) return
+    historyActions.redo()
+  }, [historyActions, dashboard])
+
+  // Apply widget history changes to dashboard state
+  useEffect(() => {
+    if (!editMode || !dashboard || widgetHistory.widgets.length === 0) return
+
+    // Check if we need to apply changes (history differs from current state)
+    const currentSnapshot = dashboard.widgets?.map(w => `${w.id}:${w.position.x},${w.position.y},${w.position.w},${w.position.h}`).sort().join('|') || ''
+    const historySnapshot = widgetHistory.widgets.map(w => `${w.id}:${w.position.x},${w.position.y},${w.position.w},${w.position.h}`).sort().join('|')
+
+    if (currentSnapshot !== historySnapshot) {
+      // Reconstruct widgets from history
+      const restoredWidgets = widgetHistory.widgets.map(hw => {
+        const original = dashboard.widgets?.find(w => w.id === hw.id)
+        if (original) {
+          return { ...original, position: hw.position, name: hw.name }
+        }
+        // Widget was in history but not in current - this shouldn't happen normally
+        return {
+          id: hw.id,
+          dashboard_id: dashboard.id,
+          name: hw.name,
+          query_id: hw.query_id || null,
+          chart_type: hw.chart_type,
+          chart_config: hw.chart_config as Record<string, unknown>,
+          position: hw.position,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as Widget
+      })
+
+      setDashboard(prev => prev ? { ...prev, widgets: restoredWidgets } : null)
+    }
+  }, [widgetHistory])
 
   // Handler for when widgets report their required parameters
   const handleParametersDiscovered = useCallback((widgetId: string, requiredParams: string[]) => {
@@ -346,6 +445,9 @@ export const DashboardDetail: React.FC = () => {
   const handleLayoutChange = async (layout: Layout[]) => {
     if (!dashboard || !id) return
 
+    // Record current state before change for undo
+    recordWidgetSnapshot()
+
     const updatedWidgets = dashboard.widgets?.map(widget => {
       const layoutItem = layout.find(l => l.i === widget.id)
       if (layoutItem) {
@@ -380,6 +482,9 @@ export const DashboardDetail: React.FC = () => {
     if (!id || !widgetName.trim()) return
     setSaving(true)
 
+    // Record current state before change for undo
+    recordWidgetSnapshot()
+
     const maxY = dashboard?.widgets?.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0) || 0
 
     const req: CreateWidgetRequest = {
@@ -408,6 +513,9 @@ export const DashboardDetail: React.FC = () => {
   const handleQuickAddWidget = async (type: ChartType) => {
     if (!id) return
     setSaving(true)
+
+    // Record current state before change for undo
+    recordWidgetSnapshot()
 
     const maxY = dashboard?.widgets?.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0) || 0
     const widgetCount = (dashboard?.widgets?.length || 0) + 1
@@ -438,6 +546,10 @@ export const DashboardDetail: React.FC = () => {
 
   const handleDeleteWidget = async (widgetId: string) => {
     if (!id) return
+
+    // Record current state before change for undo
+    recordWidgetSnapshot()
+
     try {
       await dashboardApi.deleteWidget(id, widgetId)
       setDashboard(prev => prev ? {
@@ -453,6 +565,10 @@ export const DashboardDetail: React.FC = () => {
   const handleDuplicateWidget = async (widget: Widget) => {
     if (!id) return
     setSaving(true)
+
+    // Record current state before change for undo
+    recordWidgetSnapshot()
+
     try {
       // Position duplicate slightly below the original widget (offset by 1 row)
       const newY = widget.position.y + widget.position.h
@@ -685,6 +801,29 @@ export const DashboardDetail: React.FC = () => {
           )}
           {editMode && (
             <>
+              {/* Undo/Redo buttons */}
+              <div className="flex border rounded-md">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleUndo}
+                  disabled={!historyActions.canUndo}
+                  title={t('dashboard.undo', 'Undo (Ctrl+Z)')}
+                  className="rounded-r-none"
+                >
+                  <Undo2 className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleRedo}
+                  disabled={!historyActions.canRedo}
+                  title={t('dashboard.redo', 'Redo (Ctrl+Shift+Z)')}
+                  className="rounded-l-none border-l"
+                >
+                  <Redo2 className="h-4 w-4" />
+                </Button>
+              </div>
               <Button variant="outline" onClick={() => setTemplateDialogOpen(true)}>
                 <LayoutTemplateIcon className="h-4 w-4 mr-2" />
                 {t('dashboard.applyTemplate.button')}

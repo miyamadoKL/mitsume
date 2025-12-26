@@ -136,6 +136,8 @@
     "export": "Export",
     "refresh": "Refresh",
     "autoRefresh": "Auto Refresh",
+    "undo": "Undo (Ctrl+Z)",
+    "redo": "Redo (Ctrl+Shift+Z)",
     "empty": "No dashboards yet",
     "emptyDescription": "Create your first dashboard to visualize your data",
     "quickAdd": {
