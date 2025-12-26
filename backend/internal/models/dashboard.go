@@ -129,3 +129,75 @@ type CreateLayoutTemplateRequest struct {
 	Description string          `json:"description"`
 	Layout      json.RawMessage `json:"layout" binding:"required"`
 }
+
+// LayoutPosition represents a widget position in the grid
+type LayoutPosition struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+	W int `json:"w"`
+	H int `json:"h"`
+}
+
+// Layout validation constants
+const (
+	MaxLayoutItems       = 50  // Maximum number of widgets in a layout
+	MaxLayoutNameLength  = 100 // Maximum length of template name
+	MaxLayoutDescLength  = 500 // Maximum length of template description
+	MaxGridColumns       = 12  // Grid column count
+	MaxGridRows          = 100 // Maximum Y position
+	MinWidgetWidth       = 1
+	MinWidgetHeight      = 1
+	MaxWidgetWidth       = 12
+	MaxWidgetHeight      = 20
+)
+
+// ValidateLayout validates a layout JSON and returns parsed positions
+func ValidateLayout(layoutJSON json.RawMessage) ([]LayoutPosition, error) {
+	if len(layoutJSON) == 0 {
+		return []LayoutPosition{}, nil
+	}
+
+	// Size check (prevent DoS with huge JSON)
+	if len(layoutJSON) > 64*1024 { // 64KB limit
+		return nil, &ValidationError{Field: "layout", Message: "layout JSON too large"}
+	}
+
+	var positions []LayoutPosition
+	if err := json.Unmarshal(layoutJSON, &positions); err != nil {
+		return nil, &ValidationError{Field: "layout", Message: "invalid layout format: must be an array of positions"}
+	}
+
+	if len(positions) > MaxLayoutItems {
+		return nil, &ValidationError{Field: "layout", Message: "too many layout items"}
+	}
+
+	for i, pos := range positions {
+		if pos.X < 0 || pos.X >= MaxGridColumns {
+			return nil, &ValidationError{Field: "layout", Message: "invalid x position at index " + string(rune('0'+i))}
+		}
+		if pos.Y < 0 || pos.Y > MaxGridRows {
+			return nil, &ValidationError{Field: "layout", Message: "invalid y position at index " + string(rune('0'+i))}
+		}
+		if pos.W < MinWidgetWidth || pos.W > MaxWidgetWidth {
+			return nil, &ValidationError{Field: "layout", Message: "invalid width at index " + string(rune('0'+i))}
+		}
+		if pos.H < MinWidgetHeight || pos.H > MaxWidgetHeight {
+			return nil, &ValidationError{Field: "layout", Message: "invalid height at index " + string(rune('0'+i))}
+		}
+		if pos.X+pos.W > MaxGridColumns {
+			return nil, &ValidationError{Field: "layout", Message: "widget exceeds grid bounds at index " + string(rune('0'+i))}
+		}
+	}
+
+	return positions, nil
+}
+
+// ValidationError represents a validation error
+type ValidationError struct {
+	Field   string
+	Message string
+}
+
+func (e *ValidationError) Error() string {
+	return e.Message
+}

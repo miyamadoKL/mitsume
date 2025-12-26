@@ -45,6 +45,24 @@ func (h *LayoutTemplateHandler) CreateLayoutTemplate(c *gin.Context) {
 		return
 	}
 
+	// Validate name length
+	if len(req.Name) > models.MaxLayoutNameLength {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "name too long"})
+		return
+	}
+
+	// Validate description length
+	if len(req.Description) > models.MaxLayoutDescLength {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "description too long"})
+		return
+	}
+
+	// Validate layout structure and bounds
+	if _, err := models.ValidateLayout(req.Layout); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	template, err := h.repo.Create(c.Request.Context(), userID, &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
