@@ -65,14 +65,15 @@ func (s *DashboardService) CreateDashboard(ctx context.Context, userID uuid.UUID
 	pool := database.GetPool()
 
 	defaultLayout, _ := json.Marshal([]interface{}{})
+	defaultParams, _ := json.Marshal([]interface{}{})
 
 	var d models.Dashboard
 	err := pool.QueryRow(ctx,
-		`INSERT INTO dashboards (user_id, name, description, layout, is_public)
-		 VALUES ($1, $2, $3, $4, false)
-		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), created_at, updated_at`,
-		userID, req.Name, req.Description, defaultLayout,
-	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.CreatedAt, &d.UpdatedAt)
+		`INSERT INTO dashboards (user_id, name, description, layout, is_public, parameters)
+		 VALUES ($1, $2, $3, $4, false, $5)
+		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'), created_at, updated_at`,
+		userID, req.Name, req.Description, defaultLayout, defaultParams,
+	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -97,14 +98,15 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id, userID uuid.
 	var d models.Dashboard
 	err = pool.QueryRow(ctx,
 		`UPDATE dashboards
-		 SET name = COALESCE(NULLIF($3, ''), name),
-		     description = COALESCE($4, description),
-		     layout = COALESCE($5, layout),
+		 SET name = COALESCE(NULLIF($2, ''), name),
+		     description = COALESCE($3, description),
+		     layout = COALESCE($4, layout),
+		     parameters = COALESCE($5, parameters),
 		     updated_at = CURRENT_TIMESTAMP
 		 WHERE id = $1
-		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), created_at, updated_at`,
-		id, userID, req.Name, req.Description, req.Layout,
-	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.CreatedAt, &d.UpdatedAt)
+		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'), created_at, updated_at`,
+		id, req.Name, req.Description, req.Layout, req.Parameters,
+	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -113,6 +115,21 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id, userID uuid.
 	}
 
 	d.MyPermission = permLevel
+
+	// Populate widgets/permissions to match GetDashboard response shape.
+	widgets, err := s.GetWidgets(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	d.Widgets = widgets
+
+	if permLevel.IsOwner() {
+		permissions, err := s.permRepo.GetDashboardPermissions(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		d.Permissions = permissions
+	}
 	return &d, nil
 }
 
@@ -141,6 +158,23 @@ func (s *DashboardService) DeleteDashboard(ctx context.Context, id, userID uuid.
 	return nil
 }
 
+// GetDashboardParameters returns the dashboard parameters JSON without loading widgets.
+// Permission checks must be performed by the caller.
+func (s *DashboardService) GetDashboardParameters(ctx context.Context, dashboardID uuid.UUID) (json.RawMessage, error) {
+	pool := database.GetPool()
+
+	var params json.RawMessage
+	err := pool.QueryRow(ctx, `SELECT COALESCE(parameters, '[]') FROM dashboards WHERE id = $1`, dashboardID).Scan(&params)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return params, nil
+}
+
 // Widget CRUD operations
 
 func (s *DashboardService) GetWidgets(ctx context.Context, dashboardID uuid.UUID) ([]models.Widget, error) {
@@ -166,6 +200,26 @@ func (s *DashboardService) GetWidgets(ctx context.Context, dashboardID uuid.UUID
 	}
 
 	return widgets, nil
+}
+
+// GetWidget returns a single widget by ID (optimized for single widget fetch)
+func (s *DashboardService) GetWidget(ctx context.Context, dashboardID, widgetID uuid.UUID) (*models.Widget, error) {
+	pool := database.GetPool()
+
+	var w models.Widget
+	err := pool.QueryRow(ctx,
+		`SELECT id, dashboard_id, name, query_id, chart_type, chart_config, position, created_at, updated_at
+		 FROM dashboard_widgets WHERE dashboard_id = $1 AND id = $2`,
+		dashboardID, widgetID,
+	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.CreatedAt, &w.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &w, nil
 }
 
 func (s *DashboardService) CreateWidget(ctx context.Context, dashboardID, userID uuid.UUID, req *models.CreateWidgetRequest) (*models.Widget, error) {

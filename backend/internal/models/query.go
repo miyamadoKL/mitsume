@@ -58,9 +58,21 @@ type UpdateQueryRequest struct {
 	SchemaName  *string `json:"schema_name"`
 }
 
+// WidgetDataRequest represents a request to get widget data with parameters
+type WidgetDataRequest struct {
+	Parameters map[string]interface{} `json:"parameters"`
+}
+
 // WidgetDataResponse represents the result of executing a widget's query
 type WidgetDataResponse struct {
-	WidgetID        uuid.UUID       `json:"widget_id"`
-	QueryResult     *QueryResult    `json:"query_result,omitempty"`
-	Error           string          `json:"error,omitempty"`
+	WidgetID           uuid.UUID       `json:"widget_id"`
+	QueryResult        *QueryResult    `json:"query_result,omitempty"`
+	Error              string          `json:"error,omitempty"`
+	RequiredParameters []string        `json:"required_parameters,omitempty"`
+	MissingParameters  []string        `json:"missing_parameters,omitempty"`
+}
+
+// ParameterOptionsRequest represents a request to get dynamic options for a parameter
+type ParameterOptionsRequest struct {
+	Parameters map[string]interface{} `json:"parameters"`
 }

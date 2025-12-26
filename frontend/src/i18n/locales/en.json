@@ -20,6 +20,8 @@
     "next": "Next",
     "search": "Search",
     "filter": "Filter",
+    "row": "Row",
+    "column": "Column",
     "actions": "Actions",
     "name": "Name",
     "description": "Description",
@@ -34,6 +36,7 @@
     "export": "Export",
     "exporting": "Exporting...",
     "updated": "Updated {{date}}",
+    "minutesShort": "{{minutes}} min",
     "null": "NULL",
     "system": "System",
     "verified": "Verified",
@@ -41,9 +44,12 @@
     "you": "You",
     "none": "None",
     "all": "All",
+    "total": "Total",
     "noRoles": "No roles",
+    "notifications": "Notifications",
     "test": "Test",
     "testSent": "Test sent",
+    "closeNotification": "Close notification",
     "webhookConfigured": "Webhook configured"
   },
   "nav": {
@@ -206,6 +212,16 @@
       "deleteError": "Failed to delete existing widgets",
       "partialError": "Some widgets failed to create",
       "partialErrorDetail": "{{count}} widget(s) could not be created"
+    },
+    "parameters": {
+      "filters": "Filters:",
+      "enterPlaceholder": "Enter {{param}}"
+    },
+    "pivot": {
+      "noData": "No data to pivot"
+    },
+    "markdown": {
+      "noContent": "No content"
     },
     "detail": {
       "toast": {
@@ -598,6 +614,10 @@
     "empty": "No subscriptions",
     "emptyDescription": "Set up scheduled dashboard delivery",
     "unknownDashboard": "Unknown Dashboard",
+    "formats": {
+      "pdf": "PDF",
+      "png": "PNG"
+    },
     "selectDashboard": "Select Dashboard",
     "selectChannel": "Select Notification Channel",
     "schedule": "Schedule",

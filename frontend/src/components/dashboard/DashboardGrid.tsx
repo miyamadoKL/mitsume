@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React from 'react'
 import { useTranslation } from 'react-i18next'
 import GridLayout, { Layout, WidthProvider } from 'react-grid-layout'
 import 'react-grid-layout/css/styles.css'
@@ -6,9 +6,8 @@ import 'react-resizable/css/styles.css'
 import './DashboardGrid.css'
 
 const ResponsiveGridLayout = WidthProvider(GridLayout)
-import type { Dashboard, Widget, SavedQuery } from '@/types'
+import type { Dashboard, Widget } from '@/types'
 import { ChartWidget } from './ChartWidget'
-import { queryApi } from '@/services/api'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Trash2, Settings, RefreshCw, Copy } from 'lucide-react'
@@ -23,6 +22,8 @@ interface DashboardGridProps {
   parameterValues?: Record<string, string>
   refreshKeys?: Record<string, number>  // Per-widget refresh keys
   onRefreshWidget?: (widgetId: string) => void
+  onParametersDiscovered?: (widgetId: string, requiredParams: string[], missingParams: string[]) => void
+  onCrossFilter?: (parameterUpdates: Record<string, string>) => void
 }
 
 export const DashboardGrid: React.FC<DashboardGridProps> = ({
@@ -35,40 +36,10 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
   parameterValues = {},
   refreshKeys = {},
   onRefreshWidget,
+  onParametersDiscovered,
+  onCrossFilter,
 }) => {
   const { t } = useTranslation()
-  const [savedQueries, setSavedQueries] = useState<Record<string, SavedQuery>>({})
-
-  useEffect(() => {
-    loadSavedQueries()
-  }, [dashboard.widgets])
-
-  const loadSavedQueries = async () => {
-    if (!dashboard.widgets) return
-
-    const queryIds = dashboard.widgets
-      .filter(w => w.query_id)
-      .map(w => w.query_id!)
-
-    const uniqueIds = [...new Set(queryIds)]
-    if (uniqueIds.length === 0) return
-
-    // Fetch all queries in parallel for better performance
-    const results = await Promise.allSettled(
-      uniqueIds.map(id => queryApi.getSavedById(id))
-    )
-
-    const queries: Record<string, SavedQuery> = {}
-    results.forEach((result, index) => {
-      if (result.status === 'fulfilled') {
-        queries[uniqueIds[index]] = result.value
-      } else {
-        console.error(`Failed to load query ${uniqueIds[index]}:`, result.reason)
-      }
-    })
-
-    setSavedQueries(queries)
-  }
 
   const layout: Layout[] = dashboard.widgets?.map(widget => ({
     i: widget.id,
@@ -170,9 +141,11 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
             <CardContent className="flex-1 p-2 pt-0">
               <ChartWidget
                 widget={widget}
-                savedQueryText={widget.query_id ? savedQueries[widget.query_id]?.query_text : undefined}
+                dashboardId={dashboard.id}
                 parameterValues={parameterValues}
                 refreshKey={refreshKeys[widget.id] || 0}
+                onParametersDiscovered={onParametersDiscovered}
+                onCrossFilter={onCrossFilter}
               />
             </CardContent>
           </Card>

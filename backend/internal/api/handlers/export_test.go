@@ -10,13 +10,14 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/mitsume/backend/internal/models"
 	"github.com/mitsume/backend/internal/repository"
 )
 
 func setupExportHandlerTest() (*ExportHandler, *repository.MockTrinoExecutor) {
 	mockTrino := repository.NewMockTrinoExecutor()
-	handler := NewExportHandler(mockTrino)
+	handler := NewExportHandler(mockTrino, nil, "memory", "default")
 	return handler, mockTrino
 }
 
@@ -42,6 +43,7 @@ func TestExportCSV_Success(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/api/export/csv", bytes.NewBuffer(jsonBody))
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("userID", uuid.New())
 
 	handler.ExportCSV(c)
 
@@ -89,6 +91,7 @@ func TestExportTSV_Success(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/api/export/tsv", bytes.NewBuffer(jsonBody))
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("userID", uuid.New())
 
 	handler.ExportTSV(c)
 
@@ -121,6 +124,7 @@ func TestExportCSV_QueryError(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/api/export/csv", bytes.NewBuffer(jsonBody))
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("userID", uuid.New())
 
 	handler.ExportCSV(c)
 
@@ -142,6 +146,7 @@ func TestExportCSV_InvalidRequest(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/api/export/csv", bytes.NewBuffer(jsonBody))
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("userID", uuid.New())
 
 	handler.ExportCSV(c)
 
@@ -170,6 +175,7 @@ func TestExportCSV_DefaultFilename(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/api/export/csv", bytes.NewBuffer(jsonBody))
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("userID", uuid.New())
 
 	handler.ExportCSV(c)
 
@@ -204,6 +210,7 @@ func TestExportCSV_SanitizedFilename(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 	c.Request = httptest.NewRequest("POST", "/api/export/csv", bytes.NewBuffer(jsonBody))
 	c.Request.Header.Set("Content-Type", "application/json")
+	c.Set("userID", uuid.New())
 
 	handler.ExportCSV(c)
 

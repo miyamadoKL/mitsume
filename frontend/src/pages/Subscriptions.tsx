@@ -292,7 +292,7 @@ export default function Subscriptions() {
                     size="sm"
                     variant="ghost"
                     onClick={() => handleToggleActive(sub)}
-                    title={sub.is_active ? 'Click to disable' : 'Click to enable'}
+                    title={sub.is_active ? t('alerts.clickToDisable') : t('alerts.clickToEnable')}
                   >
                     {sub.is_active ? (
                       <Bell className="h-4 w-4 text-green-600" />
@@ -422,8 +422,8 @@ export default function Subscriptions() {
                   value={formData.format}
                   onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFormData({ ...formData, format: e.target.value as 'pdf' | 'png' })}
                 >
-                  <option value="pdf">PDF</option>
-                  <option value="png">PNG</option>
+                  <option value="pdf">{t('subscriptions.formats.pdf')}</option>
+                  <option value="png">{t('subscriptions.formats.png')}</option>
                 </Select>
               </div>
             </div>

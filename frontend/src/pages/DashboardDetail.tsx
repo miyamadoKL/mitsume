@@ -1,14 +1,15 @@
-import React, { useEffect, useState, useMemo, useRef } from 'react'
+import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Layout } from 'react-grid-layout'
 import { dashboardApi, queryApi, layoutTemplateApi } from '@/services/api'
-import type { Dashboard, SavedQuery, ChartType, CreateWidgetRequest, Widget, PermissionLevel, LayoutTemplate } from '@/types'
+import type { Dashboard, SavedQuery, ChartType, CreateWidgetRequest, Widget, PermissionLevel, LayoutTemplate, ParameterDefinition } from '@/types'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
 import { DashboardParameters } from '@/components/dashboard/DashboardParameters'
 import { WidgetSettingsDialog } from '@/components/dashboard/WidgetSettingsDialog'
 import { ShareDashboardDialog } from '@/components/dashboard/ShareDashboardDialog'
 import { QuickAddPanel } from '@/components/dashboard/QuickAddPanel'
+import { ParameterSettingsDialog } from '@/components/dashboard/ParameterSettingsDialog'
 import { DashboardExportButton } from '@/components/export/DashboardExportButton'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +18,7 @@ import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '
 import { toast } from '@/stores/toastStore'
 import { getErrorMessage } from '@/lib/errors'
 import { extractAllParameters } from '@/lib/params'
-import { ArrowLeft, Plus, Loader2, Edit, Save, RefreshCw, Share2, Eye, Globe, LayoutTemplate as LayoutTemplateIcon } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2, Edit, Save, RefreshCw, Share2, Eye, Globe, LayoutTemplate as LayoutTemplateIcon, SlidersHorizontal, Link2 } from 'lucide-react'
 import { LayoutTemplateSelector } from '@/components/dashboard/LayoutTemplateSelector'
 import { systemLayoutTemplates } from '@/lib/layout-templates'
 import { getImplementedChartTypeOptions } from '@/lib/chart-options'
@@ -33,7 +34,10 @@ export const DashboardDetail: React.FC = () => {
   const [addWidgetOpen, setAddWidgetOpen] = useState(false)
   const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([])
   const [saving, setSaving] = useState(false)
-  const [parameterValues, setParameterValues] = useState<Record<string, string>>({})
+
+  // Parameter state: draft (editing) vs applied (used by widgets)
+  const [draftValues, setDraftValues] = useState<Record<string, string>>({})
+  const [appliedValues, setAppliedValues] = useState<Record<string, string>>({})
 
   // Refresh state
   const [refreshKeys, setRefreshKeys] = useState<Record<string, number>>({})
@@ -57,8 +61,14 @@ export const DashboardDetail: React.FC = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<LayoutTemplate>(systemLayoutTemplates[0])
   const [applyingTemplate, setApplyingTemplate] = useState(false)
 
+  // Parameter settings dialog state
+  const [paramSettingsOpen, setParamSettingsOpen] = useState(false)
+
   // Ref for export functionality
   const dashboardContentRef = useRef<HTMLDivElement>(null)
+
+  // Discovered parameters from widget data API responses (for viewers who can't access savedQueries)
+  const [discoveredParameters, setDiscoveredParameters] = useState<Record<string, string[]>>({})
 
   const autoRefreshOptions: { value: string; label: string }[] = [
     { value: '0', label: t('dashboard.detail.autoRefreshOptions.off') },
@@ -85,39 +95,192 @@ export const DashboardDetail: React.FC = () => {
     }
   }, [id])
 
-  // Extract all parameters from saved queries used by widgets
+  // Handler for when widgets report their required parameters
+  const handleParametersDiscovered = useCallback((widgetId: string, requiredParams: string[]) => {
+    setDiscoveredParameters(prev => ({
+      ...prev,
+      [widgetId]: requiredParams,
+    }))
+  }, [])
+
+  // Extract all parameters - combine savedQueries (for editors) and discovered parameters (for viewers)
   const allParameters = useMemo(() => {
+    // For editors: extract from savedQueries (if available)
     const queryTexts = savedQueries
       .filter(q => dashboard?.widgets?.some(w => w.query_id === q.id))
       .map(q => q.query_text)
-    return extractAllParameters(queryTexts)
-  }, [savedQueries, dashboard?.widgets])
+    const fromQueries = extractAllParameters(queryTexts)
 
-  // Initialize parameter values from URL on mount
+    // For viewers: use discovered parameters from widget data API
+    const fromDiscovered = new Set<string>()
+    Object.values(discoveredParameters).forEach(params => {
+      params.forEach(p => fromDiscovered.add(p))
+    })
+
+    // Merge both sources, removing duplicates
+    const all = new Set([...fromQueries, ...fromDiscovered])
+    return Array.from(all)
+  }, [savedQueries, dashboard?.widgets, discoveredParameters])
+
+  // Initialize parameter values: URL > Default values
   useEffect(() => {
+    if (!dashboard) return
+
     const initialParams: Record<string, string> = {}
+
+    // First, apply default values from parameter definitions
+    const paramDefs = dashboard.parameters || []
+    for (const def of paramDefs) {
+      if (def.default_value !== undefined) {
+        if (typeof def.default_value === 'string') {
+          initialParams[def.name] = def.default_value
+        } else if (def.type === 'daterange' && typeof def.default_value === 'object' && 'start' in def.default_value) {
+          // daterange: { start, end } -> "start,end"
+          initialParams[def.name] = `${def.default_value.start},${def.default_value.end}`
+        } else if (Array.isArray(def.default_value)) {
+          // multiselect: ["a", "b"] -> "a,b"
+          initialParams[def.name] = def.default_value.join(',')
+        }
+      }
+    }
+
+    // Then, override with URL parameters (URL takes precedence)
     searchParams.forEach((value, key) => {
       if (key.startsWith('p_')) {
-        initialParams[key.slice(2)] = value
+        const paramName = key.slice(2)
+        // Handle daterange split params (p_name_start, p_name_end)
+        if (paramName.endsWith('_start')) {
+          const baseName = paramName.slice(0, -6)
+          const current = initialParams[baseName] || ','
+          const [, end] = current.split(',')
+          initialParams[baseName] = `${value},${end || ''}`
+        } else if (paramName.endsWith('_end')) {
+          const baseName = paramName.slice(0, -4)
+          const current = initialParams[baseName] || ','
+          const [start] = current.split(',')
+          initialParams[baseName] = `${start || ''},${value}`
+        } else {
+          initialParams[paramName] = value
+        }
       }
     })
+
     if (Object.keys(initialParams).length > 0) {
-      setParameterValues(initialParams)
+      setDraftValues(initialParams)
+      setAppliedValues(initialParams)
     }
+  }, [dashboard, searchParams])
+
+  // Handle draft parameter changes (editing, not yet applied)
+  const handleDraftChange = useCallback((name: string, value: string) => {
+    setDraftValues(prev => ({ ...prev, [name]: value }))
   }, [])
 
-  const handleParameterChange = (name: string, value: string) => {
-    setParameterValues(prev => ({ ...prev, [name]: value }))
+  // Check if there are unapplied changes
+  const hasParameterChanges = useMemo(() => {
+    const draftKeys = Object.keys(draftValues)
+    const appliedKeys = Object.keys(appliedValues)
+    const allKeys = new Set([...draftKeys, ...appliedKeys])
+    for (const key of allKeys) {
+      if (draftValues[key] !== appliedValues[key]) {
+        return true
+      }
+    }
+    return false
+  }, [draftValues, appliedValues])
+
+  // Apply draft values to widgets and URL
+  const handleApplyParameters = useCallback(() => {
+    setAppliedValues({ ...draftValues })
+    const defsByName = new Map((dashboard?.parameters || []).map(def => [def.name, def]))
+    // Update URL with applied values
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
-      if (value) {
-        next.set(`p_${name}`, value)
-      } else {
-        next.delete(`p_${name}`)
-      }
+      // Clear old p_ params
+      Array.from(next.keys()).forEach(key => {
+        if (key.startsWith('p_')) next.delete(key)
+      })
+      // Add new p_ params
+      Object.entries(draftValues).forEach(([name, value]) => {
+        if (value) {
+          const def = defsByName.get(name)
+          if (def?.type === 'daterange') {
+            const [start, end] = value.split(',')
+            if (start) next.set(`p_${name}_start`, start)
+            if (end) next.set(`p_${name}_end`, end)
+          } else {
+            next.set(`p_${name}`, value)
+          }
+        }
+      })
       return next
     })
-  }
+  }, [draftValues, setSearchParams, dashboard?.parameters])
+
+  // Clear/reset all parameters
+  const handleResetParameters = useCallback(() => {
+    setDraftValues({})
+    setAppliedValues({})
+    // Clear URL params
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      Array.from(next.keys()).forEach(key => {
+        if (key.startsWith('p_')) next.delete(key)
+      })
+      return next
+    })
+  }, [setSearchParams])
+
+  // Copy current URL with parameters to clipboard
+  const handleCopyLink = useCallback(async () => {
+    const text = window.location.href
+
+    const tryClipboardApi = async () => {
+      if (!navigator.clipboard?.writeText) return false
+      try {
+        await navigator.clipboard.writeText(text)
+        return true
+      } catch (err) {
+        console.error('navigator.clipboard.writeText failed:', err)
+        return false
+      }
+    }
+
+    const tryExecCommand = () => {
+      try {
+        const el = document.createElement('textarea')
+        el.value = text
+        el.setAttribute('readonly', '')
+        el.style.position = 'fixed'
+        el.style.top = '-9999px'
+        el.style.left = '-9999px'
+        document.body.appendChild(el)
+        el.focus()
+        el.select()
+        const ok = document.execCommand('copy')
+        document.body.removeChild(el)
+        return ok
+      } catch (err) {
+        console.error('document.execCommand(copy) failed:', err)
+        return false
+      }
+    }
+
+    const ok = (await tryClipboardApi()) || tryExecCommand()
+    if (ok) {
+      toast.success(t('dashboard.detail.linkCopied', 'Link copied to clipboard'))
+    } else {
+      toast.error(t('dashboard.detail.copyLinkFailed', 'Failed to copy link'))
+    }
+  }, [t])
+
+  // Handle cross-filter from chart clicks
+  const handleCrossFilter = useCallback((parameterUpdates: Record<string, string>) => {
+    // Update draft values with the cross-filter updates
+    setDraftValues(prev => ({ ...prev, ...parameterUpdates }))
+    // Show toast to indicate filter was applied
+    toast.info(t('dashboard.detail.crossFilterApplied', 'Filter updated - click Apply to refresh'))
+  }, [t])
 
   // Refresh a single widget
   const handleRefreshWidget = (widgetId: string) => {
@@ -496,6 +659,13 @@ export const DashboardDetail: React.FC = () => {
               dashboardName={dashboard.name}
             />
           )}
+          {/* Copy link button */}
+          {!editMode && (
+            <Button variant="outline" onClick={handleCopyLink} title={t('dashboard.detail.copyLinkTooltip', 'Copy current URL with filters')}>
+              <Link2 className="h-4 w-4 mr-2" />
+              {t('dashboard.detail.copyLink', 'Copy link')}
+            </Button>
+          )}
           {/* Share button (only for owner) */}
           {isOwner && !editMode && (
             <Button variant="outline" onClick={() => setShareDialogOpen(true)}>
@@ -519,6 +689,10 @@ export const DashboardDetail: React.FC = () => {
                 <LayoutTemplateIcon className="h-4 w-4 mr-2" />
                 {t('dashboard.applyTemplate.button')}
               </Button>
+              <Button variant="outline" onClick={() => setParamSettingsOpen(true)}>
+                <SlidersHorizontal className="h-4 w-4 mr-2" />
+                {t('dashboard.parameters.settings', 'Parameters')}
+              </Button>
               <Button onClick={() => setAddWidgetOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />
                 {t('dashboard.addWidget')}
@@ -529,9 +703,15 @@ export const DashboardDetail: React.FC = () => {
       </div>
 
       <DashboardParameters
+        dashboardId={id || ''}
         parameters={allParameters}
-        values={parameterValues}
-        onChange={handleParameterChange}
+        definitions={dashboard.parameters}
+        draftValues={draftValues}
+        appliedValues={appliedValues}
+        onDraftChange={handleDraftChange}
+        onApply={handleApplyParameters}
+        onReset={handleResetParameters}
+        hasChanges={hasParameterChanges}
       />
 
       <div className="flex-1 overflow-auto p-4" ref={dashboardContentRef}>
@@ -544,9 +724,11 @@ export const DashboardDetail: React.FC = () => {
             onDeleteWidget={handleDeleteWidget}
             onDuplicateWidget={handleDuplicateWidget}
             onSettingsClick={handleSettingsClick}
-            parameterValues={parameterValues}
+            parameterValues={appliedValues}
             refreshKeys={refreshKeys}
             onRefreshWidget={handleRefreshWidget}
+            onParametersDiscovered={handleParametersDiscovered}
+            onCrossFilter={handleCrossFilter}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
@@ -665,6 +847,28 @@ export const DashboardDetail: React.FC = () => {
           </Button>
         </DialogFooter>
       </Dialog>
+
+      {/* Parameter Settings Dialog */}
+      {canEdit && (
+        <ParameterSettingsDialog
+          open={paramSettingsOpen}
+          onClose={() => setParamSettingsOpen(false)}
+          parameters={dashboard.parameters || []}
+          discoveredParameters={allParameters}
+          savedQueries={savedQueries}
+          onSave={async (params: ParameterDefinition[]) => {
+            if (!id) return
+            try {
+              const updated = await dashboardApi.update(id, { parameters: params })
+              setDashboard(updated)
+              toast.success(t('dashboard.parameters.saved', 'Parameters saved'))
+            } catch (err) {
+              toast.error(t('dashboard.parameters.saveFailed', 'Failed to save parameters'), getErrorMessage(err))
+              throw err
+            }
+          }}
+        />
+      )}
     </div>
   )
 }

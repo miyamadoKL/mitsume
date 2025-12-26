@@ -1,4 +1,5 @@
 import * as React from 'react'
+import { useTranslation } from 'react-i18next'
 import { cn } from '@/lib/utils'
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react'
 import { useToastStore, type Toast, type ToastType } from '@/stores/toastStore'
@@ -23,6 +24,8 @@ interface ToastItemProps {
 }
 
 const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
+  const { t } = useTranslation()
+
   return (
     <div
       role="alert"
@@ -44,7 +47,7 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
       <button
         onClick={() => onDismiss(toast.id)}
         className="flex-shrink-0 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-        aria-label="Close notification"
+        aria-label={t('common.closeNotification')}
       >
         <X className="h-4 w-4" />
       </button>
@@ -53,13 +56,14 @@ const ToastItem: React.FC<ToastItemProps> = ({ toast, onDismiss }) => {
 }
 
 export const ToastContainer: React.FC = () => {
+  const { t } = useTranslation()
   const { toasts, removeToast } = useToastStore()
 
   if (toasts.length === 0) return null
 
   return (
     <div
-      aria-label="Notifications"
+      aria-label={t('common.notifications')}
       className="pointer-events-none fixed bottom-0 right-0 z-50 flex max-h-screen w-full flex-col gap-2 p-4 sm:max-w-sm"
     >
       {toasts.map((toast) => (
