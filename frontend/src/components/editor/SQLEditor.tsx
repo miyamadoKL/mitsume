@@ -32,6 +32,7 @@ export const SQLEditor: React.FC<SQLEditorProps> = ({
     automaticLayout: true,
     tabSize: 2,
     wordWrap: 'on' as const,
+    editContext: false,
   }), [])
 
   return (
