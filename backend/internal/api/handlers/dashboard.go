@@ -166,6 +166,16 @@ func (h *DashboardHandler) CreateWidget(c *gin.Context) {
 		return
 	}
 
+	// Validate widget position
+	if _, err := models.ValidateWidgetPosition(req.Position); err != nil {
+		if validationErr, ok := err.(*models.ValidationError); ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message, "field": validationErr.Field})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	widget, err := h.dashboardService.CreateWidget(c.Request.Context(), dashboardID, userID, &req)
 	if err != nil {
 		if errors.Is(err, services.ErrNotFound) {
@@ -200,6 +210,18 @@ func (h *DashboardHandler) UpdateWidget(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Validate widget position if provided
+	if len(req.Position) > 0 {
+		if _, err := models.ValidateWidgetPosition(req.Position); err != nil {
+			if validationErr, ok := err.(*models.ValidationError); ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message, "field": validationErr.Field})
+				return
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	widget, err := h.dashboardService.UpdateWidget(c.Request.Context(), widgetID, dashboardID, userID, &req)

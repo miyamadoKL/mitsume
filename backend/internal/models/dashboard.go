@@ -266,3 +266,39 @@ type ValidationError struct {
 func (e *ValidationError) Error() string {
 	return e.Message
 }
+
+// ValidateWidgetPosition validates a single widget position JSON
+func ValidateWidgetPosition(positionJSON json.RawMessage) (*LayoutPosition, error) {
+	if len(positionJSON) == 0 {
+		return nil, nil // Position is optional for updates
+	}
+
+	// Size check
+	if len(positionJSON) > 1024 { // 1KB limit for single position
+		return nil, &ValidationError{Field: "position", Message: "position JSON too large"}
+	}
+
+	var pos LayoutPosition
+	if err := json.Unmarshal(positionJSON, &pos); err != nil {
+		return nil, &ValidationError{Field: "position", Message: "invalid position format"}
+	}
+
+	// Validate bounds
+	if pos.X < 0 || pos.X >= MaxGridColumns {
+		return nil, &ValidationError{Field: "position.x", Message: "x must be between 0 and 11"}
+	}
+	if pos.Y < 0 || pos.Y > MaxGridRows {
+		return nil, &ValidationError{Field: "position.y", Message: "y must be between 0 and 100"}
+	}
+	if pos.W < MinWidgetWidth || pos.W > MaxWidgetWidth {
+		return nil, &ValidationError{Field: "position.w", Message: "width must be between 1 and 12"}
+	}
+	if pos.H < MinWidgetHeight || pos.H > MaxWidgetHeight {
+		return nil, &ValidationError{Field: "position.h", Message: "height must be between 1 and 20"}
+	}
+	if pos.X+pos.W > MaxGridColumns {
+		return nil, &ValidationError{Field: "position", Message: "widget exceeds grid bounds (x + w > 12)"}
+	}
+
+	return &pos, nil
+}

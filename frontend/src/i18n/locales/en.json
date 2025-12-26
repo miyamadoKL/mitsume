@@ -144,7 +144,9 @@
       "discardConfirmTitle": "Discard changes?",
       "discardConfirmDescription": "You have unsaved changes. Are you sure you want to discard them? This action cannot be undone.",
       "exitWithoutSaving": "Exit without saving",
-      "discardAndReload": "Discard and reload"
+      "discardAndReload": "Discard changes",
+      "saved": "Changes saved",
+      "saveFailed": "Failed to save changes"
     },
     "empty": "No dashboards yet",
     "emptyDescription": "Create your first dashboard to visualize your data",

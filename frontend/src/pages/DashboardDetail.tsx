@@ -34,11 +34,15 @@ export const DashboardDetail: React.FC = () => {
   const [editMode, setEditMode] = useState(false)
   const [addWidgetOpen, setAddWidgetOpen] = useState(false)
   const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([])
-  const [saving, setSaving] = useState(false)
 
-  // Draft mode: track unsaved changes
+  // Draft mode: track unsaved changes and store local edits
   const [isDraft, setIsDraft] = useState(false)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
+  const [originalDashboard, setOriginalDashboard] = useState<Dashboard | null>(null)  // Snapshot when entering edit mode
+  const [pendingWidgetCreations, setPendingWidgetCreations] = useState<CreateWidgetRequest[]>([])
+  const [pendingWidgetDeletions, setPendingWidgetDeletions] = useState<string[]>([])
+  const [pendingWidgetUpdates, setPendingWidgetUpdates] = useState<Record<string, Partial<Widget>>>({})
+  const [savingChanges, setSavingChanges] = useState(false)
 
   // Parameter state: draft (editing) vs applied (used by widgets)
   const [draftValues, setDraftValues] = useState<Record<string, string>>({})
@@ -119,31 +123,43 @@ export const DashboardDetail: React.FC = () => {
     }
   }, [id])
 
-  // Initialize widget history when entering edit mode
+  // Initialize edit mode: save original state and reset pending changes
   useEffect(() => {
-    if (editMode && dashboard?.widgets) {
-      const snapshot: WidgetSnapshot = {
-        widgets: dashboard.widgets.map(w => ({
-          id: w.id,
-          name: w.name,
-          query_id: w.query_id || undefined,
-          chart_type: w.chart_type,
-          chart_config: w.chart_config,
-          position: w.position,
-        })),
+    if (editMode && dashboard) {
+      // Save original dashboard state for discard
+      setOriginalDashboard(JSON.parse(JSON.stringify(dashboard)))
+      // Reset pending changes
+      setPendingWidgetCreations([])
+      setPendingWidgetDeletions([])
+      setPendingWidgetUpdates({})
+      setIsDraft(false)
+
+      // Initialize undo/redo history
+      if (dashboard.widgets) {
+        const snapshot: WidgetSnapshot = {
+          widgets: dashboard.widgets.map(w => ({
+            id: w.id,
+            name: w.name,
+            query_id: w.query_id || undefined,
+            chart_type: w.chart_type,
+            chart_config: w.chart_config,
+            position: w.position,
+          })),
+        }
+        historyActions.set(snapshot, true) // Skip adding to history - just set initial state
+        historyActions.clear() // Clear any previous history
       }
-      historyActions.set(snapshot, true) // Skip adding to history - just set initial state
-      historyActions.clear() // Clear any previous history
-      setIsDraft(false) // Reset draft flag when entering edit mode
     }
   }, [editMode])
 
-  // Mark as draft when history changes (indicating unsaved changes)
+  // Mark as draft when there are pending changes
   useEffect(() => {
-    if (editMode && historyActions.canUndo) {
-      setIsDraft(true)
-    }
-  }, [editMode, historyActions.canUndo])
+    const hasPendingChanges =
+      pendingWidgetCreations.length > 0 ||
+      pendingWidgetDeletions.length > 0 ||
+      Object.keys(pendingWidgetUpdates).length > 0
+    setIsDraft(hasPendingChanges)
+  }, [pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates])
 
   // Helper to record current widget state to history
   const recordWidgetSnapshot = useCallback(() => {
@@ -173,23 +189,65 @@ export const DashboardDetail: React.FC = () => {
     historyActions.redo()
   }, [historyActions, dashboard])
 
-  // Handle discard changes - reload from server
-  const handleDiscardChanges = useCallback(async () => {
-    if (!id) return
-    setLoading(true)
+  // Handle discard changes - restore from original state
+  const handleDiscardChanges = useCallback(() => {
+    if (!originalDashboard) return
+    setDashboard(JSON.parse(JSON.stringify(originalDashboard)))
+    setPendingWidgetCreations([])
+    setPendingWidgetDeletions([])
+    setPendingWidgetUpdates({})
+    historyActions.clear()
+    setIsDraft(false)
+    setShowDiscardConfirm(false)
+    setEditMode(false)
+    toast.success(t('dashboard.detail.changesDiscarded', 'Changes discarded'))
+  }, [originalDashboard, historyActions, t])
+
+  // Save all pending changes to backend
+  const handleSaveChanges = useCallback(async () => {
+    if (!id || !dashboard) return
+    setSavingChanges(true)
+
     try {
-      const data = await dashboardApi.getById(id)
-      setDashboard(data)
-      historyActions.clear()
+      // 1. Delete widgets
+      for (const widgetId of pendingWidgetDeletions) {
+        // Only delete if it's an existing widget (not a temporary one)
+        if (!widgetId.startsWith('temp-')) {
+          await dashboardApi.deleteWidget(id, widgetId)
+        }
+      }
+
+      // 2. Create new widgets
+      const createdWidgets: Widget[] = []
+      for (const req of pendingWidgetCreations) {
+        const widget = await dashboardApi.createWidget(id, req)
+        createdWidgets.push(widget)
+      }
+
+      // 3. Update existing widgets
+      for (const [widgetId, updates] of Object.entries(pendingWidgetUpdates)) {
+        if (!widgetId.startsWith('temp-') && !pendingWidgetDeletions.includes(widgetId)) {
+          await dashboardApi.updateWidget(id, widgetId, updates)
+        }
+      }
+
+      // 4. Reload dashboard to get fresh state
+      const freshDashboard = await dashboardApi.getById(id)
+      setDashboard(freshDashboard)
+
+      // Reset pending changes
+      setPendingWidgetCreations([])
+      setPendingWidgetDeletions([])
+      setPendingWidgetUpdates({})
       setIsDraft(false)
-      setShowDiscardConfirm(false)
-      toast.success(t('dashboard.detail.changesDiscarded', 'Changes discarded'))
+      setEditMode(false)
+      toast.success(t('dashboard.draft.saved', 'Changes saved'))
     } catch (err) {
-      toast.error(t('errors.loadFailed'), getErrorMessage(err))
+      toast.error(t('dashboard.draft.saveFailed', 'Failed to save changes'), getErrorMessage(err))
     } finally {
-      setLoading(false)
+      setSavingChanges(false)
     }
-  }, [id, historyActions, t])
+  }, [id, dashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, t])
 
   // Handle exit edit mode with confirmation if draft
   const handleExitEditMode = useCallback(() => {
@@ -200,12 +258,19 @@ export const DashboardDetail: React.FC = () => {
     }
   }, [isDraft])
 
-  // Force exit edit mode (after confirmation or when saving)
+  // Force exit edit mode without saving (after confirmation)
   const handleConfirmExit = useCallback(() => {
+    // Restore original state
+    if (originalDashboard) {
+      setDashboard(JSON.parse(JSON.stringify(originalDashboard)))
+    }
+    setPendingWidgetCreations([])
+    setPendingWidgetDeletions([])
+    setPendingWidgetUpdates({})
     setEditMode(false)
     setIsDraft(false)
     setShowDiscardConfirm(false)
-  }, [])
+  }, [originalDashboard])
 
   // Apply widget history changes to dashboard state
   useEffect(() => {
@@ -488,11 +553,9 @@ export const DashboardDetail: React.FC = () => {
     }
   }
 
-  const handleLayoutChange = async (layout: Layout[]) => {
-    if (!dashboard || !id) return
-
-    // Record current state before change for undo
-    recordWidgetSnapshot()
+  // Handle layout change (visual update only, no API calls)
+  const handleLayoutChange = useCallback((layout: Layout[]) => {
+    if (!dashboard) return
 
     const updatedWidgets = dashboard.widgets?.map(widget => {
       const layoutItem = layout.find(l => l.i === widget.id)
@@ -511,27 +574,51 @@ export const DashboardDetail: React.FC = () => {
     })
 
     setDashboard({ ...dashboard, widgets: updatedWidgets })
+  }, [dashboard])
 
-    // Save positions to backend
-    for (const widget of updatedWidgets || []) {
-      try {
-        await dashboardApi.updateWidget(id, widget.id, {
-          position: widget.position,
-        })
-      } catch (err) {
-        console.error('Failed to update widget position:', err)
-      }
-    }
-  }
+  // Handle layout change complete (on drag/resize stop) - record to history and pending updates
+  const handleLayoutChangeComplete = useCallback((layout: Layout[]) => {
+    if (!dashboard) return
 
-  const handleAddWidget = async () => {
-    if (!id || !widgetName.trim()) return
-    setSaving(true)
-
-    // Record current state before change for undo
+    // Record current state BEFORE applying change for undo
     recordWidgetSnapshot()
 
-    const maxY = dashboard?.widgets?.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0) || 0
+    const updatedWidgets = dashboard.widgets?.map(widget => {
+      const layoutItem = layout.find(l => l.i === widget.id)
+      if (layoutItem) {
+        const newPosition = {
+          x: layoutItem.x,
+          y: layoutItem.y,
+          w: layoutItem.w,
+          h: layoutItem.h,
+        }
+        // Track position update for existing widgets (not temp ones)
+        if (!widget.id.startsWith('temp-')) {
+          setPendingWidgetUpdates(prev => ({
+            ...prev,
+            [widget.id]: {
+              ...(prev[widget.id] || {}),
+              position: newPosition,
+            },
+          }))
+        }
+        return { ...widget, position: newPosition }
+      }
+      return widget
+    })
+
+    setDashboard({ ...dashboard, widgets: updatedWidgets })
+  }, [dashboard, recordWidgetSnapshot])
+
+  // Add widget locally (no API call until save)
+  const handleAddWidget = useCallback(() => {
+    if (!widgetName.trim() || !dashboard) return
+
+    // Record current state BEFORE change for undo
+    recordWidgetSnapshot()
+
+    const maxY = dashboard.widgets?.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0) || 0
+    const tempId = `temp-${Date.now()}`
 
     const req: CreateWidgetRequest = {
       name: widgetName,
@@ -541,30 +628,41 @@ export const DashboardDetail: React.FC = () => {
       position: { x: 0, y: maxY, w: 6, h: 3 },
     }
 
-    try {
-      const widget = await dashboardApi.createWidget(id, req)
-      setDashboard(prev => prev ? {
-        ...prev,
-        widgets: [...(prev.widgets || []), widget],
-      } : null)
-      setAddWidgetOpen(false)
-      resetWidgetForm()
-    } catch (err) {
-      console.error('Failed to add widget:', err)
-    } finally {
-      setSaving(false)
+    // Create temporary widget for local display
+    const tempWidget: Widget = {
+      id: tempId,
+      dashboard_id: dashboard.id,
+      name: req.name,
+      query_id: req.query_id || null,
+      chart_type: req.chart_type,
+      chart_config: req.chart_config as Record<string, unknown>,
+      position: req.position,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }
-  }
 
-  const handleQuickAddWidget = async (type: ChartType) => {
-    if (!id) return
-    setSaving(true)
+    setDashboard(prev => prev ? {
+      ...prev,
+      widgets: [...(prev.widgets || []), tempWidget],
+    } : null)
 
-    // Record current state before change for undo
+    // Track for batch save
+    setPendingWidgetCreations(prev => [...prev, req])
+
+    setAddWidgetOpen(false)
+    resetWidgetForm()
+  }, [dashboard, widgetName, selectedQueryId, chartType, recordWidgetSnapshot])
+
+  // Quick add widget locally (no API call until save)
+  const handleQuickAddWidget = useCallback((type: ChartType) => {
+    if (!dashboard) return
+
+    // Record current state BEFORE change for undo
     recordWidgetSnapshot()
 
-    const maxY = dashboard?.widgets?.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0) || 0
-    const widgetCount = (dashboard?.widgets?.length || 0) + 1
+    const maxY = dashboard.widgets?.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0) || 0
+    const widgetCount = (dashboard.widgets?.length || 0) + 1
+    const tempId = `temp-${Date.now()}`
 
     const req: CreateWidgetRequest = {
       name: `${t(`chart.types.${type}`)} ${widgetCount}`,
@@ -574,76 +672,110 @@ export const DashboardDetail: React.FC = () => {
       position: { x: 0, y: maxY, w: 6, h: 3 },
     }
 
-    try {
-      const widget = await dashboardApi.createWidget(id, req)
-      setDashboard(prev => prev ? {
-        ...prev,
-        widgets: [...(prev.widgets || []), widget],
-      } : null)
-      // Open settings dialog for the new widget
-      setEditingWidget(widget)
-      setSettingsDialogOpen(true)
-    } catch (err) {
-      toast.error(t('dashboard.detail.toast.addWidgetFailed'), getErrorMessage(err))
-    } finally {
-      setSaving(false)
+    // Create temporary widget for local display
+    const tempWidget: Widget = {
+      id: tempId,
+      dashboard_id: dashboard.id,
+      name: req.name,
+      query_id: null,
+      chart_type: req.chart_type,
+      chart_config: req.chart_config as Record<string, unknown>,
+      position: req.position,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
     }
-  }
 
-  const handleDeleteWidget = async (widgetId: string) => {
-    if (!id) return
+    setDashboard(prev => prev ? {
+      ...prev,
+      widgets: [...(prev.widgets || []), tempWidget],
+    } : null)
 
-    // Record current state before change for undo
+    // Track for batch save
+    setPendingWidgetCreations(prev => [...prev, req])
+
+    // Open settings dialog for the new widget
+    setEditingWidget(tempWidget)
+    setSettingsDialogOpen(true)
+  }, [dashboard, t, recordWidgetSnapshot])
+
+  // Delete widget locally (no API call until save)
+  const handleDeleteWidget = useCallback((widgetId: string) => {
+    if (!dashboard) return
+
+    // Record current state BEFORE change for undo
     recordWidgetSnapshot()
 
-    try {
-      await dashboardApi.deleteWidget(id, widgetId)
-      setDashboard(prev => prev ? {
-        ...prev,
-        widgets: prev.widgets?.filter(w => w.id !== widgetId),
-      } : null)
-      toast.success(t('dashboard.detail.toast.widgetDeleted'))
-    } catch (err) {
-      toast.error(t('dashboard.detail.toast.deleteWidgetFailed'), getErrorMessage(err))
+    // Remove from local state
+    setDashboard(prev => prev ? {
+      ...prev,
+      widgets: prev.widgets?.filter(w => w.id !== widgetId),
+    } : null)
+
+    // Track for batch save (only for existing widgets, not temp ones)
+    if (widgetId.startsWith('temp-')) {
+      // Remove from pending creations
+      setPendingWidgetCreations(prev =>
+        prev.filter((_, i) => !dashboard.widgets?.find(w => w.id === widgetId && w.id === `temp-${i}`))
+      )
+    } else {
+      setPendingWidgetDeletions(prev => [...prev, widgetId])
+      // Also remove from pending updates
+      setPendingWidgetUpdates(prev => {
+        const next = { ...prev }
+        delete next[widgetId]
+        return next
+      })
     }
-  }
 
-  const handleDuplicateWidget = async (widget: Widget) => {
-    if (!id) return
-    setSaving(true)
+    toast.success(t('dashboard.detail.toast.widgetDeleted'))
+  }, [dashboard, recordWidgetSnapshot, t])
 
-    // Record current state before change for undo
+  // Duplicate widget locally (no API call until save)
+  const handleDuplicateWidget = useCallback((widget: Widget) => {
+    if (!dashboard) return
+
+    // Record current state BEFORE change for undo
     recordWidgetSnapshot()
 
-    try {
-      // Position duplicate slightly below the original widget (offset by 1 row)
-      const newY = widget.position.y + widget.position.h
+    const newY = widget.position.y + widget.position.h
+    const tempId = `temp-${Date.now()}`
 
-      // Deep copy chart_config to avoid shared reference issues
-      const chartConfigCopy = widget.chart_config
-        ? JSON.parse(JSON.stringify(widget.chart_config))
-        : {}
+    // Deep copy chart_config to avoid shared reference issues
+    const chartConfigCopy = widget.chart_config
+      ? JSON.parse(JSON.stringify(widget.chart_config))
+      : {}
 
-      const req: CreateWidgetRequest = {
-        name: `${widget.name} (Copy)`,
-        query_id: widget.query_id || undefined,
-        chart_type: widget.chart_type,
-        chart_config: chartConfigCopy,
-        position: { x: widget.position.x, y: newY, w: widget.position.w, h: widget.position.h },
-      }
-
-      const newWidget = await dashboardApi.createWidget(id, req)
-      setDashboard(prev => prev ? {
-        ...prev,
-        widgets: [...(prev.widgets || []), newWidget],
-      } : null)
-      toast.success(t('dashboard.detail.toast.widgetDuplicated'))
-    } catch (err) {
-      toast.error(t('dashboard.detail.toast.duplicateWidgetFailed'), getErrorMessage(err))
-    } finally {
-      setSaving(false)
+    const req: CreateWidgetRequest = {
+      name: `${widget.name} (Copy)`,
+      query_id: widget.query_id || undefined,
+      chart_type: widget.chart_type,
+      chart_config: chartConfigCopy,
+      position: { x: widget.position.x, y: newY, w: widget.position.w, h: widget.position.h },
     }
-  }
+
+    // Create temporary widget for local display
+    const tempWidget: Widget = {
+      id: tempId,
+      dashboard_id: dashboard.id,
+      name: req.name,
+      query_id: req.query_id || null,
+      chart_type: req.chart_type,
+      chart_config: req.chart_config as Record<string, unknown>,
+      position: req.position,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    setDashboard(prev => prev ? {
+      ...prev,
+      widgets: [...(prev.widgets || []), tempWidget],
+    } : null)
+
+    // Track for batch save
+    setPendingWidgetCreations(prev => [...prev, req])
+
+    toast.success(t('dashboard.detail.toast.widgetDuplicated'))
+  }, [dashboard, recordWidgetSnapshot, t])
 
   const handleSettingsClick = (widget: Widget) => {
     setEditingWidget(widget)
@@ -854,25 +986,34 @@ export const DashboardDetail: React.FC = () => {
                   {t('dashboard.draft.unsavedChanges', 'Unsaved changes')}
                 </span>
               )}
-              {/* Done button */}
-              <Button
-                variant="default"
-                onClick={handleExitEditMode}
-              >
-                <Save className="h-4 w-4 mr-2" />
-                {t('common.done')}
-              </Button>
-              {/* Discard button */}
+              {/* Save button - only show when there are unsaved changes */}
               {isDraft && (
                 <Button
-                  variant="outline"
-                  onClick={() => setShowDiscardConfirm(true)}
-                  className="text-destructive hover:text-destructive"
+                  variant="default"
+                  onClick={handleSaveChanges}
+                  disabled={savingChanges}
                 >
-                  <X className="h-4 w-4 mr-2" />
-                  {t('dashboard.draft.discard', 'Discard')}
+                  <Save className="h-4 w-4 mr-2" />
+                  {savingChanges ? t('common.saving', 'Saving...') : t('common.save', 'Save')}
                 </Button>
               )}
+              {/* Done button - exit edit mode */}
+              <Button
+                variant={isDraft ? 'outline' : 'default'}
+                onClick={handleExitEditMode}
+              >
+                {isDraft ? (
+                  <>
+                    <X className="h-4 w-4 mr-2" />
+                    {t('common.cancel', 'Cancel')}
+                  </>
+                ) : (
+                  <>
+                    <Save className="h-4 w-4 mr-2" />
+                    {t('common.done')}
+                  </>
+                )}
+              </Button>
               {/* Undo/Redo buttons */}
               <div className="flex border rounded-md">
                 <Button
@@ -931,6 +1072,7 @@ export const DashboardDetail: React.FC = () => {
           <DashboardGrid
             dashboard={dashboard}
             onLayoutChange={handleLayoutChange}
+            onLayoutChangeComplete={handleLayoutChangeComplete}
             editable={editMode}
             onDeleteWidget={handleDeleteWidget}
             onDuplicateWidget={handleDuplicateWidget}
@@ -991,8 +1133,8 @@ export const DashboardDetail: React.FC = () => {
           <Button variant="outline" onClick={() => setAddWidgetOpen(false)}>
             {t('common.cancel')}
           </Button>
-          <Button onClick={handleAddWidget} disabled={saving || !widgetName.trim()}>
-            {saving ? t('dashboard.detail.addWidgetDialog.adding') : t('dashboard.addWidget')}
+          <Button onClick={handleAddWidget} disabled={!widgetName.trim()}>
+            {t('dashboard.addWidget')}
           </Button>
         </DialogFooter>
       </Dialog>

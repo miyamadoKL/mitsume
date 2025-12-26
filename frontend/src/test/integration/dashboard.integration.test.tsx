@@ -240,8 +240,7 @@ describe('ダッシュボード統合テスト', () => {
     })
   })
 
-  it('ウィジェット追加に失敗した場合ダイアログが閉じない', async () => {
-    server.use(errorHandlers.widgetCreateError)
+  it('ドラフトモードでウィジェットをローカルに追加できる', async () => {
     renderApp({ initialEntries: ['/dashboards/dashboard-1'], initialToken: mockToken })
 
     await waitFor(() => {
@@ -260,19 +259,16 @@ describe('ダッシュボード統合テスト', () => {
       expect(screen.getByPlaceholderText('Widget name')).toBeInTheDocument()
     })
 
-    await userEvent.type(screen.getByPlaceholderText('Widget name'), 'Failing Widget')
+    await userEvent.type(screen.getByPlaceholderText('Widget name'), 'Local Draft Widget')
 
-    // Click Add Widget
+    // Click Add Widget - in draft mode this adds locally without API call
     const addButtons = screen.getAllByRole('button', { name: /add widget/i })
     await userEvent.click(addButtons[addButtons.length - 1])
 
-    // Dialog should remain open after error
-    await waitFor(
-      () => {
-        expect(screen.getByPlaceholderText('Widget name')).toBeInTheDocument()
-      },
-      { timeout: 1000 }
-    )
+    // Dialog should close after local add
+    await waitFor(() => {
+      expect(screen.queryByPlaceholderText('Widget name')).not.toBeInTheDocument()
+    })
   })
 
   // ===================

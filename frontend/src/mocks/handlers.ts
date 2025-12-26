@@ -308,6 +308,52 @@ export const handlers = [
     }
     return HttpResponse.json({ error: 'Not found' }, { status: 404 })
   }),
+
+  // Layout Templates handlers
+  http.get('/api/layout-templates', () => {
+    return HttpResponse.json([])
+  }),
+
+  http.post('/api/layout-templates', async ({ request }) => {
+    const body = await request.json() as { name: string; description?: string; layout: unknown }
+    return HttpResponse.json({
+      id: `template-${Date.now()}`,
+      name: body.name,
+      description: body.description || '',
+      layout: body.layout,
+      is_system: false,
+      created_at: new Date().toISOString(),
+    })
+  }),
+
+  http.delete('/api/layout-templates/:id', () => {
+    return new HttpResponse(null, { status: 204 })
+  }),
+
+  // Roles handlers
+  http.get('/api/roles', () => {
+    return HttpResponse.json([])
+  }),
+
+  // Notification channels handlers
+  http.get('/api/notification-channels', () => {
+    return HttpResponse.json([])
+  }),
+
+  // Alerts handlers
+  http.get('/api/alerts', () => {
+    return HttpResponse.json([])
+  }),
+
+  // Subscriptions handlers
+  http.get('/api/subscriptions', () => {
+    return HttpResponse.json([])
+  }),
+
+  // Users handlers
+  http.get('/api/users', () => {
+    return HttpResponse.json([mockUser])
+  }),
 ]
 
 export const errorHandlers = {

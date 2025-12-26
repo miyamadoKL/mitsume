@@ -28,6 +28,7 @@ const MAX_WIDGET_HEIGHT = 8
 interface DashboardGridProps {
   dashboard: Dashboard
   onLayoutChange?: (layout: Layout[]) => void
+  onLayoutChangeComplete?: (layout: Layout[]) => void  // Called on drag/resize stop
   editable?: boolean
   onDeleteWidget?: (widgetId: string) => void
   onDuplicateWidget?: (widget: Widget) => void
@@ -51,6 +52,7 @@ const previewWidths: Record<PreviewMode, number | undefined> = {
 export const DashboardGrid: React.FC<DashboardGridProps> = ({
   dashboard,
   onLayoutChange,
+  onLayoutChangeComplete,
   editable = false,
   onDeleteWidget,
   onDuplicateWidget,
@@ -111,6 +113,57 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     // Only propagate changes for the lg (desktop) layout
     if (onLayoutChange && editable && currentBreakpoint === 'lg') {
       onLayoutChange(currentLayout)
+    }
+  }
+
+  // Called when drag or resize operation is complete
+  const handleDragStop = (_layout: Layout[], _oldItem: Layout, newItem: Layout, _placeholder: Layout, _e: MouseEvent, _element: HTMLElement) => {
+    if (onLayoutChangeComplete && editable && currentBreakpoint === 'lg') {
+      // Get the full layout with the updated item
+      const updatedLayout = dashboard.widgets?.map(widget => {
+        if (widget.id === newItem.i) {
+          return {
+            i: widget.id,
+            x: newItem.x,
+            y: newItem.y,
+            w: newItem.w,
+            h: newItem.h,
+          }
+        }
+        return {
+          i: widget.id,
+          x: widget.position.x,
+          y: widget.position.y,
+          w: widget.position.w,
+          h: widget.position.h,
+        }
+      }) || []
+      onLayoutChangeComplete(updatedLayout)
+    }
+  }
+
+  const handleResizeStop = (_layout: Layout[], _oldItem: Layout, newItem: Layout, _placeholder: Layout, _e: MouseEvent, _element: HTMLElement) => {
+    if (onLayoutChangeComplete && editable && currentBreakpoint === 'lg') {
+      // Get the full layout with the updated item
+      const updatedLayout = dashboard.widgets?.map(widget => {
+        if (widget.id === newItem.i) {
+          return {
+            i: widget.id,
+            x: newItem.x,
+            y: newItem.y,
+            w: newItem.w,
+            h: newItem.h,
+          }
+        }
+        return {
+          i: widget.id,
+          x: widget.position.x,
+          y: widget.position.y,
+          w: widget.position.w,
+          h: widget.position.h,
+        }
+      }) || []
+      onLayoutChangeComplete(updatedLayout)
     }
   }
 
@@ -240,6 +293,8 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
           rowHeight={80}
           onLayoutChange={handleLayoutChange}
           onBreakpointChange={handleBreakpointChange}
+          onDragStop={handleDragStop}
+          onResizeStop={handleResizeStop}
           isDraggable={editable}
           isResizable={editable}
           draggableHandle=".drag-handle"
