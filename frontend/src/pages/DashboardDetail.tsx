@@ -18,7 +18,7 @@ import { Dialog, DialogHeader, DialogTitle, DialogContent, DialogFooter } from '
 import { toast } from '@/stores/toastStore'
 import { getErrorMessage } from '@/lib/errors'
 import { extractAllParameters } from '@/lib/params'
-import { ArrowLeft, Plus, Loader2, Edit, Save, RefreshCw, Share2, Eye, Globe, LayoutTemplate as LayoutTemplateIcon, SlidersHorizontal, Link2, Undo2, Redo2 } from 'lucide-react'
+import { ArrowLeft, Plus, Loader2, Edit, Save, RefreshCw, Share2, Eye, Globe, LayoutTemplate as LayoutTemplateIcon, SlidersHorizontal, Link2, Undo2, Redo2, X, AlertTriangle } from 'lucide-react'
 import { useUndoRedo, WidgetSnapshot } from '@/hooks/useUndoRedo'
 import { LayoutTemplateSelector } from '@/components/dashboard/LayoutTemplateSelector'
 import { systemLayoutTemplates } from '@/lib/layout-templates'
@@ -35,6 +35,10 @@ export const DashboardDetail: React.FC = () => {
   const [addWidgetOpen, setAddWidgetOpen] = useState(false)
   const [savedQueries, setSavedQueries] = useState<SavedQuery[]>([])
   const [saving, setSaving] = useState(false)
+
+  // Draft mode: track unsaved changes
+  const [isDraft, setIsDraft] = useState(false)
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
 
   // Parameter state: draft (editing) vs applied (used by widgets)
   const [draftValues, setDraftValues] = useState<Record<string, string>>({})
@@ -130,8 +134,16 @@ export const DashboardDetail: React.FC = () => {
       }
       historyActions.set(snapshot, true) // Skip adding to history - just set initial state
       historyActions.clear() // Clear any previous history
+      setIsDraft(false) // Reset draft flag when entering edit mode
     }
   }, [editMode])
+
+  // Mark as draft when history changes (indicating unsaved changes)
+  useEffect(() => {
+    if (editMode && historyActions.canUndo) {
+      setIsDraft(true)
+    }
+  }, [editMode, historyActions.canUndo])
 
   // Helper to record current widget state to history
   const recordWidgetSnapshot = useCallback(() => {
@@ -160,6 +172,40 @@ export const DashboardDetail: React.FC = () => {
     if (!historyActions.canRedo || !dashboard) return
     historyActions.redo()
   }, [historyActions, dashboard])
+
+  // Handle discard changes - reload from server
+  const handleDiscardChanges = useCallback(async () => {
+    if (!id) return
+    setLoading(true)
+    try {
+      const data = await dashboardApi.getById(id)
+      setDashboard(data)
+      historyActions.clear()
+      setIsDraft(false)
+      setShowDiscardConfirm(false)
+      toast.success(t('dashboard.detail.changesDiscarded', 'Changes discarded'))
+    } catch (err) {
+      toast.error(t('errors.loadFailed'), getErrorMessage(err))
+    } finally {
+      setLoading(false)
+    }
+  }, [id, historyActions, t])
+
+  // Handle exit edit mode with confirmation if draft
+  const handleExitEditMode = useCallback(() => {
+    if (isDraft) {
+      setShowDiscardConfirm(true)
+    } else {
+      setEditMode(false)
+    }
+  }, [isDraft])
+
+  // Force exit edit mode (after confirmation or when saving)
+  const handleConfirmExit = useCallback(() => {
+    setEditMode(false)
+    setIsDraft(false)
+    setShowDiscardConfirm(false)
+  }, [])
 
   // Apply widget history changes to dashboard state
   useEffect(() => {
@@ -790,17 +836,43 @@ export const DashboardDetail: React.FC = () => {
             </Button>
           )}
           {/* Edit button (only for edit permission or owner) */}
-          {canEdit && (
+          {canEdit && !editMode && (
             <Button
-              variant={editMode ? 'default' : 'outline'}
-              onClick={() => setEditMode(!editMode)}
+              variant="outline"
+              onClick={() => setEditMode(true)}
             >
-              {editMode ? <Save className="h-4 w-4 mr-2" /> : <Edit className="h-4 w-4 mr-2" />}
-              {editMode ? t('common.done') : t('common.edit')}
+              <Edit className="h-4 w-4 mr-2" />
+              {t('common.edit')}
             </Button>
           )}
           {editMode && (
             <>
+              {/* Draft indicator */}
+              {isDraft && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700 border border-yellow-300">
+                  <AlertTriangle className="h-3 w-3" />
+                  {t('dashboard.draft.unsavedChanges', 'Unsaved changes')}
+                </span>
+              )}
+              {/* Done button */}
+              <Button
+                variant="default"
+                onClick={handleExitEditMode}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {t('common.done')}
+              </Button>
+              {/* Discard button */}
+              {isDraft && (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDiscardConfirm(true)}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  {t('dashboard.draft.discard', 'Discard')}
+                </Button>
+              )}
               {/* Undo/Redo buttons */}
               <div className="flex border rounded-md">
                 <Button
@@ -1008,6 +1080,29 @@ export const DashboardDetail: React.FC = () => {
           }}
         />
       )}
+
+      {/* Discard Changes Confirmation Dialog */}
+      <Dialog open={showDiscardConfirm} onClose={() => setShowDiscardConfirm(false)}>
+        <DialogHeader>
+          <DialogTitle>{t('dashboard.draft.discardConfirmTitle', 'Discard changes?')}</DialogTitle>
+        </DialogHeader>
+        <DialogContent>
+          <p className="text-sm text-muted-foreground">
+            {t('dashboard.draft.discardConfirmDescription', 'You have unsaved changes. Are you sure you want to discard them? This action cannot be undone.')}
+          </p>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setShowDiscardConfirm(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button variant="outline" onClick={handleConfirmExit}>
+            {t('dashboard.draft.exitWithoutSaving', 'Exit without saving')}
+          </Button>
+          <Button variant="destructive" onClick={handleDiscardChanges}>
+            {t('dashboard.draft.discardAndReload', 'Discard and reload')}
+          </Button>
+        </DialogFooter>
+      </Dialog>
     </div>
   )
 }

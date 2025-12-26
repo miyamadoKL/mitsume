@@ -1,6 +1,9 @@
 import React, { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Responsive, WidthProvider, Layout, Layouts } from 'react-grid-layout'
+
+// CompactType is not exported from react-grid-layout, so we define it locally
+type CompactType = 'horizontal' | 'vertical' | null
 import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import './DashboardGrid.css'
@@ -10,11 +13,17 @@ import type { Dashboard, Widget } from '@/types'
 import { ChartWidget } from './ChartWidget'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Trash2, Settings, RefreshCw, Copy, Monitor, Tablet, Smartphone } from 'lucide-react'
+import { Trash2, Settings, RefreshCw, Copy, Monitor, Tablet, Smartphone, AlignVerticalJustifyStart, AlignHorizontalJustifyStart, LayoutGrid } from 'lucide-react'
 
 // Responsive breakpoints
 const breakpoints = { lg: 1200, md: 996, sm: 768, xs: 480 }
 const cols = { lg: 12, md: 10, sm: 6, xs: 4 }
+
+// Widget size constraints
+const MIN_WIDGET_WIDTH = 2
+const MIN_WIDGET_HEIGHT = 2
+const MAX_WIDGET_WIDTH = 12
+const MAX_WIDGET_HEIGHT = 8
 
 interface DashboardGridProps {
   dashboard: Dashboard
@@ -55,6 +64,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
   const { t } = useTranslation()
   const [previewMode, setPreviewMode] = useState<PreviewMode>('auto')
   const [currentBreakpoint, setCurrentBreakpoint] = useState<string>('lg')
+  const [compactType, setCompactType] = useState<CompactType>('vertical')
 
   // Generate layouts for all breakpoints from the base layout
   const generateLayouts = (): Layouts => {
@@ -64,8 +74,10 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
       y: widget.position.y,
       w: widget.position.w,
       h: widget.position.h,
-      minW: 2,
-      minH: 2,
+      minW: MIN_WIDGET_WIDTH,
+      minH: MIN_WIDGET_HEIGHT,
+      maxW: MAX_WIDGET_WIDTH,
+      maxH: MAX_WIDGET_HEIGHT,
     })) || []
 
     // For smaller screens, adjust widget widths to fit
@@ -174,6 +186,40 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
           <span className="text-xs text-muted-foreground">
             ({currentBreakpoint.toUpperCase()})
           </span>
+
+          {/* Compact mode selector */}
+          <div className="flex items-center gap-2 ml-4">
+            <span className="text-sm text-muted-foreground">{t('dashboard.grid.compactMode', 'Compact:')}</span>
+            <div className="flex border rounded-md">
+              <Button
+                variant={compactType === 'vertical' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setCompactType('vertical')}
+                className="rounded-r-none px-2"
+                title={t('dashboard.grid.compactVertical', 'Vertical')}
+              >
+                <AlignVerticalJustifyStart className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={compactType === 'horizontal' ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setCompactType('horizontal')}
+                className="rounded-none border-l px-2"
+                title={t('dashboard.grid.compactHorizontal', 'Horizontal')}
+              >
+                <AlignHorizontalJustifyStart className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={compactType === null ? 'secondary' : 'ghost'}
+                size="sm"
+                onClick={() => setCompactType(null)}
+                className="rounded-l-none border-l px-2"
+                title={t('dashboard.grid.compactNone', 'None (Free)')}
+              >
+                <LayoutGrid className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -197,7 +243,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
           isDraggable={editable}
           isResizable={editable}
           draggableHandle=".drag-handle"
-          compactType="vertical"
+          compactType={compactType}
           preventCollision={false}
           width={previewWidth}
         >
