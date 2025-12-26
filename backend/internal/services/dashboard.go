@@ -98,14 +98,14 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id, userID uuid.
 	var d models.Dashboard
 	err = pool.QueryRow(ctx,
 		`UPDATE dashboards
-		 SET name = COALESCE(NULLIF($3, ''), name),
-		     description = COALESCE($4, description),
-		     layout = COALESCE($5, layout),
-		     parameters = COALESCE($6, parameters),
+		 SET name = COALESCE(NULLIF($2, ''), name),
+		     description = COALESCE($3, description),
+		     layout = COALESCE($4, layout),
+		     parameters = COALESCE($5, parameters),
 		     updated_at = CURRENT_TIMESTAMP
 		 WHERE id = $1
 		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'), created_at, updated_at`,
-		id, userID, req.Name, req.Description, req.Layout, req.Parameters,
+		id, req.Name, req.Description, req.Layout, req.Parameters,
 	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -115,6 +115,21 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id, userID uuid.
 	}
 
 	d.MyPermission = permLevel
+
+	// Populate widgets/permissions to match GetDashboard response shape.
+	widgets, err := s.GetWidgets(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	d.Widgets = widgets
+
+	if permLevel.IsOwner() {
+		permissions, err := s.permRepo.GetDashboardPermissions(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		d.Permissions = permissions
+	}
 	return &d, nil
 }
 

@@ -224,11 +224,43 @@ export const DashboardDetail: React.FC = () => {
 
   // Copy current URL with parameters to clipboard
   const handleCopyLink = useCallback(async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href)
+    const text = window.location.href
+
+    const tryClipboardApi = async () => {
+      if (!navigator.clipboard?.writeText) return false
+      try {
+        await navigator.clipboard.writeText(text)
+        return true
+      } catch (err) {
+        console.error('navigator.clipboard.writeText failed:', err)
+        return false
+      }
+    }
+
+    const tryExecCommand = () => {
+      try {
+        const el = document.createElement('textarea')
+        el.value = text
+        el.setAttribute('readonly', '')
+        el.style.position = 'fixed'
+        el.style.top = '-9999px'
+        el.style.left = '-9999px'
+        document.body.appendChild(el)
+        el.focus()
+        el.select()
+        const ok = document.execCommand('copy')
+        document.body.removeChild(el)
+        return ok
+      } catch (err) {
+        console.error('document.execCommand(copy) failed:', err)
+        return false
+      }
+    }
+
+    const ok = (await tryClipboardApi()) || tryExecCommand()
+    if (ok) {
       toast.success(t('dashboard.detail.linkCopied', 'Link copied to clipboard'))
-    } catch (err) {
-      console.error('Failed to copy link:', err)
+    } else {
       toast.error(t('dashboard.detail.copyLinkFailed', 'Failed to copy link'))
     }
   }, [t])
