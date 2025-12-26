@@ -274,15 +274,20 @@ export const DashboardDetail: React.FC = () => {
     if (!id) return
     setSaving(true)
     try {
-      // Calculate position for duplicate (next row)
-      const maxY = dashboard?.widgets?.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0) || 0
+      // Position duplicate slightly below the original widget (offset by 1 row)
+      const newY = widget.position.y + widget.position.h
+
+      // Deep copy chart_config to avoid shared reference issues
+      const chartConfigCopy = widget.chart_config
+        ? JSON.parse(JSON.stringify(widget.chart_config))
+        : {}
 
       const req: CreateWidgetRequest = {
         name: `${widget.name} (Copy)`,
         query_id: widget.query_id || undefined,
         chart_type: widget.chart_type,
-        chart_config: widget.chart_config,
-        position: { x: widget.position.x, y: maxY, w: widget.position.w, h: widget.position.h },
+        chart_config: chartConfigCopy,
+        position: { x: widget.position.x, y: newY, w: widget.position.w, h: widget.position.h },
       }
 
       const newWidget = await dashboardApi.createWidget(id, req)

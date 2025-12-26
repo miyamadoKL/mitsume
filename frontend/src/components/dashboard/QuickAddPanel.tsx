@@ -48,13 +48,13 @@ export const QuickAddPanel: React.FC<QuickAddPanelProps> = ({ onAddWidget }) => 
             <button
               key={item.type}
               onClick={() => onAddWidget(item.type)}
-              className="flex flex-col items-center gap-1 p-2 rounded-md hover:bg-muted transition-colors min-w-[60px]"
+              className="group flex flex-col items-center gap-1 p-2 rounded-md hover:bg-muted transition-colors min-w-[60px]"
               title={t(item.labelKey)}
             >
-              <div className="text-muted-foreground group-hover:text-foreground">
+              <div className="text-muted-foreground group-hover:text-foreground transition-colors">
                 {item.icon}
               </div>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-xs text-muted-foreground group-hover:text-foreground transition-colors">
                 {t(item.labelKey)}
               </span>
             </button>
