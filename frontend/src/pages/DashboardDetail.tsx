@@ -72,6 +72,15 @@ export const DashboardDetail: React.FC = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<LayoutTemplate>(systemLayoutTemplates[0])
   const [applyingTemplate, setApplyingTemplate] = useState(false)
 
+  // Save template dialog state
+  const [saveTemplateDialogOpen, setSaveTemplateDialogOpen] = useState(false)
+  const [templateName, setTemplateName] = useState('')
+  const [templateDescription, setTemplateDescription] = useState('')
+  const [savingTemplate, setSavingTemplate] = useState(false)
+
+  // Drag & drop state
+  const [draggingWidgetType, setDraggingWidgetType] = useState<ChartType | null>(null)
+
   // Parameter settings dialog state
   const [paramSettingsOpen, setParamSettingsOpen] = useState(false)
 
@@ -368,55 +377,68 @@ export const DashboardDetail: React.FC = () => {
     toast.success(t('dashboard.detail.changesDiscarded', 'Changes discarded'))
   }, [originalDashboard, historyActions, t])
 
-  // Save all pending changes to backend
+  // Save all pending changes to backend with rollback on partial failure
   const handleSaveChanges = useCallback(async () => {
     if (!id || !dashboard) return
     setSavingChanges(true)
 
+    // Track successful operations for potential rollback
+    const deletedWidgetIds: string[] = []
+    const createdWidgetIds: string[] = []
+    const updatedWidgetOriginals: Record<string, Partial<Widget>> = {}
+
     try {
-      // 1. Delete widgets
+      // 1. Delete widgets (store IDs for rollback)
       for (const widgetId of pendingWidgetDeletions) {
-        // Only delete if it's an existing widget (not a temporary one)
         if (!widgetId.startsWith('temp-')) {
           await dashboardApi.deleteWidget(id, widgetId)
+          deletedWidgetIds.push(widgetId)
         }
       }
 
       // 2. Create new widgets (with responsive_positions if available)
-      const createdWidgets: Widget[] = []
       for (const req of pendingWidgetCreations) {
-        // Find matching temp widget using tempId (reliable linking)
         const tempWidget = dashboard.widgets?.find(w => w.id === req.tempId)
-        // Also check pending responsive positions for this temp widget
         const responsivePos = tempWidget?.responsive_positions || pendingResponsivePositions[req.tempId]
-
-        // Build the create request without tempId (backend doesn't expect it)
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { tempId: _tempId, ...createReqBase } = req
         const createReq = responsivePos
           ? { ...createReqBase, responsive_positions: responsivePos }
           : createReqBase
         const widget = await dashboardApi.createWidget(id, createReq)
-        createdWidgets.push(widget)
+        createdWidgetIds.push(widget.id)
       }
 
       // 3. Update existing widgets (including responsive_positions)
       for (const [widgetId, updates] of Object.entries(pendingWidgetUpdates)) {
         if (!widgetId.startsWith('temp-') && !pendingWidgetDeletions.includes(widgetId)) {
-          // Merge responsive positions if tracked
           const responsivePos = pendingResponsivePositions[widgetId]
           const updateWithResponsive = responsivePos
             ? { ...updates, responsive_positions: responsivePos }
             : updates
+          // Store original for rollback (position from current dashboard state)
+          const originalWidget = originalDashboard?.widgets?.find(w => w.id === widgetId)
+          if (originalWidget) {
+            updatedWidgetOriginals[widgetId] = {
+              position: originalWidget.position,
+              responsive_positions: originalWidget.responsive_positions,
+            }
+          }
           await dashboardApi.updateWidget(id, widgetId, updateWithResponsive)
         }
       }
 
-      // 4. Update widgets that only have responsive_positions changes (not in pendingWidgetUpdates)
+      // 4. Update widgets that only have responsive_positions changes
       for (const [widgetId, responsivePos] of Object.entries(pendingResponsivePositions)) {
         if (!widgetId.startsWith('temp-') &&
             !pendingWidgetDeletions.includes(widgetId) &&
             !pendingWidgetUpdates[widgetId]) {
+          const originalWidget = originalDashboard?.widgets?.find(w => w.id === widgetId)
+          if (originalWidget && !updatedWidgetOriginals[widgetId]) {
+            updatedWidgetOriginals[widgetId] = {
+              responsive_positions: originalWidget.responsive_positions,
+            }
+          }
           await dashboardApi.updateWidget(id, widgetId, { responsive_positions: responsivePos })
         }
       }
@@ -434,11 +456,51 @@ export const DashboardDetail: React.FC = () => {
       setEditMode(false)
       toast.success(t('dashboard.draft.saved', 'Changes saved'))
     } catch (err) {
-      toast.error(t('dashboard.draft.saveFailed', 'Failed to save changes'), getErrorMessage(err))
+      // Attempt rollback of partial changes
+      console.error('Save failed, attempting rollback:', err)
+      const rollbackErrors: string[] = []
+
+      // Rollback created widgets (delete them)
+      for (const widgetId of createdWidgetIds) {
+        try {
+          await dashboardApi.deleteWidget(id, widgetId)
+        } catch (rollbackErr) {
+          rollbackErrors.push(`Failed to rollback created widget ${widgetId}`)
+          console.error('Rollback delete failed:', rollbackErr)
+        }
+      }
+
+      // Rollback updated widgets (restore original values)
+      for (const [widgetId, original] of Object.entries(updatedWidgetOriginals)) {
+        try {
+          await dashboardApi.updateWidget(id, widgetId, original)
+        } catch (rollbackErr) {
+          rollbackErrors.push(`Failed to rollback updated widget ${widgetId}`)
+          console.error('Rollback update failed:', rollbackErr)
+        }
+      }
+
+      // Note: Deleted widgets cannot be automatically restored (would need server-side soft delete)
+      if (deletedWidgetIds.length > 0) {
+        rollbackErrors.push(`${deletedWidgetIds.length} deleted widget(s) cannot be automatically restored`)
+      }
+
+      // Reload dashboard to reflect current server state
+      try {
+        const freshDashboard = await dashboardApi.getById(id)
+        setDashboard(freshDashboard)
+      } catch {
+        // Ignore reload error, user can refresh manually
+      }
+
+      const errorMsg = rollbackErrors.length > 0
+        ? `${getErrorMessage(err)}. Rollback issues: ${rollbackErrors.join('; ')}`
+        : getErrorMessage(err)
+      toast.error(t('dashboard.draft.saveFailed', 'Failed to save changes'), errorMsg)
     } finally {
       setSavingChanges(false)
     }
-  }, [id, dashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
+  }, [id, dashboard, originalDashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
 
   // Handle exit edit mode with confirmation if draft
   const handleExitEditMode = useCallback(() => {
@@ -776,11 +838,15 @@ export const DashboardDetail: React.FC = () => {
   }
 
   // Handle layout change (visual update only, no API calls)
+  // Performance: Use Map for O(1) lookup instead of O(n) find()
   const handleLayoutChange = useCallback((layout: Layout[]) => {
     if (!dashboard) return
 
+    // Build a Map for O(1) lookups
+    const layoutMap = new Map(layout.map(l => [l.i, l]))
+
     const updatedWidgets = dashboard.widgets?.map(widget => {
-      const layoutItem = layout.find(l => l.i === widget.id)
+      const layoutItem = layoutMap.get(widget.id)
       if (layoutItem) {
         return {
           ...widget,
@@ -799,15 +865,19 @@ export const DashboardDetail: React.FC = () => {
   }, [dashboard])
 
   // Handle layout change complete (on drag/resize stop) - record to history and pending updates
+  // Performance: Use Map for O(1) lookup instead of O(n) find()
   const handleLayoutChangeComplete = useCallback((layout: Layout[], breakpoint: Breakpoint) => {
     if (!dashboard) return
+
+    // Build a Map for O(1) lookups
+    const layoutMap = new Map(layout.map(l => [l.i, l]))
 
     // Only update the main position for lg breakpoint (backward compatibility)
     if (breakpoint === 'lg') {
       // Build the new state FIRST
       const newUpdates = { ...pendingWidgetUpdates }
       const updatedWidgets = dashboard.widgets?.map(widget => {
-        const layoutItem = layout.find(l => l.i === widget.id)
+        const layoutItem = layoutMap.get(widget.id)
         if (layoutItem) {
           const newPosition = {
             x: layoutItem.x,
@@ -839,24 +909,20 @@ export const DashboardDetail: React.FC = () => {
   }, [dashboard, pendingWidgetUpdates, buildSnapshot, recordSnapshot])
 
   // Handle all layouts change (called with all breakpoint positions for all widgets)
+  // Now properly records to undo/redo history
   const handleAllLayoutsChange = useCallback((layouts: Record<string, ResponsivePositions>) => {
     if (!dashboard) return
 
-    setIsDraft(true)
-
-    // Update pending responsive positions
-    setPendingResponsivePositions(prev => {
-      const updated = { ...prev }
-      Object.entries(layouts).forEach(([widgetId, positions]) => {
-        updated[widgetId] = {
-          ...(updated[widgetId] || {}),
-          ...positions,
-        }
-      })
-      return updated
+    // Build new responsive positions state
+    const newResponsivePositions = { ...pendingResponsivePositions }
+    Object.entries(layouts).forEach(([widgetId, positions]) => {
+      newResponsivePositions[widgetId] = {
+        ...(newResponsivePositions[widgetId] || {}),
+        ...positions,
+      }
     })
 
-    // Also update local dashboard state with responsive positions
+    // Build new widgets with updated responsive positions
     const updatedWidgets = dashboard.widgets?.map(widget => {
       if (layouts[widget.id]) {
         return {
@@ -868,10 +934,20 @@ export const DashboardDetail: React.FC = () => {
         }
       }
       return widget
-    })
+    }) || []
 
+    // Record NEW state to history (this enables undo/redo for responsive position changes)
+    const newSnapshot = buildSnapshot({
+      widgets: updatedWidgets as Widget[],
+      responsivePositions: newResponsivePositions,
+    })
+    if (newSnapshot) recordSnapshot(newSnapshot)
+
+    // Apply state changes
+    setPendingResponsivePositions(newResponsivePositions)
     setDashboard({ ...dashboard, widgets: updatedWidgets })
-  }, [dashboard])
+    setIsDraft(true)
+  }, [dashboard, pendingResponsivePositions, buildSnapshot, recordSnapshot])
 
   // Add widget locally (no API call until save)
   const handleAddWidget = useCallback(() => {
@@ -961,6 +1037,61 @@ export const DashboardDetail: React.FC = () => {
     setSettingsDialogOpen(true)
   }, [dashboard, t, pendingWidgetCreations, buildSnapshot, recordSnapshot])
 
+  // Handle drag start from QuickAddPanel
+  const handleDragStart = useCallback((type: ChartType) => {
+    setDraggingWidgetType(type)
+  }, [])
+
+  // Handle drag end from QuickAddPanel
+  const handleDragEnd = useCallback(() => {
+    setDraggingWidgetType(null)
+  }, [])
+
+  // Handle drop widget at specific position
+  const handleDropWidget = useCallback((type: string, position: { x: number; y: number }) => {
+    if (!dashboard) return
+
+    const widgetCount = (dashboard.widgets?.length || 0) + 1
+    const tempId = `temp-${Date.now()}`
+
+    const req: CreateWidgetRequest & { tempId: string } = {
+      tempId,
+      name: `${t(`chart.types.${type}`)} ${widgetCount}`,
+      query_id: undefined,
+      chart_type: type as ChartType,
+      chart_config: type === 'markdown' ? { content: '' } : {},
+      position: { x: position.x, y: position.y, w: 6, h: 3 },
+    }
+
+    // Create temporary widget for local display
+    const tempWidget: Widget = {
+      id: tempId,
+      dashboard_id: dashboard.id,
+      name: req.name,
+      query_id: null,
+      chart_type: req.chart_type,
+      chart_config: req.chart_config as Record<string, unknown>,
+      position: req.position,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    // Build new state and record to history
+    const newWidgets = [...(dashboard.widgets || []), tempWidget]
+    const newCreations = [...pendingWidgetCreations, req]
+    const newSnapshot = buildSnapshot({ widgets: newWidgets, creations: newCreations })
+    if (newSnapshot) recordSnapshot(newSnapshot)
+
+    // Apply state changes
+    setDashboard(prev => prev ? { ...prev, widgets: newWidgets } : null)
+    setPendingWidgetCreations(newCreations)
+    setDraggingWidgetType(null)
+
+    // Open settings dialog for the new widget
+    setEditingWidget(tempWidget)
+    setSettingsDialogOpen(true)
+  }, [dashboard, t, pendingWidgetCreations, buildSnapshot, recordSnapshot])
+
   // Delete widget locally (no API call until save)
   const handleDeleteWidget = useCallback((widgetId: string) => {
     if (!dashboard) return
@@ -1006,10 +1137,27 @@ export const DashboardDetail: React.FC = () => {
     toast.success(t('dashboard.detail.toast.widgetDeleted'))
   }, [dashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, buildSnapshot, recordSnapshot, t])
 
-  // Duplicate widget locally (no API call until save)
-  const handleDuplicateWidget = useCallback((widget: Widget) => {
-    if (!dashboard) return
+  // Duplicate widget - use API for existing widgets, local for temp widgets
+  const handleDuplicateWidget = useCallback(async (widget: Widget) => {
+    if (!dashboard || !id) return
 
+    // For existing widgets, use the duplicate API
+    if (!widget.id.startsWith('temp-')) {
+      try {
+        const duplicatedWidget = await dashboardApi.duplicateWidget(id, widget.id)
+        // Add to local state
+        const newWidgets = [...(dashboard.widgets || []), duplicatedWidget]
+        const newSnapshot = buildSnapshot({ widgets: newWidgets })
+        if (newSnapshot) recordSnapshot(newSnapshot)
+        setDashboard(prev => prev ? { ...prev, widgets: newWidgets } : null)
+        toast.success(t('dashboard.detail.toast.widgetDuplicated'))
+      } catch (err) {
+        toast.error(t('dashboard.detail.toast.widgetDuplicateFailed', 'Failed to duplicate widget'), getErrorMessage(err))
+      }
+      return
+    }
+
+    // For temp widgets, duplicate locally
     const newY = widget.position.y + widget.position.h
     const tempId = `temp-${Date.now()}`
 
@@ -1051,7 +1199,7 @@ export const DashboardDetail: React.FC = () => {
     setPendingWidgetCreations(newCreations)
 
     toast.success(t('dashboard.detail.toast.widgetDuplicated'))
-  }, [dashboard, pendingWidgetCreations, buildSnapshot, recordSnapshot, t])
+  }, [dashboard, id, pendingWidgetCreations, buildSnapshot, recordSnapshot, t])
 
   const handleSettingsClick = (widget: Widget) => {
     setEditingWidget(widget)
@@ -1190,6 +1338,53 @@ export const DashboardDetail: React.FC = () => {
       setDashboard(prev => prev ? { ...prev, widgets: previousWidgets } : null)
     } finally {
       setApplyingTemplate(false)
+    }
+  }
+
+  // Delete custom template
+  const handleDeleteTemplate = async (templateId: string) => {
+    try {
+      await layoutTemplateApi.delete(templateId)
+      setCustomTemplates(prev => prev.filter(t => t.id !== templateId))
+      // If the deleted template was selected, reset to first system template
+      if (selectedTemplate.id === templateId) {
+        setSelectedTemplate(systemLayoutTemplates[0])
+      }
+      toast.success(t('dashboard.templates.deleted', 'Template deleted'))
+    } catch (err) {
+      toast.error(t('dashboard.templates.deleteFailed', 'Failed to delete template'), getErrorMessage(err))
+    }
+  }
+
+  // Save current layout as template
+  const handleSaveAsTemplate = async () => {
+    if (!dashboard?.widgets || !templateName.trim()) return
+    setSavingTemplate(true)
+
+    try {
+      // Extract positions from current widgets
+      const layout = dashboard.widgets.map(w => ({
+        x: w.position.x,
+        y: w.position.y,
+        w: w.position.w,
+        h: w.position.h,
+      }))
+
+      const newTemplate = await layoutTemplateApi.create(
+        templateName.trim(),
+        templateDescription.trim(),
+        layout
+      )
+
+      setCustomTemplates(prev => [...prev, newTemplate])
+      setSaveTemplateDialogOpen(false)
+      setTemplateName('')
+      setTemplateDescription('')
+      toast.success(t('dashboard.templates.saved', 'Layout saved as template'))
+    } catch (err) {
+      toast.error(t('dashboard.templates.saveFailed', 'Failed to save template'), getErrorMessage(err))
+    } finally {
+      setSavingTemplate(false)
     }
   }
 
@@ -1381,8 +1576,14 @@ export const DashboardDetail: React.FC = () => {
       />
 
       <div className="flex-1 overflow-auto p-4" ref={dashboardContentRef}>
-        {editMode && <QuickAddPanel onAddWidget={handleQuickAddWidget} />}
-        {dashboard.widgets && dashboard.widgets.length > 0 ? (
+        {editMode && (
+          <QuickAddPanel
+            onAddWidget={handleQuickAddWidget}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+          />
+        )}
+        {(dashboard.widgets && dashboard.widgets.length > 0) || draggingWidgetType ? (
           <DashboardGrid
             dashboard={dashboard}
             onLayoutChange={handleLayoutChange}
@@ -1397,6 +1598,8 @@ export const DashboardDetail: React.FC = () => {
             onRefreshWidget={handleRefreshWidget}
             onParametersDiscovered={handleParametersDiscovered}
             onCrossFilter={handleCrossFilter}
+            draggingWidgetType={draggingWidgetType}
+            onDropWidget={handleDropWidget}
           />
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
@@ -1491,7 +1694,21 @@ export const DashboardDetail: React.FC = () => {
               selectedId={selectedTemplate.id}
               onSelect={setSelectedTemplate}
               customTemplates={customTemplates}
+              onDeleteTemplate={handleDeleteTemplate}
             />
+            {/* Save current layout as template */}
+            {dashboard?.widgets && dashboard.widgets.length > 0 && (
+              <div className="pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setSaveTemplateDialogOpen(true)}
+                  className="w-full"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {t('dashboard.templates.saveCurrent', 'Save current layout as template')}
+                </Button>
+              </div>
+            )}
           </div>
         </DialogContent>
         <DialogFooter>
@@ -1512,6 +1729,44 @@ export const DashboardDetail: React.FC = () => {
             disabled={applyingTemplate}
           >
             {applyingTemplate ? t('common.loading') : t('dashboard.applyTemplate.replaceAll')}
+          </Button>
+        </DialogFooter>
+      </Dialog>
+
+      {/* Save Template Dialog */}
+      <Dialog open={saveTemplateDialogOpen} onClose={() => setSaveTemplateDialogOpen(false)}>
+        <DialogHeader>
+          <DialogTitle>{t('dashboard.templates.saveTitle', 'Save Layout as Template')}</DialogTitle>
+        </DialogHeader>
+        <DialogContent>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium">{t('dashboard.templates.templateName', 'Template Name')}</label>
+              <Input
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder={t('dashboard.templates.templateNamePlaceholder', 'Enter template name')}
+              />
+            </div>
+            <div>
+              <label className="text-sm font-medium">{t('dashboard.templates.templateDescription', 'Description')}</label>
+              <Input
+                value={templateDescription}
+                onChange={(e) => setTemplateDescription(e.target.value)}
+                placeholder={t('dashboard.templates.templateDescriptionPlaceholder', 'Optional description')}
+              />
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {t('dashboard.templates.saveInfo', 'This will save the current widget positions as a reusable template. Widget content (queries, chart settings) will not be saved.')}
+            </p>
+          </div>
+        </DialogContent>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setSaveTemplateDialogOpen(false)}>
+            {t('common.cancel')}
+          </Button>
+          <Button onClick={handleSaveAsTemplate} disabled={!templateName.trim() || savingTemplate}>
+            {savingTemplate ? t('common.saving', 'Saving...') : t('common.save')}
           </Button>
         </DialogFooter>
       </Dialog>

@@ -316,6 +316,36 @@ func (h *DashboardHandler) DeleteWidget(c *gin.Context) {
 	c.JSON(http.StatusNoContent, nil)
 }
 
+func (h *DashboardHandler) DuplicateWidget(c *gin.Context) {
+	userID := c.MustGet("userID").(uuid.UUID)
+	dashboardID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid dashboard id"})
+		return
+	}
+	widgetID, err := uuid.Parse(c.Param("widgetId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid widget id"})
+		return
+	}
+
+	widget, err := h.dashboardService.DuplicateWidget(c.Request.Context(), widgetID, dashboardID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "dashboard or widget not found"})
+			return
+		}
+		if errors.Is(err, services.ErrPermissionDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, widget)
+}
+
 // Permission management handlers
 
 func (h *DashboardHandler) GetPermissions(c *gin.Context) {

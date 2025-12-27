@@ -39,6 +39,9 @@ interface DashboardGridProps {
   onRefreshWidget?: (widgetId: string) => void
   onParametersDiscovered?: (widgetId: string, requiredParams: string[], missingParams: string[]) => void
   onCrossFilter?: (parameterUpdates: Record<string, string>) => void
+  // Drag & drop from external source
+  draggingWidgetType?: string | null
+  onDropWidget?: (type: string, position: { x: number; y: number }) => void
 }
 
 // Preview width presets
@@ -64,6 +67,8 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
   onRefreshWidget,
   onParametersDiscovered,
   onCrossFilter,
+  draggingWidgetType,
+  onDropWidget,
 }) => {
   const { t } = useTranslation()
   const [previewMode, setPreviewMode] = useState<PreviewMode>('auto')
@@ -225,16 +230,29 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     setCurrentBreakpoint(newBreakpoint)
   }
 
+  // Handle drop from external source (QuickAddPanel)
+  const handleDrop = useCallback((_layout: Layout[], layoutItem: Layout, _event: Event) => {
+    if (!onDropWidget || !draggingWidgetType) return
+
+    // The layoutItem contains the drop position calculated by react-grid-layout
+    onDropWidget(draggingWidgetType, {
+      x: layoutItem.x,
+      y: layoutItem.y,
+    })
+  }, [onDropWidget, draggingWidgetType])
+
   const isEmpty = !dashboard.widgets || dashboard.widgets.length === 0
+  const isDraggingOver = !!draggingWidgetType
   const gridClassName = [
     'layout',
     'dashboard-grid',
     editable ? 'editing' : '',
-    editable && isEmpty ? 'empty' : '',
+    editable && isEmpty && !isDraggingOver ? 'empty' : '',
+    isDraggingOver ? 'dropping' : '',
   ].filter(Boolean).join(' ')
 
-  // Show empty state message when in edit mode with no widgets
-  if (editable && isEmpty) {
+  // Show empty state message when in edit mode with no widgets (unless dragging)
+  if (editable && isEmpty && !isDraggingOver) {
     return (
       <div className={gridClassName}>
         <p className="text-muted-foreground text-sm">
@@ -355,6 +373,9 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
           compactType={compactType}
           preventCollision={false}
           width={previewWidth}
+          isDroppable={editable && !!draggingWidgetType}
+          onDrop={handleDrop}
+          droppingItem={{ i: '__dropping-elem__', w: 6, h: 3 }}
         >
           {dashboard.widgets?.map(widget => (
             <div key={widget.id}>

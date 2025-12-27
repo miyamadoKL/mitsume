@@ -92,6 +92,7 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 			protected.POST("/dashboards/:id/widgets", dashboardHandler.CreateWidget)
 			protected.PUT("/dashboards/:id/widgets/:widgetId", dashboardHandler.UpdateWidget)
 			protected.DELETE("/dashboards/:id/widgets/:widgetId", dashboardHandler.DeleteWidget)
+			protected.POST("/dashboards/:id/widgets/:widgetId/duplicate", dashboardHandler.DuplicateWidget)
 
 			// Dashboard permissions
 			protected.GET("/dashboards/:id/permissions", dashboardHandler.GetPermissions)

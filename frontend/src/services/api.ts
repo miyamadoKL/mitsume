@@ -214,6 +214,11 @@ export const dashboardApi = {
     await api.delete(`/dashboards/${dashboardId}/widgets/${widgetId}`)
   },
 
+  duplicateWidget: async (dashboardId: string, widgetId: string): Promise<Widget> => {
+    const { data } = await api.post<Widget>(`/dashboards/${dashboardId}/widgets/${widgetId}/duplicate`)
+    return data
+  },
+
   // Permissions
   getPermissions: async (dashboardId: string): Promise<DashboardPermission[]> => {
     const { data } = await api.get<DashboardPermission[]>(`/dashboards/${dashboardId}/permissions`)

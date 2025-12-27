@@ -328,6 +328,55 @@ func (s *DashboardService) DeleteWidget(ctx context.Context, id, dashboardID, us
 	return nil
 }
 
+func (s *DashboardService) DuplicateWidget(ctx context.Context, id, dashboardID, userID uuid.UUID) (*models.Widget, error) {
+	// Check edit permission
+	permLevel, err := s.permRepo.GetUserPermissionLevel(ctx, dashboardID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !permLevel.CanEdit() {
+		return nil, ErrPermissionDenied
+	}
+
+	pool := database.GetPool()
+
+	// Get the original widget
+	var original models.Widget
+	err = pool.QueryRow(ctx,
+		`SELECT id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at
+		 FROM dashboard_widgets WHERE id = $1 AND dashboard_id = $2`,
+		id, dashboardID,
+	).Scan(&original.ID, &original.DashboardID, &original.Name, &original.QueryID, &original.ChartType, &original.ChartConfig, &original.Position, &original.ResponsivePositions, &original.CreatedAt, &original.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	// Calculate new position (offset Y by the widget's height)
+	var pos models.LayoutPosition
+	if err := json.Unmarshal(original.Position, &pos); err == nil {
+		pos.Y += pos.H
+	}
+	newPosition, _ := json.Marshal(pos)
+
+	// Create the duplicate with "(Copy)" appended to name
+	var w models.Widget
+	err = pool.QueryRow(ctx,
+		`INSERT INTO dashboard_widgets (dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at`,
+		dashboardID, original.Name+" (Copy)", original.QueryID, original.ChartType, original.ChartConfig, newPosition, original.ResponsivePositions,
+	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &w, nil
+}
+
 // Permission management (only owner can manage permissions)
 
 func (s *DashboardService) GetDashboardPermissions(ctx context.Context, dashboardID, userID uuid.UUID) ([]models.DashboardPermission, error) {
