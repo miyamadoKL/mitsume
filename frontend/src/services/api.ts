@@ -31,6 +31,8 @@ import type {
   Position,
   WidgetDataRequest,
   WidgetDataResponse,
+  BatchWidgetUpdateRequest,
+  BatchWidgetUpdateResponse,
 } from '@/types'
 
 const api = axios.create({
@@ -212,6 +214,23 @@ export const dashboardApi = {
 
   deleteWidget: async (dashboardId: string, widgetId: string): Promise<void> => {
     await api.delete(`/dashboards/${dashboardId}/widgets/${widgetId}`)
+  },
+
+  duplicateWidget: async (dashboardId: string, widgetId: string): Promise<Widget> => {
+    const { data } = await api.post<Widget>(`/dashboards/${dashboardId}/widgets/${widgetId}/duplicate`)
+    return data
+  },
+
+  // Batch widget update (atomic transaction)
+  batchUpdateWidgets: async (
+    dashboardId: string,
+    req: BatchWidgetUpdateRequest
+  ): Promise<BatchWidgetUpdateResponse> => {
+    const { data } = await api.post<BatchWidgetUpdateResponse>(
+      `/dashboards/${dashboardId}/widgets/batch`,
+      req
+    )
+    return data
   },
 
   // Permissions

@@ -181,7 +181,7 @@ func (s *DashboardService) GetWidgets(ctx context.Context, dashboardID uuid.UUID
 	pool := database.GetPool()
 
 	rows, err := pool.Query(ctx,
-		`SELECT id, dashboard_id, name, query_id, chart_type, chart_config, position, created_at, updated_at
+		`SELECT id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at
 		 FROM dashboard_widgets WHERE dashboard_id = $1`,
 		dashboardID,
 	)
@@ -193,7 +193,7 @@ func (s *DashboardService) GetWidgets(ctx context.Context, dashboardID uuid.UUID
 	var widgets []models.Widget
 	for rows.Next() {
 		var w models.Widget
-		if err := rows.Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.CreatedAt, &w.UpdatedAt); err != nil {
+		if err := rows.Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt); err != nil {
 			return nil, err
 		}
 		widgets = append(widgets, w)
@@ -208,10 +208,10 @@ func (s *DashboardService) GetWidget(ctx context.Context, dashboardID, widgetID 
 
 	var w models.Widget
 	err := pool.QueryRow(ctx,
-		`SELECT id, dashboard_id, name, query_id, chart_type, chart_config, position, created_at, updated_at
+		`SELECT id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at
 		 FROM dashboard_widgets WHERE dashboard_id = $1 AND id = $2`,
 		dashboardID, widgetID,
-	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.CreatedAt, &w.UpdatedAt)
+	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -244,11 +244,11 @@ func (s *DashboardService) CreateWidget(ctx context.Context, dashboardID, userID
 
 	var w models.Widget
 	err = pool.QueryRow(ctx,
-		`INSERT INTO dashboard_widgets (dashboard_id, name, query_id, chart_type, chart_config, position)
-		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, created_at, updated_at`,
-		dashboardID, req.Name, req.QueryID, req.ChartType, req.ChartConfig, req.Position,
-	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.CreatedAt, &w.UpdatedAt)
+		`INSERT INTO dashboard_widgets (dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at`,
+		dashboardID, req.Name, req.QueryID, req.ChartType, req.ChartConfig, req.Position, req.ResponsivePositions,
+	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -284,11 +284,12 @@ func (s *DashboardService) UpdateWidget(ctx context.Context, id, dashboardID, us
 		     chart_type = COALESCE(NULLIF($5, ''), chart_type),
 		     chart_config = COALESCE($6, chart_config),
 		     position = COALESCE($7, position),
+		     responsive_positions = COALESCE($8, responsive_positions),
 		     updated_at = CURRENT_TIMESTAMP
 		 WHERE id = $1 AND dashboard_id = $2
-		 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, created_at, updated_at`,
-		id, dashboardID, req.Name, req.QueryID, req.ChartType, req.ChartConfig, req.Position,
-	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.CreatedAt, &w.UpdatedAt)
+		 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at`,
+		id, dashboardID, req.Name, req.QueryID, req.ChartType, req.ChartConfig, req.Position, req.ResponsivePositions,
+	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -325,6 +326,156 @@ func (s *DashboardService) DeleteWidget(ctx context.Context, id, dashboardID, us
 	}
 
 	return nil
+}
+
+// BatchUpdateWidgets performs atomic create/update/delete operations within a transaction
+func (s *DashboardService) BatchUpdateWidgets(ctx context.Context, dashboardID, userID uuid.UUID, req *models.BatchWidgetUpdateRequest) (*models.BatchWidgetUpdateResponse, error) {
+	// Check edit permission
+	permLevel, err := s.permRepo.GetUserPermissionLevel(ctx, dashboardID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !permLevel.CanEdit() {
+		return nil, ErrPermissionDenied
+	}
+
+	pool := database.GetPool()
+
+	// Start transaction
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	response := &models.BatchWidgetUpdateResponse{
+		Created: []models.Widget{},
+		Updated: []models.Widget{},
+		Deleted: []string{},
+	}
+
+	// 1. Delete widgets first (within transaction)
+	for _, widgetID := range req.Delete {
+		id, err := uuid.Parse(widgetID)
+		if err != nil {
+			return nil, ErrInvalidRequest
+		}
+
+		result, err := tx.Exec(ctx,
+			`DELETE FROM dashboard_widgets WHERE id = $1 AND dashboard_id = $2`,
+			id, dashboardID,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if result.RowsAffected() > 0 {
+			response.Deleted = append(response.Deleted, widgetID)
+		}
+	}
+
+	// 2. Create new widgets (within transaction)
+	for _, createReq := range req.Create {
+		var w models.Widget
+		err := tx.QueryRow(ctx,
+			`INSERT INTO dashboard_widgets (dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)
+			 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at`,
+			dashboardID, createReq.Name, createReq.QueryID, createReq.ChartType, createReq.ChartConfig, createReq.Position, createReq.ResponsivePositions,
+		).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		response.Created = append(response.Created, w)
+	}
+
+	// 3. Update existing widgets (within transaction)
+	for widgetID, updateReq := range req.Update {
+		id, err := uuid.Parse(widgetID)
+		if err != nil {
+			return nil, ErrInvalidRequest
+		}
+
+		var w models.Widget
+		err = tx.QueryRow(ctx,
+			`UPDATE dashboard_widgets
+			 SET name = COALESCE(NULLIF($3, ''), name),
+			     query_id = COALESCE($4, query_id),
+			     chart_type = COALESCE(NULLIF($5, ''), chart_type),
+			     chart_config = COALESCE($6, chart_config),
+			     position = COALESCE($7, position),
+			     responsive_positions = COALESCE($8, responsive_positions),
+			     updated_at = CURRENT_TIMESTAMP
+			 WHERE id = $1 AND dashboard_id = $2
+			 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at`,
+			id, dashboardID, updateReq.Name, updateReq.QueryID, updateReq.ChartType, updateReq.ChartConfig, updateReq.Position, updateReq.ResponsivePositions,
+		).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				// Widget not found - skip but don't fail the whole transaction
+				continue
+			}
+			return nil, err
+		}
+		response.Updated = append(response.Updated, w)
+	}
+
+	// Commit transaction - all changes are atomic
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+func (s *DashboardService) DuplicateWidget(ctx context.Context, id, dashboardID, userID uuid.UUID) (*models.Widget, error) {
+	// Check edit permission
+	permLevel, err := s.permRepo.GetUserPermissionLevel(ctx, dashboardID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !permLevel.CanEdit() {
+		return nil, ErrPermissionDenied
+	}
+
+	pool := database.GetPool()
+
+	// Get the original widget
+	var original models.Widget
+	err = pool.QueryRow(ctx,
+		`SELECT id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at
+		 FROM dashboard_widgets WHERE id = $1 AND dashboard_id = $2`,
+		id, dashboardID,
+	).Scan(&original.ID, &original.DashboardID, &original.Name, &original.QueryID, &original.ChartType, &original.ChartConfig, &original.Position, &original.ResponsivePositions, &original.CreatedAt, &original.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	// Calculate new position (offset Y by the widget's height)
+	var pos models.LayoutPosition
+	if err := json.Unmarshal(original.Position, &pos); err == nil {
+		pos.Y += pos.H
+	}
+	newPosition, _ := json.Marshal(pos)
+
+	// Create the duplicate with "(Copy)" appended to name
+	var w models.Widget
+	err = pool.QueryRow(ctx,
+		`INSERT INTO dashboard_widgets (dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at`,
+		dashboardID, original.Name+" (Copy)", original.QueryID, original.ChartType, original.ChartConfig, newPosition, original.ResponsivePositions,
+	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &w, nil
 }
 
 // Permission management (only owner can manage permissions)

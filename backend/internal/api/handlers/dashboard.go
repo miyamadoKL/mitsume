@@ -166,6 +166,38 @@ func (h *DashboardHandler) CreateWidget(c *gin.Context) {
 		return
 	}
 
+	// Validate widget position
+	if _, err := models.ValidateWidgetPosition(req.Position); err != nil {
+		if validationErr, ok := err.(*models.ValidationError); ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message, "field": validationErr.Field})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Validate responsive positions if provided
+	if len(req.ResponsivePositions) > 0 {
+		if _, err := models.ValidateResponsivePositions(req.ResponsivePositions); err != nil {
+			if validationErr, ok := err.(*models.ValidationError); ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message, "field": validationErr.Field})
+				return
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	// Validate chart config size
+	if err := models.ValidateChartConfig(req.ChartConfig); err != nil {
+		if validationErr, ok := err.(*models.ValidationError); ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message, "field": validationErr.Field})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	widget, err := h.dashboardService.CreateWidget(c.Request.Context(), dashboardID, userID, &req)
 	if err != nil {
 		if errors.Is(err, services.ErrNotFound) {
@@ -200,6 +232,42 @@ func (h *DashboardHandler) UpdateWidget(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
+	}
+
+	// Validate widget position if provided
+	if len(req.Position) > 0 {
+		if _, err := models.ValidateWidgetPosition(req.Position); err != nil {
+			if validationErr, ok := err.(*models.ValidationError); ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message, "field": validationErr.Field})
+				return
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	// Validate responsive positions if provided
+	if len(req.ResponsivePositions) > 0 {
+		if _, err := models.ValidateResponsivePositions(req.ResponsivePositions); err != nil {
+			if validationErr, ok := err.(*models.ValidationError); ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message, "field": validationErr.Field})
+				return
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	// Validate chart config size if provided
+	if len(req.ChartConfig) > 0 {
+		if err := models.ValidateChartConfig(req.ChartConfig); err != nil {
+			if validationErr, ok := err.(*models.ValidationError); ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message, "field": validationErr.Field})
+				return
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 	}
 
 	widget, err := h.dashboardService.UpdateWidget(c.Request.Context(), widgetID, dashboardID, userID, &req)
@@ -246,6 +314,108 @@ func (h *DashboardHandler) DeleteWidget(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusNoContent, nil)
+}
+
+func (h *DashboardHandler) DuplicateWidget(c *gin.Context) {
+	userID := c.MustGet("userID").(uuid.UUID)
+	dashboardID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid dashboard id"})
+		return
+	}
+	widgetID, err := uuid.Parse(c.Param("widgetId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid widget id"})
+		return
+	}
+
+	widget, err := h.dashboardService.DuplicateWidget(c.Request.Context(), widgetID, dashboardID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "dashboard or widget not found"})
+			return
+		}
+		if errors.Is(err, services.ErrPermissionDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusCreated, widget)
+}
+
+// BatchUpdateWidgets handles atomic batch create/update/delete of widgets
+func (h *DashboardHandler) BatchUpdateWidgets(c *gin.Context) {
+	userID := c.MustGet("userID").(uuid.UUID)
+	dashboardID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid dashboard id"})
+		return
+	}
+
+	var req models.BatchWidgetUpdateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
+		return
+	}
+
+	// Validate create requests
+	for i, createReq := range req.Create {
+		if len(createReq.Position) > 0 {
+			if _, err := models.ValidateWidgetPosition(createReq.Position); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid position in create[%d]", i)})
+				return
+			}
+		}
+		if len(createReq.ResponsivePositions) > 0 {
+			if _, err := models.ValidateResponsivePositions(createReq.ResponsivePositions); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid responsive_positions in create[%d]", i)})
+				return
+			}
+		}
+		if err := models.ValidateChartConfig(createReq.ChartConfig); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid chart_config in create[%d]", i)})
+			return
+		}
+	}
+
+	// Validate update requests
+	for widgetID, updateReq := range req.Update {
+		if len(updateReq.Position) > 0 {
+			if _, err := models.ValidateWidgetPosition(updateReq.Position); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid position in update[%s]", widgetID)})
+				return
+			}
+		}
+		if len(updateReq.ResponsivePositions) > 0 {
+			if _, err := models.ValidateResponsivePositions(updateReq.ResponsivePositions); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid responsive_positions in update[%s]", widgetID)})
+				return
+			}
+		}
+		if err := models.ValidateChartConfig(updateReq.ChartConfig); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("invalid chart_config in update[%s]", widgetID)})
+			return
+		}
+	}
+
+	response, err := h.dashboardService.BatchUpdateWidgets(c.Request.Context(), dashboardID, userID, &req)
+	if err != nil {
+		if errors.Is(err, services.ErrPermissionDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+			return
+		}
+		if errors.Is(err, services.ErrInvalidRequest) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid widget id"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update widgets"})
+		return
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // Permission management handlers

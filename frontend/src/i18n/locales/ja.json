@@ -136,6 +136,18 @@
     "export": "エクスポート",
     "refresh": "更新",
     "autoRefresh": "自動更新",
+    "undo": "元に戻す (Ctrl+Z)",
+    "redo": "やり直し (Ctrl+Shift+Z)",
+    "draft": {
+      "unsavedChanges": "未保存の変更",
+      "discard": "破棄",
+      "discardConfirmTitle": "変更を破棄しますか?",
+      "discardConfirmDescription": "未保存の変更があります。本当に破棄しますか？この操作は取り消せません。",
+      "exitWithoutSaving": "保存せずに終了",
+      "discardAndReload": "変更を破棄",
+      "saved": "変更を保存しました",
+      "saveFailed": "変更の保存に失敗しました"
+    },
     "empty": "ダッシュボードがありません",
     "emptyDescription": "最初のダッシュボードを作成してください",
     "quickAdd": {
@@ -146,7 +158,16 @@
       "refresh": "更新",
       "settings": "設定",
       "duplicate": "複製",
-      "delete": "削除"
+      "delete": "削除",
+      "previewMode": "プレビュー:",
+      "previewAuto": "自動",
+      "previewDesktop": "デスクトップ",
+      "previewTablet": "タブレット",
+      "previewMobile": "モバイル",
+      "compactMode": "コンパクト:",
+      "compactVertical": "縦",
+      "compactHorizontal": "横",
+      "compactNone": "なし（自由配置）"
     },
     "templates": {
       "selectTemplate": "テンプレートを選択",
@@ -226,6 +247,7 @@
     "detail": {
       "toast": {
         "refreshAll": "すべてのウィジェットを更新しています",
+        "changesDiscarded": "変更を破棄しました",
         "widgetDeleted": "ウィジェットを削除しました",
         "deleteWidgetFailed": "ウィジェットの削除に失敗しました",
         "widgetDuplicated": "ウィジェットを複製しました",

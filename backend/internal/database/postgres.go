@@ -279,6 +279,10 @@ func RunMigrations() error {
 
 		// Add parameters JSONB column to dashboards for typed parameter definitions
 		`ALTER TABLE dashboards ADD COLUMN IF NOT EXISTS parameters JSONB DEFAULT '[]'`,
+
+		// Add responsive_positions to dashboard_widgets for per-breakpoint layouts
+		// Structure: {"lg": {x, y, w, h}, "md": {x, y, w, h}, "sm": {x, y, w, h}, "xs": {x, y, w, h}}
+		`ALTER TABLE dashboard_widgets ADD COLUMN IF NOT EXISTS responsive_positions JSONB`,
 	}
 
 	for _, migration := range migrations {

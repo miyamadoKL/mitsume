@@ -41,6 +41,8 @@ type Dashboard struct {
 	Layout      json.RawMessage `json:"layout"`
 	IsPublic    bool            `json:"is_public"`
 	Parameters  json.RawMessage `json:"parameters"`
+	IsDraft     bool            `json:"is_draft"`            // Draft mode flag
+	DraftOf     *uuid.UUID      `json:"draft_of,omitempty"`  // Original dashboard ID if this is a draft
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
 	Widgets     []Widget        `json:"widgets,omitempty"`
@@ -126,15 +128,16 @@ type DashboardPermission struct {
 }
 
 type Widget struct {
-	ID          uuid.UUID       `json:"id"`
-	DashboardID uuid.UUID       `json:"dashboard_id"`
-	Name        string          `json:"name"`
-	QueryID     *uuid.UUID      `json:"query_id"`
-	ChartType   string          `json:"chart_type"`
-	ChartConfig json.RawMessage `json:"chart_config"`
-	Position    json.RawMessage `json:"position"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
+	ID                  uuid.UUID       `json:"id"`
+	DashboardID         uuid.UUID       `json:"dashboard_id"`
+	Name                string          `json:"name"`
+	QueryID             *uuid.UUID      `json:"query_id"`
+	ChartType           string          `json:"chart_type"`
+	ChartConfig         json.RawMessage `json:"chart_config"`
+	Position            json.RawMessage `json:"position"`
+	ResponsivePositions json.RawMessage `json:"responsive_positions,omitempty"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
 }
 
 type CreateDashboardRequest struct {
@@ -150,19 +153,21 @@ type UpdateDashboardRequest struct {
 }
 
 type CreateWidgetRequest struct {
-	Name        string          `json:"name" binding:"required"`
-	QueryID     *uuid.UUID      `json:"query_id"`
-	ChartType   string          `json:"chart_type" binding:"required"`
-	ChartConfig json.RawMessage `json:"chart_config"`
-	Position    json.RawMessage `json:"position" binding:"required"`
+	Name                string          `json:"name" binding:"required"`
+	QueryID             *uuid.UUID      `json:"query_id"`
+	ChartType           string          `json:"chart_type" binding:"required"`
+	ChartConfig         json.RawMessage `json:"chart_config"`
+	Position            json.RawMessage `json:"position" binding:"required"`
+	ResponsivePositions json.RawMessage `json:"responsive_positions,omitempty"`
 }
 
 type UpdateWidgetRequest struct {
-	Name        string          `json:"name"`
-	QueryID     *uuid.UUID      `json:"query_id"`
-	ChartType   string          `json:"chart_type"`
-	ChartConfig json.RawMessage `json:"chart_config"`
-	Position    json.RawMessage `json:"position"`
+	Name                string          `json:"name"`
+	QueryID             *uuid.UUID      `json:"query_id"`
+	ChartType           string          `json:"chart_type"`
+	ChartConfig         json.RawMessage `json:"chart_config"`
+	Position            json.RawMessage `json:"position"`
+	ResponsivePositions json.RawMessage `json:"responsive_positions,omitempty"`
 }
 
 // Dashboard permission request types
@@ -265,4 +270,144 @@ type ValidationError struct {
 
 func (e *ValidationError) Error() string {
 	return e.Message
+}
+
+// ValidateWidgetPosition validates a single widget position JSON
+func ValidateWidgetPosition(positionJSON json.RawMessage) (*LayoutPosition, error) {
+	if len(positionJSON) == 0 {
+		return nil, nil // Position is optional for updates
+	}
+
+	// Size check
+	if len(positionJSON) > 1024 { // 1KB limit for single position
+		return nil, &ValidationError{Field: "position", Message: "position JSON too large"}
+	}
+
+	var pos LayoutPosition
+	if err := json.Unmarshal(positionJSON, &pos); err != nil {
+		return nil, &ValidationError{Field: "position", Message: "invalid position format"}
+	}
+
+	// Validate bounds
+	if pos.X < 0 || pos.X >= MaxGridColumns {
+		return nil, &ValidationError{Field: "position.x", Message: "x must be between 0 and 11"}
+	}
+	if pos.Y < 0 || pos.Y > MaxGridRows {
+		return nil, &ValidationError{Field: "position.y", Message: "y must be between 0 and 100"}
+	}
+	if pos.W < MinWidgetWidth || pos.W > MaxWidgetWidth {
+		return nil, &ValidationError{Field: "position.w", Message: "width must be between 1 and 12"}
+	}
+	if pos.H < MinWidgetHeight || pos.H > MaxWidgetHeight {
+		return nil, &ValidationError{Field: "position.h", Message: "height must be between 1 and 20"}
+	}
+	if pos.X+pos.W > MaxGridColumns {
+		return nil, &ValidationError{Field: "position", Message: "widget exceeds grid bounds (x + w > 12)"}
+	}
+
+	return &pos, nil
+}
+
+// ResponsivePositions represents positions for different breakpoints
+type ResponsivePositions map[string]LayoutPosition
+
+// ValidBreakpoints defines the allowed breakpoint names
+var ValidBreakpoints = map[string]int{
+	"lg": 12, // Desktop: 12 columns
+	"md": 10, // Medium: 10 columns
+	"sm": 6,  // Small: 6 columns
+	"xs": 4,  // Extra small: 4 columns
+}
+
+// Chart config validation constants
+const (
+	MaxChartConfigSize = 64 * 1024 // 64KB limit for chart_config JSON
+)
+
+// ValidateChartConfig validates chart_config JSONB field size
+func ValidateChartConfig(chartConfigJSON json.RawMessage) error {
+	if len(chartConfigJSON) == 0 {
+		return nil // Empty config is allowed
+	}
+
+	// Size check (prevent DoS with huge JSON)
+	if len(chartConfigJSON) > MaxChartConfigSize {
+		return &ValidationError{Field: "chart_config", Message: "chart_config JSON too large (max 64KB)"}
+	}
+
+	// Validate it's valid JSON (not just arbitrary bytes)
+	var dummy interface{}
+	if err := json.Unmarshal(chartConfigJSON, &dummy); err != nil {
+		return &ValidationError{Field: "chart_config", Message: "invalid chart_config JSON format"}
+	}
+
+	return nil
+}
+
+// ValidateResponsivePositions validates responsive_positions JSONB field
+func ValidateResponsivePositions(responsivePosJSON json.RawMessage) (ResponsivePositions, error) {
+	if len(responsivePosJSON) == 0 {
+		return nil, nil // Optional field
+	}
+
+	// Size check (prevent DoS with huge JSON)
+	if len(responsivePosJSON) > 4*1024 { // 4KB limit for responsive positions
+		return nil, &ValidationError{Field: "responsive_positions", Message: "responsive_positions JSON too large"}
+	}
+
+	var positions ResponsivePositions
+	if err := json.Unmarshal(responsivePosJSON, &positions); err != nil {
+		return nil, &ValidationError{Field: "responsive_positions", Message: "invalid responsive_positions format: must be an object with breakpoint keys"}
+	}
+
+	// Limit number of breakpoints (prevent adding arbitrary keys)
+	if len(positions) > len(ValidBreakpoints) {
+		return nil, &ValidationError{Field: "responsive_positions", Message: "too many breakpoints"}
+	}
+
+	// Validate each breakpoint
+	for bp, pos := range positions {
+		maxCols, ok := ValidBreakpoints[bp]
+		if !ok {
+			return nil, &ValidationError{Field: "responsive_positions", Message: "invalid breakpoint: " + bp + " (allowed: lg, md, sm, xs)"}
+		}
+
+		// Validate position bounds for this breakpoint
+		if pos.X < 0 || pos.X >= maxCols {
+			return nil, &ValidationError{Field: "responsive_positions." + bp + ".x", Message: "x must be between 0 and " + strconv.Itoa(maxCols-1)}
+		}
+		if pos.Y < 0 || pos.Y > MaxGridRows {
+			return nil, &ValidationError{Field: "responsive_positions." + bp + ".y", Message: "y must be between 0 and 100"}
+		}
+		if pos.W < MinWidgetWidth || pos.W > maxCols {
+			return nil, &ValidationError{Field: "responsive_positions." + bp + ".w", Message: "width must be between 1 and " + strconv.Itoa(maxCols)}
+		}
+		if pos.H < MinWidgetHeight || pos.H > MaxWidgetHeight {
+			return nil, &ValidationError{Field: "responsive_positions." + bp + ".h", Message: "height must be between 1 and 20"}
+		}
+		if pos.X+pos.W > maxCols {
+			return nil, &ValidationError{Field: "responsive_positions." + bp, Message: "widget exceeds grid bounds (x + w > " + strconv.Itoa(maxCols) + ")"}
+		}
+	}
+
+	return positions, nil
+}
+
+// BatchWidgetUpdateRequest represents a batch update operation for widgets
+type BatchWidgetUpdateRequest struct {
+	Create []CreateWidgetRequest         `json:"create,omitempty"` // Widgets to create
+	Update map[string]UpdateWidgetRequest `json:"update,omitempty"` // Widget ID -> update data
+	Delete []string                       `json:"delete,omitempty"` // Widget IDs to delete
+}
+
+// BatchWidgetUpdateResponse represents the result of a batch update
+type BatchWidgetUpdateResponse struct {
+	Created []Widget `json:"created,omitempty"` // Newly created widgets
+	Updated []Widget `json:"updated,omitempty"` // Updated widgets
+	Deleted []string `json:"deleted,omitempty"` // Deleted widget IDs
+}
+
+// PublishDraftRequest represents a request to publish a draft
+type PublishDraftRequest struct {
+	// No fields needed - draft ID comes from URL
 }

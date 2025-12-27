@@ -24,7 +24,7 @@ func (h *LayoutTemplateHandler) GetLayoutTemplates(c *gin.Context) {
 
 	templates, err := h.repo.GetAll(c.Request.Context(), userID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch templates"})
 		return
 	}
 
@@ -41,7 +41,7 @@ func (h *LayoutTemplateHandler) CreateLayoutTemplate(c *gin.Context) {
 
 	var req models.CreateLayoutTemplateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request body"})
 		return
 	}
 
@@ -59,13 +59,13 @@ func (h *LayoutTemplateHandler) CreateLayoutTemplate(c *gin.Context) {
 
 	// Validate layout structure and bounds
 	if _, err := models.ValidateLayout(req.Layout); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid layout structure"})
 		return
 	}
 
 	template, err := h.repo.Create(c.Request.Context(), userID, &req)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create template"})
 		return
 	}
 
@@ -86,7 +86,7 @@ func (h *LayoutTemplateHandler) DeleteLayoutTemplate(c *gin.Context) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "template not found or cannot be deleted"})
 			return
 		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to delete template"})
 		return
 	}
 

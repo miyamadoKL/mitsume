@@ -314,6 +314,22 @@ export const handlers = [
     return HttpResponse.json([])
   }),
 
+  http.post('/api/layout-templates', async ({ request }) => {
+    const body = await request.json() as { name: string; description?: string; layout: unknown }
+    return HttpResponse.json({
+      id: `template-${Date.now()}`,
+      name: body.name,
+      description: body.description || '',
+      layout: body.layout,
+      is_system: false,
+      created_at: new Date().toISOString(),
+    })
+  }),
+
+  http.delete('/api/layout-templates/:id', () => {
+    return new HttpResponse(null, { status: 204 })
+  }),
+
   // Roles handler (for admin pages)
   http.get('/api/roles', () => {
     return HttpResponse.json([])
