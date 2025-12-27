@@ -181,7 +181,7 @@ func (s *DashboardService) GetWidgets(ctx context.Context, dashboardID uuid.UUID
 	pool := database.GetPool()
 
 	rows, err := pool.Query(ctx,
-		`SELECT id, dashboard_id, name, query_id, chart_type, chart_config, position, created_at, updated_at
+		`SELECT id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at
 		 FROM dashboard_widgets WHERE dashboard_id = $1`,
 		dashboardID,
 	)
@@ -193,7 +193,7 @@ func (s *DashboardService) GetWidgets(ctx context.Context, dashboardID uuid.UUID
 	var widgets []models.Widget
 	for rows.Next() {
 		var w models.Widget
-		if err := rows.Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.CreatedAt, &w.UpdatedAt); err != nil {
+		if err := rows.Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt); err != nil {
 			return nil, err
 		}
 		widgets = append(widgets, w)
@@ -208,10 +208,10 @@ func (s *DashboardService) GetWidget(ctx context.Context, dashboardID, widgetID 
 
 	var w models.Widget
 	err := pool.QueryRow(ctx,
-		`SELECT id, dashboard_id, name, query_id, chart_type, chart_config, position, created_at, updated_at
+		`SELECT id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at
 		 FROM dashboard_widgets WHERE dashboard_id = $1 AND id = $2`,
 		dashboardID, widgetID,
-	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.CreatedAt, &w.UpdatedAt)
+	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -244,11 +244,11 @@ func (s *DashboardService) CreateWidget(ctx context.Context, dashboardID, userID
 
 	var w models.Widget
 	err = pool.QueryRow(ctx,
-		`INSERT INTO dashboard_widgets (dashboard_id, name, query_id, chart_type, chart_config, position)
-		 VALUES ($1, $2, $3, $4, $5, $6)
-		 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, created_at, updated_at`,
-		dashboardID, req.Name, req.QueryID, req.ChartType, req.ChartConfig, req.Position,
-	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.CreatedAt, &w.UpdatedAt)
+		`INSERT INTO dashboard_widgets (dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)
+		 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at`,
+		dashboardID, req.Name, req.QueryID, req.ChartType, req.ChartConfig, req.Position, req.ResponsivePositions,
+	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -284,11 +284,12 @@ func (s *DashboardService) UpdateWidget(ctx context.Context, id, dashboardID, us
 		     chart_type = COALESCE(NULLIF($5, ''), chart_type),
 		     chart_config = COALESCE($6, chart_config),
 		     position = COALESCE($7, position),
+		     responsive_positions = COALESCE($8, responsive_positions),
 		     updated_at = CURRENT_TIMESTAMP
 		 WHERE id = $1 AND dashboard_id = $2
-		 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, created_at, updated_at`,
-		id, dashboardID, req.Name, req.QueryID, req.ChartType, req.ChartConfig, req.Position,
-	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.CreatedAt, &w.UpdatedAt)
+		 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at`,
+		id, dashboardID, req.Name, req.QueryID, req.ChartType, req.ChartConfig, req.Position, req.ResponsivePositions,
+	).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound

@@ -117,6 +117,7 @@ export interface Widget {
   chart_type: ChartType
   chart_config: ChartConfig
   position: Position
+  responsive_positions?: ResponsivePositions
   created_at: string
   updated_at: string
 }
@@ -126,6 +127,15 @@ export interface Position {
   y: number
   w: number
   h: number
+}
+
+export type Breakpoint = 'lg' | 'md' | 'sm' | 'xs'
+
+export interface ResponsivePositions {
+  lg?: Position
+  md?: Position
+  sm?: Position
+  xs?: Position
 }
 
 export interface LayoutItem extends Position {
@@ -447,6 +457,7 @@ export interface CreateWidgetRequest {
   chart_type: ChartType
   chart_config: ChartConfig
   position: Position
+  responsive_positions?: ResponsivePositions
 }
 
 // Notification Types

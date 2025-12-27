@@ -126,15 +126,16 @@ type DashboardPermission struct {
 }
 
 type Widget struct {
-	ID          uuid.UUID       `json:"id"`
-	DashboardID uuid.UUID       `json:"dashboard_id"`
-	Name        string          `json:"name"`
-	QueryID     *uuid.UUID      `json:"query_id"`
-	ChartType   string          `json:"chart_type"`
-	ChartConfig json.RawMessage `json:"chart_config"`
-	Position    json.RawMessage `json:"position"`
-	CreatedAt   time.Time       `json:"created_at"`
-	UpdatedAt   time.Time       `json:"updated_at"`
+	ID                  uuid.UUID       `json:"id"`
+	DashboardID         uuid.UUID       `json:"dashboard_id"`
+	Name                string          `json:"name"`
+	QueryID             *uuid.UUID      `json:"query_id"`
+	ChartType           string          `json:"chart_type"`
+	ChartConfig         json.RawMessage `json:"chart_config"`
+	Position            json.RawMessage `json:"position"`
+	ResponsivePositions json.RawMessage `json:"responsive_positions,omitempty"`
+	CreatedAt           time.Time       `json:"created_at"`
+	UpdatedAt           time.Time       `json:"updated_at"`
 }
 
 type CreateDashboardRequest struct {
@@ -150,19 +151,21 @@ type UpdateDashboardRequest struct {
 }
 
 type CreateWidgetRequest struct {
-	Name        string          `json:"name" binding:"required"`
-	QueryID     *uuid.UUID      `json:"query_id"`
-	ChartType   string          `json:"chart_type" binding:"required"`
-	ChartConfig json.RawMessage `json:"chart_config"`
-	Position    json.RawMessage `json:"position" binding:"required"`
+	Name                string          `json:"name" binding:"required"`
+	QueryID             *uuid.UUID      `json:"query_id"`
+	ChartType           string          `json:"chart_type" binding:"required"`
+	ChartConfig         json.RawMessage `json:"chart_config"`
+	Position            json.RawMessage `json:"position" binding:"required"`
+	ResponsivePositions json.RawMessage `json:"responsive_positions,omitempty"`
 }
 
 type UpdateWidgetRequest struct {
-	Name        string          `json:"name"`
-	QueryID     *uuid.UUID      `json:"query_id"`
-	ChartType   string          `json:"chart_type"`
-	ChartConfig json.RawMessage `json:"chart_config"`
-	Position    json.RawMessage `json:"position"`
+	Name                string          `json:"name"`
+	QueryID             *uuid.UUID      `json:"query_id"`
+	ChartType           string          `json:"chart_type"`
+	ChartConfig         json.RawMessage `json:"chart_config"`
+	Position            json.RawMessage `json:"position"`
+	ResponsivePositions json.RawMessage `json:"responsive_positions,omitempty"`
 }
 
 // Dashboard permission request types

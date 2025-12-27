@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Layout } from 'react-grid-layout'
 import { dashboardApi, queryApi, layoutTemplateApi } from '@/services/api'
-import type { Dashboard, SavedQuery, ChartType, CreateWidgetRequest, Widget, PermissionLevel, LayoutTemplate, ParameterDefinition } from '@/types'
+import type { Dashboard, SavedQuery, ChartType, CreateWidgetRequest, Widget, PermissionLevel, LayoutTemplate, ParameterDefinition, ResponsivePositions, Breakpoint } from '@/types'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
 import { DashboardParameters } from '@/components/dashboard/DashboardParameters'
 import { WidgetSettingsDialog } from '@/components/dashboard/WidgetSettingsDialog'
@@ -42,6 +42,7 @@ export const DashboardDetail: React.FC = () => {
   const [pendingWidgetCreations, setPendingWidgetCreations] = useState<CreateWidgetRequest[]>([])
   const [pendingWidgetDeletions, setPendingWidgetDeletions] = useState<string[]>([])
   const [pendingWidgetUpdates, setPendingWidgetUpdates] = useState<Record<string, Partial<Widget>>>({})
+  const [pendingResponsivePositions, setPendingResponsivePositions] = useState<Record<string, ResponsivePositions>>({})
   const [savingChanges, setSavingChanges] = useState(false)
 
   // Parameter state: draft (editing) vs applied (used by widgets)
@@ -196,6 +197,7 @@ export const DashboardDetail: React.FC = () => {
     setPendingWidgetCreations([])
     setPendingWidgetDeletions([])
     setPendingWidgetUpdates({})
+    setPendingResponsivePositions({})
     historyActions.clear()
     setIsDraft(false)
     setShowDiscardConfirm(false)
@@ -217,21 +219,43 @@ export const DashboardDetail: React.FC = () => {
         }
       }
 
-      // 2. Create new widgets
+      // 2. Create new widgets (with responsive_positions if available)
       const createdWidgets: Widget[] = []
       for (const req of pendingWidgetCreations) {
-        const widget = await dashboardApi.createWidget(id, req)
+        // Find matching temp widget to get responsive positions
+        const tempWidget = dashboard.widgets?.find(w =>
+          w.id.startsWith('temp-') &&
+          w.name === req.name &&
+          w.chart_type === req.chart_type
+        )
+        const responsivePos = tempWidget?.responsive_positions
+        const createReq = responsivePos ? { ...req, responsive_positions: responsivePos } : req
+        const widget = await dashboardApi.createWidget(id, createReq)
         createdWidgets.push(widget)
       }
 
-      // 3. Update existing widgets
+      // 3. Update existing widgets (including responsive_positions)
       for (const [widgetId, updates] of Object.entries(pendingWidgetUpdates)) {
         if (!widgetId.startsWith('temp-') && !pendingWidgetDeletions.includes(widgetId)) {
-          await dashboardApi.updateWidget(id, widgetId, updates)
+          // Merge responsive positions if tracked
+          const responsivePos = pendingResponsivePositions[widgetId]
+          const updateWithResponsive = responsivePos
+            ? { ...updates, responsive_positions: responsivePos }
+            : updates
+          await dashboardApi.updateWidget(id, widgetId, updateWithResponsive)
         }
       }
 
-      // 4. Reload dashboard to get fresh state
+      // 4. Update widgets that only have responsive_positions changes (not in pendingWidgetUpdates)
+      for (const [widgetId, responsivePos] of Object.entries(pendingResponsivePositions)) {
+        if (!widgetId.startsWith('temp-') &&
+            !pendingWidgetDeletions.includes(widgetId) &&
+            !pendingWidgetUpdates[widgetId]) {
+          await dashboardApi.updateWidget(id, widgetId, { responsive_positions: responsivePos })
+        }
+      }
+
+      // 5. Reload dashboard to get fresh state
       const freshDashboard = await dashboardApi.getById(id)
       setDashboard(freshDashboard)
 
@@ -239,6 +263,7 @@ export const DashboardDetail: React.FC = () => {
       setPendingWidgetCreations([])
       setPendingWidgetDeletions([])
       setPendingWidgetUpdates({})
+      setPendingResponsivePositions({})
       setIsDraft(false)
       setEditMode(false)
       toast.success(t('dashboard.draft.saved', 'Changes saved'))
@@ -247,7 +272,7 @@ export const DashboardDetail: React.FC = () => {
     } finally {
       setSavingChanges(false)
     }
-  }, [id, dashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, t])
+  }, [id, dashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
 
   // Handle exit edit mode with confirmation if draft
   const handleExitEditMode = useCallback(() => {
@@ -577,38 +602,77 @@ export const DashboardDetail: React.FC = () => {
   }, [dashboard])
 
   // Handle layout change complete (on drag/resize stop) - record to history and pending updates
-  const handleLayoutChangeComplete = useCallback((layout: Layout[]) => {
+  const handleLayoutChangeComplete = useCallback((layout: Layout[], breakpoint: Breakpoint) => {
     if (!dashboard) return
 
     // Record current state BEFORE applying change for undo
     recordWidgetSnapshot()
 
+    // Only update the main position for lg breakpoint (backward compatibility)
+    if (breakpoint === 'lg') {
+      const updatedWidgets = dashboard.widgets?.map(widget => {
+        const layoutItem = layout.find(l => l.i === widget.id)
+        if (layoutItem) {
+          const newPosition = {
+            x: layoutItem.x,
+            y: layoutItem.y,
+            w: layoutItem.w,
+            h: layoutItem.h,
+          }
+          // Track position update for existing widgets (not temp ones)
+          if (!widget.id.startsWith('temp-')) {
+            setPendingWidgetUpdates(prev => ({
+              ...prev,
+              [widget.id]: {
+                ...(prev[widget.id] || {}),
+                position: newPosition,
+              },
+            }))
+          }
+          return { ...widget, position: newPosition }
+        }
+        return widget
+      })
+
+      setDashboard({ ...dashboard, widgets: updatedWidgets })
+    }
+    // Note: responsive_positions are tracked separately via handleAllLayoutsChange
+  }, [dashboard, recordWidgetSnapshot])
+
+  // Handle all layouts change (called with all breakpoint positions for all widgets)
+  const handleAllLayoutsChange = useCallback((layouts: Record<string, ResponsivePositions>) => {
+    if (!dashboard) return
+
+    setIsDraft(true)
+
+    // Update pending responsive positions
+    setPendingResponsivePositions(prev => {
+      const updated = { ...prev }
+      Object.entries(layouts).forEach(([widgetId, positions]) => {
+        updated[widgetId] = {
+          ...(updated[widgetId] || {}),
+          ...positions,
+        }
+      })
+      return updated
+    })
+
+    // Also update local dashboard state with responsive positions
     const updatedWidgets = dashboard.widgets?.map(widget => {
-      const layoutItem = layout.find(l => l.i === widget.id)
-      if (layoutItem) {
-        const newPosition = {
-          x: layoutItem.x,
-          y: layoutItem.y,
-          w: layoutItem.w,
-          h: layoutItem.h,
+      if (layouts[widget.id]) {
+        return {
+          ...widget,
+          responsive_positions: {
+            ...(widget.responsive_positions || {}),
+            ...layouts[widget.id],
+          },
         }
-        // Track position update for existing widgets (not temp ones)
-        if (!widget.id.startsWith('temp-')) {
-          setPendingWidgetUpdates(prev => ({
-            ...prev,
-            [widget.id]: {
-              ...(prev[widget.id] || {}),
-              position: newPosition,
-            },
-          }))
-        }
-        return { ...widget, position: newPosition }
       }
       return widget
     })
 
     setDashboard({ ...dashboard, widgets: updatedWidgets })
-  }, [dashboard, recordWidgetSnapshot])
+  }, [dashboard])
 
   // Add widget locally (no API call until save)
   const handleAddWidget = useCallback(() => {
@@ -1073,6 +1137,7 @@ export const DashboardDetail: React.FC = () => {
             dashboard={dashboard}
             onLayoutChange={handleLayoutChange}
             onLayoutChangeComplete={handleLayoutChangeComplete}
+            onAllLayoutsChange={handleAllLayoutsChange}
             editable={editMode}
             onDeleteWidget={handleDeleteWidget}
             onDuplicateWidget={handleDuplicateWidget}

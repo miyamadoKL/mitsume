@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useRef, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Responsive, WidthProvider, Layout, Layouts } from 'react-grid-layout'
 
@@ -9,7 +9,7 @@ import 'react-resizable/css/styles.css'
 import './DashboardGrid.css'
 
 const ResponsiveGridLayout = WidthProvider(Responsive)
-import type { Dashboard, Widget } from '@/types'
+import type { Dashboard, Widget, Breakpoint, ResponsivePositions, Position } from '@/types'
 import { ChartWidget } from './ChartWidget'
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -28,7 +28,8 @@ const MAX_WIDGET_HEIGHT = 8
 interface DashboardGridProps {
   dashboard: Dashboard
   onLayoutChange?: (layout: Layout[]) => void
-  onLayoutChangeComplete?: (layout: Layout[]) => void  // Called on drag/resize stop
+  onLayoutChangeComplete?: (layout: Layout[], breakpoint: Breakpoint) => void  // Called on drag/resize stop with breakpoint
+  onAllLayoutsChange?: (layouts: Record<string, ResponsivePositions>) => void  // Called with all breakpoint layouts
   editable?: boolean
   onDeleteWidget?: (widgetId: string) => void
   onDuplicateWidget?: (widget: Widget) => void
@@ -53,6 +54,7 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
   dashboard,
   onLayoutChange,
   onLayoutChangeComplete,
+  onAllLayoutsChange,
   editable = false,
   onDeleteWidget,
   onDuplicateWidget,
@@ -68,102 +70,160 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
   const [currentBreakpoint, setCurrentBreakpoint] = useState<string>('lg')
   const [compactType, setCompactType] = useState<CompactType>('vertical')
 
-  // Generate layouts for all breakpoints from the base layout
-  const generateLayouts = (): Layouts => {
-    const baseLayout: Layout[] = dashboard.widgets?.map(widget => ({
-      i: widget.id,
-      x: widget.position.x,
-      y: widget.position.y,
-      w: widget.position.w,
-      h: widget.position.h,
-      minW: MIN_WIDGET_WIDTH,
-      minH: MIN_WIDGET_HEIGHT,
-      maxW: MAX_WIDGET_WIDTH,
-      maxH: MAX_WIDGET_HEIGHT,
-    })) || []
+  // Track all layouts for each breakpoint
+  const layoutsRef = useRef<Layouts>({})
 
-    // For smaller screens, adjust widget widths to fit
-    const mdLayout = baseLayout.map(item => ({
-      ...item,
-      w: Math.min(item.w, cols.md),
-      x: Math.min(item.x, cols.md - Math.min(item.w, cols.md)),
-    }))
+  // Generate layouts for all breakpoints - use responsive_positions if available
+  const generateLayouts = useCallback((): Layouts => {
+    const allBreakpoints: Breakpoint[] = ['lg', 'md', 'sm', 'xs']
+    const result: Layouts = {}
 
-    const smLayout = baseLayout.map(item => ({
-      ...item,
-      w: Math.min(item.w, cols.sm),
-      x: 0, // Stack widgets on small screens
-    }))
+    allBreakpoints.forEach(bp => {
+      result[bp] = dashboard.widgets?.map(widget => {
+        // Check if widget has saved position for this breakpoint
+        const savedPos = widget.responsive_positions?.[bp]
+        const basePos = widget.position
 
-    const xsLayout = baseLayout.map(item => ({
-      ...item,
-      w: cols.xs, // Full width on mobile
-      x: 0,
-    }))
+        let pos: Position
+        if (savedPos) {
+          // Use saved position for this breakpoint
+          pos = savedPos
+        } else if (bp === 'lg') {
+          // Use base position for lg
+          pos = basePos
+        } else {
+          // Derive from lg position with adjustments for smaller screens
+          const lgW = basePos.w
+          const lgX = basePos.x
+          if (bp === 'md') {
+            pos = {
+              x: Math.min(lgX, cols.md - Math.min(lgW, cols.md)),
+              y: basePos.y,
+              w: Math.min(lgW, cols.md),
+              h: basePos.h,
+            }
+          } else if (bp === 'sm') {
+            pos = {
+              x: 0,
+              y: basePos.y,
+              w: Math.min(lgW, cols.sm),
+              h: basePos.h,
+            }
+          } else {
+            // xs
+            pos = {
+              x: 0,
+              y: basePos.y,
+              w: cols.xs,
+              h: basePos.h,
+            }
+          }
+        }
 
-    return {
-      lg: baseLayout,
-      md: mdLayout,
-      sm: smLayout,
-      xs: xsLayout,
-    }
-  }
+        return {
+          i: widget.id,
+          x: pos.x,
+          y: pos.y,
+          w: pos.w,
+          h: pos.h,
+          minW: MIN_WIDGET_WIDTH,
+          minH: MIN_WIDGET_HEIGHT,
+          maxW: MAX_WIDGET_WIDTH,
+          maxH: MAX_WIDGET_HEIGHT,
+        }
+      }) || []
+    })
 
-  const handleLayoutChange = (currentLayout: Layout[], _allLayouts: Layouts) => {
-    // Only propagate changes for the lg (desktop) layout
+    layoutsRef.current = result
+    return result
+  }, [dashboard.widgets])
+
+  const handleLayoutChange = (currentLayout: Layout[], allLayouts: Layouts) => {
+    // Update tracked layouts
+    layoutsRef.current = allLayouts
+
+    // Only propagate changes for the lg (desktop) layout to onLayoutChange
     if (onLayoutChange && editable && currentBreakpoint === 'lg') {
       onLayoutChange(currentLayout)
     }
   }
 
+  // Helper to build responsive positions from current layouts
+  const buildResponsivePositions = useCallback((widgetId: string): ResponsivePositions => {
+    const result: ResponsivePositions = {}
+    const allBreakpoints: Breakpoint[] = ['lg', 'md', 'sm', 'xs']
+
+    allBreakpoints.forEach(bp => {
+      const layout = layoutsRef.current[bp]
+      if (layout) {
+        const item = layout.find(l => l.i === widgetId)
+        if (item) {
+          result[bp] = { x: item.x, y: item.y, w: item.w, h: item.h }
+        }
+      }
+    })
+
+    return result
+  }, [])
+
   // Called when drag or resize operation is complete
-  const handleDragStop = (_layout: Layout[], _oldItem: Layout, newItem: Layout, _placeholder: Layout, _e: MouseEvent, _element: HTMLElement) => {
-    if (onLayoutChangeComplete && editable && currentBreakpoint === 'lg') {
-      // Get the full layout with the updated item
-      const updatedLayout = dashboard.widgets?.map(widget => {
-        if (widget.id === newItem.i) {
-          return {
-            i: widget.id,
-            x: newItem.x,
-            y: newItem.y,
-            w: newItem.w,
-            h: newItem.h,
-          }
+  const handleDragStop = (layout: Layout[], _oldItem: Layout, newItem: Layout, _placeholder: Layout, _e: MouseEvent, _element: HTMLElement) => {
+    if (!editable) return
+
+    // Update the layouts ref with the new layout for current breakpoint
+    layoutsRef.current[currentBreakpoint] = layout
+
+    const bp = currentBreakpoint as Breakpoint
+    if (onLayoutChangeComplete) {
+      onLayoutChangeComplete(layout, bp)
+    }
+
+    // Also report all layouts for all widgets if callback provided
+    if (onAllLayoutsChange) {
+      const allResponsivePositions: Record<string, ResponsivePositions> = {}
+      dashboard.widgets?.forEach(widget => {
+        allResponsivePositions[widget.id] = buildResponsivePositions(widget.id)
+      })
+      // Update the position for the item that was just moved
+      if (allResponsivePositions[newItem.i]) {
+        allResponsivePositions[newItem.i][bp] = {
+          x: newItem.x,
+          y: newItem.y,
+          w: newItem.w,
+          h: newItem.h,
         }
-        return {
-          i: widget.id,
-          x: widget.position.x,
-          y: widget.position.y,
-          w: widget.position.w,
-          h: widget.position.h,
-        }
-      }) || []
-      onLayoutChangeComplete(updatedLayout)
+      }
+      onAllLayoutsChange(allResponsivePositions)
     }
   }
 
-  const handleResizeStop = (_layout: Layout[], _oldItem: Layout, newItem: Layout, _placeholder: Layout, _e: MouseEvent, _element: HTMLElement) => {
-    if (onLayoutChangeComplete && editable && currentBreakpoint === 'lg') {
-      // Get the full layout with the updated item
-      const updatedLayout = dashboard.widgets?.map(widget => {
-        if (widget.id === newItem.i) {
-          return {
-            i: widget.id,
-            x: newItem.x,
-            y: newItem.y,
-            w: newItem.w,
-            h: newItem.h,
-          }
+  const handleResizeStop = (layout: Layout[], _oldItem: Layout, newItem: Layout, _placeholder: Layout, _e: MouseEvent, _element: HTMLElement) => {
+    if (!editable) return
+
+    // Update the layouts ref with the new layout for current breakpoint
+    layoutsRef.current[currentBreakpoint] = layout
+
+    const bp = currentBreakpoint as Breakpoint
+    if (onLayoutChangeComplete) {
+      onLayoutChangeComplete(layout, bp)
+    }
+
+    // Also report all layouts for all widgets if callback provided
+    if (onAllLayoutsChange) {
+      const allResponsivePositions: Record<string, ResponsivePositions> = {}
+      dashboard.widgets?.forEach(widget => {
+        allResponsivePositions[widget.id] = buildResponsivePositions(widget.id)
+      })
+      // Update the position for the item that was just resized
+      if (allResponsivePositions[newItem.i]) {
+        allResponsivePositions[newItem.i][bp] = {
+          x: newItem.x,
+          y: newItem.y,
+          w: newItem.w,
+          h: newItem.h,
         }
-        return {
-          i: widget.id,
-          x: widget.position.x,
-          y: widget.position.y,
-          w: widget.position.w,
-          h: widget.position.h,
-        }
-      }) || []
-      onLayoutChangeComplete(updatedLayout)
+      }
+      onAllLayoutsChange(allResponsivePositions)
     }
   }
 
