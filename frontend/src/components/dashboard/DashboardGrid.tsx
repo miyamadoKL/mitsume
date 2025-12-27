@@ -178,22 +178,19 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
       onLayoutChangeComplete(layout, bp)
     }
 
-    // Also report all layouts for all widgets if callback provided
+    // Report only the changed widget's responsive positions (performance optimization)
     if (onAllLayoutsChange) {
-      const allResponsivePositions: Record<string, ResponsivePositions> = {}
-      dashboard.widgets?.forEach(widget => {
-        allResponsivePositions[widget.id] = buildResponsivePositions(widget.id)
-      })
-      // Update the position for the item that was just moved
-      if (allResponsivePositions[newItem.i]) {
-        allResponsivePositions[newItem.i][bp] = {
-          x: newItem.x,
-          y: newItem.y,
-          w: newItem.w,
-          h: newItem.h,
-        }
+      // Build responsive positions only for the moved widget
+      const changedWidgetPositions = buildResponsivePositions(newItem.i)
+      // Ensure the current breakpoint has the latest position
+      changedWidgetPositions[bp] = {
+        x: newItem.x,
+        y: newItem.y,
+        w: newItem.w,
+        h: newItem.h,
       }
-      onAllLayoutsChange(allResponsivePositions)
+      // Send only the changed widget's data
+      onAllLayoutsChange({ [newItem.i]: changedWidgetPositions })
     }
   }
 
@@ -208,22 +205,19 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
       onLayoutChangeComplete(layout, bp)
     }
 
-    // Also report all layouts for all widgets if callback provided
+    // Report only the changed widget's responsive positions (performance optimization)
     if (onAllLayoutsChange) {
-      const allResponsivePositions: Record<string, ResponsivePositions> = {}
-      dashboard.widgets?.forEach(widget => {
-        allResponsivePositions[widget.id] = buildResponsivePositions(widget.id)
-      })
-      // Update the position for the item that was just resized
-      if (allResponsivePositions[newItem.i]) {
-        allResponsivePositions[newItem.i][bp] = {
-          x: newItem.x,
-          y: newItem.y,
-          w: newItem.w,
-          h: newItem.h,
-        }
+      // Build responsive positions only for the resized widget
+      const changedWidgetPositions = buildResponsivePositions(newItem.i)
+      // Ensure the current breakpoint has the latest position
+      changedWidgetPositions[bp] = {
+        x: newItem.x,
+        y: newItem.y,
+        w: newItem.w,
+        h: newItem.h,
       }
-      onAllLayoutsChange(allResponsivePositions)
+      // Send only the changed widget's data
+      onAllLayoutsChange({ [newItem.i]: changedWidgetPositions })
     }
   }
 

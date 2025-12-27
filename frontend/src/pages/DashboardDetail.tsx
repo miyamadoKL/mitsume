@@ -39,7 +39,8 @@ export const DashboardDetail: React.FC = () => {
   const [isDraft, setIsDraft] = useState(false)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
   const [originalDashboard, setOriginalDashboard] = useState<Dashboard | null>(null)  // Snapshot when entering edit mode
-  const [pendingWidgetCreations, setPendingWidgetCreations] = useState<CreateWidgetRequest[]>([])
+  // pendingWidgetCreations now includes tempId for linking with temp widgets
+  const [pendingWidgetCreations, setPendingWidgetCreations] = useState<Array<CreateWidgetRequest & { tempId: string }>>([])
   const [pendingWidgetDeletions, setPendingWidgetDeletions] = useState<string[]>([])
   const [pendingWidgetUpdates, setPendingWidgetUpdates] = useState<Record<string, Partial<Widget>>>({})
   const [pendingResponsivePositions, setPendingResponsivePositions] = useState<Record<string, ResponsivePositions>>({})
@@ -75,21 +76,58 @@ export const DashboardDetail: React.FC = () => {
   const [paramSettingsOpen, setParamSettingsOpen] = useState(false)
 
   // Undo/Redo for widget changes in edit mode
+  // Equality check includes all tracked state: widgets, pending changes, and responsive positions
   const [widgetHistory, historyActions] = useUndoRedo<WidgetSnapshot>(
     { widgets: [] },
     (a, b) => {
+      // Compare widgets
       if (a.widgets.length !== b.widgets.length) return false
-      return a.widgets.every((w, i) => {
+      const widgetsEqual = a.widgets.every((w, i) => {
         const other = b.widgets[i]
+        if (!other) return false
         return (
           w.id === other.id &&
           w.name === other.name &&
+          w.chart_type === other.chart_type &&
           w.position.x === other.position.x &&
           w.position.y === other.position.y &&
           w.position.w === other.position.w &&
-          w.position.h === other.position.h
+          w.position.h === other.position.h &&
+          JSON.stringify(w.chart_config) === JSON.stringify(other.chart_config) &&
+          JSON.stringify(w.responsive_positions) === JSON.stringify(other.responsive_positions)
         )
       })
+      if (!widgetsEqual) return false
+
+      // Compare pending creations
+      const aCreations = a.pendingCreations || []
+      const bCreations = b.pendingCreations || []
+      if (aCreations.length !== bCreations.length) return false
+      const creationsEqual = aCreations.every((c, i) => {
+        const other = bCreations[i]
+        return c.tempId === other?.tempId && c.name === other?.name
+      })
+      if (!creationsEqual) return false
+
+      // Compare pending deletions
+      const aDeletions = a.pendingDeletions || []
+      const bDeletions = b.pendingDeletions || []
+      if (aDeletions.length !== bDeletions.length) return false
+      if (!aDeletions.every((id, i) => id === bDeletions[i])) return false
+
+      // Compare pending updates (by keys)
+      const aUpdates = Object.keys(a.pendingUpdates || {}).sort()
+      const bUpdates = Object.keys(b.pendingUpdates || {}).sort()
+      if (aUpdates.length !== bUpdates.length) return false
+      if (!aUpdates.every((k, i) => k === bUpdates[i])) return false
+
+      // Compare pending responsive positions (by keys)
+      const aResp = Object.keys(a.pendingResponsivePositions || {}).sort()
+      const bResp = Object.keys(b.pendingResponsivePositions || {}).sort()
+      if (aResp.length !== bResp.length) return false
+      if (!aResp.every((k, i) => k === bResp[i])) return false
+
+      return true
     }
   )
 
@@ -158,25 +196,66 @@ export const DashboardDetail: React.FC = () => {
     const hasPendingChanges =
       pendingWidgetCreations.length > 0 ||
       pendingWidgetDeletions.length > 0 ||
-      Object.keys(pendingWidgetUpdates).length > 0
+      Object.keys(pendingWidgetUpdates).length > 0 ||
+      Object.keys(pendingResponsivePositions).length > 0
     setIsDraft(hasPendingChanges)
-  }, [pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates])
+  }, [pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions])
 
-  // Helper to record current widget state to history
+  // Page leave warning when there are unsaved changes (browser close/reload)
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDraft) {
+        e.preventDefault()
+        // Modern browsers require returnValue to be set
+        e.returnValue = ''
+        return ''
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [isDraft])
+
+  // Safe navigation wrapper that warns about unsaved changes
+  const safeNavigate = useCallback((to: string) => {
+    if (isDraft) {
+      // Use browser's confirm dialog for SPA navigation
+      if (window.confirm(t('dashboard.draft.navigationBlockDescription', 'You have unsaved changes. Are you sure you want to leave this page? Your changes will be lost.'))) {
+        navigate(to)
+      }
+    } else {
+      navigate(to)
+    }
+  }, [isDraft, navigate, t])
+
+  // Helper to record current widget state to history (includes pending states for proper undo/redo)
   const recordWidgetSnapshot = useCallback(() => {
     if (!dashboard?.widgets) return
     const snapshot: WidgetSnapshot = {
       widgets: dashboard.widgets.map(w => ({
         id: w.id,
         name: w.name,
-        query_id: w.query_id || undefined,
+        query_id: w.query_id,
         chart_type: w.chart_type,
         chart_config: w.chart_config,
         position: w.position,
+        responsive_positions: w.responsive_positions as Record<string, { x: number; y: number; w: number; h: number }> | undefined,
       })),
+      // Include pending states so undo/redo restores them correctly
+      pendingCreations: pendingWidgetCreations.map(c => ({
+        tempId: c.tempId,
+        name: c.name,
+        query_id: c.query_id,
+        chart_type: c.chart_type,
+        chart_config: c.chart_config,
+        position: c.position,
+      })),
+      pendingDeletions: [...pendingWidgetDeletions],
+      pendingUpdates: JSON.parse(JSON.stringify(pendingWidgetUpdates)),
+      pendingResponsivePositions: JSON.parse(JSON.stringify(pendingResponsivePositions)),
     }
     historyActions.set(snapshot)
-  }, [dashboard?.widgets, historyActions])
+  }, [dashboard?.widgets, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, historyActions])
 
   // Handle undo action
   const handleUndo = useCallback(() => {
@@ -222,14 +301,17 @@ export const DashboardDetail: React.FC = () => {
       // 2. Create new widgets (with responsive_positions if available)
       const createdWidgets: Widget[] = []
       for (const req of pendingWidgetCreations) {
-        // Find matching temp widget to get responsive positions
-        const tempWidget = dashboard.widgets?.find(w =>
-          w.id.startsWith('temp-') &&
-          w.name === req.name &&
-          w.chart_type === req.chart_type
-        )
-        const responsivePos = tempWidget?.responsive_positions
-        const createReq = responsivePos ? { ...req, responsive_positions: responsivePos } : req
+        // Find matching temp widget using tempId (reliable linking)
+        const tempWidget = dashboard.widgets?.find(w => w.id === req.tempId)
+        // Also check pending responsive positions for this temp widget
+        const responsivePos = tempWidget?.responsive_positions || pendingResponsivePositions[req.tempId]
+
+        // Build the create request without tempId (backend doesn't expect it)
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { tempId: _tempId, ...createReqBase } = req
+        const createReq = responsivePos
+          ? { ...createReqBase, responsive_positions: responsivePos }
+          : createReqBase
         const widget = await dashboardApi.createWidget(id, createReq)
         createdWidgets.push(widget)
       }
@@ -297,7 +379,7 @@ export const DashboardDetail: React.FC = () => {
     setShowDiscardConfirm(false)
   }, [originalDashboard])
 
-  // Apply widget history changes to dashboard state
+  // Apply widget history changes to dashboard state (including pending states)
   useEffect(() => {
     if (!editMode || !dashboard || widgetHistory.widgets.length === 0) return
 
@@ -307,28 +389,58 @@ export const DashboardDetail: React.FC = () => {
 
     if (currentSnapshot !== historySnapshot) {
       // Reconstruct widgets from history
-      const restoredWidgets = widgetHistory.widgets.map(hw => {
+      const restoredWidgets: Widget[] = widgetHistory.widgets.map(hw => {
         const original = dashboard.widgets?.find(w => w.id === hw.id)
         if (original) {
-          return { ...original, position: hw.position, name: hw.name }
+          return {
+            ...original,
+            position: hw.position,
+            name: hw.name,
+            query_id: hw.query_id ?? original.query_id,
+            chart_type: hw.chart_type as ChartType,
+            chart_config: hw.chart_config as Record<string, unknown>,
+            responsive_positions: hw.responsive_positions as ResponsivePositions | undefined,
+          }
         }
-        // Widget was in history but not in current - this shouldn't happen normally
+        // Widget was in history but not in current - reconstruct it
         return {
           id: hw.id,
           dashboard_id: dashboard.id,
           name: hw.name,
           query_id: hw.query_id || null,
-          chart_type: hw.chart_type,
+          chart_type: hw.chart_type as ChartType,
           chart_config: hw.chart_config as Record<string, unknown>,
           position: hw.position,
+          responsive_positions: hw.responsive_positions as ResponsivePositions | undefined,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        } as Widget
+        }
       })
 
       setDashboard(prev => prev ? { ...prev, widgets: restoredWidgets } : null)
     }
-  }, [widgetHistory])
+
+    // Restore pending states from history snapshot
+    if (widgetHistory.pendingCreations !== undefined) {
+      setPendingWidgetCreations(widgetHistory.pendingCreations.map(c => ({
+        tempId: c.tempId,
+        name: c.name,
+        query_id: c.query_id,
+        chart_type: c.chart_type as ChartType,
+        chart_config: c.chart_config as Record<string, unknown>,
+        position: c.position,
+      })))
+    }
+    if (widgetHistory.pendingDeletions !== undefined) {
+      setPendingWidgetDeletions(widgetHistory.pendingDeletions)
+    }
+    if (widgetHistory.pendingUpdates !== undefined) {
+      setPendingWidgetUpdates(widgetHistory.pendingUpdates as Record<string, Partial<Widget>>)
+    }
+    if (widgetHistory.pendingResponsivePositions !== undefined) {
+      setPendingResponsivePositions(widgetHistory.pendingResponsivePositions as Record<string, ResponsivePositions>)
+    }
+  }, [widgetHistory, editMode, dashboard?.id])
 
   // Handler for when widgets report their required parameters
   const handleParametersDiscovered = useCallback((widgetId: string, requiredParams: string[]) => {
@@ -684,7 +796,8 @@ export const DashboardDetail: React.FC = () => {
     const maxY = dashboard.widgets?.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0) || 0
     const tempId = `temp-${Date.now()}`
 
-    const req: CreateWidgetRequest = {
+    const req: CreateWidgetRequest & { tempId: string } = {
+      tempId,
       name: widgetName,
       query_id: selectedQueryId || undefined,
       chart_type: chartType,
@@ -710,7 +823,7 @@ export const DashboardDetail: React.FC = () => {
       widgets: [...(prev.widgets || []), tempWidget],
     } : null)
 
-    // Track for batch save
+    // Track for batch save (with tempId for linking)
     setPendingWidgetCreations(prev => [...prev, req])
 
     setAddWidgetOpen(false)
@@ -728,7 +841,8 @@ export const DashboardDetail: React.FC = () => {
     const widgetCount = (dashboard.widgets?.length || 0) + 1
     const tempId = `temp-${Date.now()}`
 
-    const req: CreateWidgetRequest = {
+    const req: CreateWidgetRequest & { tempId: string } = {
+      tempId,
       name: `${t(`chart.types.${type}`)} ${widgetCount}`,
       query_id: undefined,
       chart_type: type,
@@ -754,7 +868,7 @@ export const DashboardDetail: React.FC = () => {
       widgets: [...(prev.widgets || []), tempWidget],
     } : null)
 
-    // Track for batch save
+    // Track for batch save (with tempId for linking)
     setPendingWidgetCreations(prev => [...prev, req])
 
     // Open settings dialog for the new widget
@@ -777,14 +891,26 @@ export const DashboardDetail: React.FC = () => {
 
     // Track for batch save (only for existing widgets, not temp ones)
     if (widgetId.startsWith('temp-')) {
-      // Remove from pending creations
+      // Remove from pending creations by matching tempId
       setPendingWidgetCreations(prev =>
-        prev.filter((_, i) => !dashboard.widgets?.find(w => w.id === widgetId && w.id === `temp-${i}`))
+        prev.filter(creation => creation.tempId !== widgetId)
       )
+      // Also remove from pending responsive positions
+      setPendingResponsivePositions(prev => {
+        const next = { ...prev }
+        delete next[widgetId]
+        return next
+      })
     } else {
       setPendingWidgetDeletions(prev => [...prev, widgetId])
       // Also remove from pending updates
       setPendingWidgetUpdates(prev => {
+        const next = { ...prev }
+        delete next[widgetId]
+        return next
+      })
+      // Also remove from pending responsive positions
+      setPendingResponsivePositions(prev => {
         const next = { ...prev }
         delete next[widgetId]
         return next
@@ -809,7 +935,8 @@ export const DashboardDetail: React.FC = () => {
       ? JSON.parse(JSON.stringify(widget.chart_config))
       : {}
 
-    const req: CreateWidgetRequest = {
+    const req: CreateWidgetRequest & { tempId: string } = {
+      tempId,
       name: `${widget.name} (Copy)`,
       query_id: widget.query_id || undefined,
       chart_type: widget.chart_type,
@@ -835,7 +962,7 @@ export const DashboardDetail: React.FC = () => {
       widgets: [...(prev.widgets || []), tempWidget],
     } : null)
 
-    // Track for batch save
+    // Track for batch save (with tempId for linking)
     setPendingWidgetCreations(prev => [...prev, req])
 
     toast.success(t('dashboard.detail.toast.widgetDuplicated'))
@@ -846,22 +973,54 @@ export const DashboardDetail: React.FC = () => {
     setSettingsDialogOpen(true)
   }
 
-  const handleWidgetUpdate = async (updates: Partial<Widget>) => {
-    if (!id || !editingWidget) return
-    try {
-      const updated = await dashboardApi.updateWidget(id, editingWidget.id, updates)
-      setDashboard(prev => prev ? {
+  // Update widget locally (no API call until save in draft mode)
+  const handleWidgetUpdate = useCallback(async (updates: Partial<Widget>): Promise<void> => {
+    if (!editingWidget || !dashboard) return
+
+    // Record current state BEFORE change for undo
+    recordWidgetSnapshot()
+
+    const widgetId = editingWidget.id
+
+    // Update local dashboard state
+    setDashboard(prev => prev ? {
+      ...prev,
+      widgets: prev.widgets?.map(w => w.id === widgetId ? { ...w, ...updates, updated_at: new Date().toISOString() } : w),
+    } : null)
+
+    // Track for batch save
+    if (widgetId.startsWith('temp-')) {
+      // For temp widgets, update the pending creation
+      setPendingWidgetCreations(prev =>
+        prev.map(creation => {
+          if (creation.tempId === widgetId) {
+            return {
+              ...creation,
+              ...(updates.name !== undefined && { name: updates.name }),
+              ...(updates.query_id !== undefined && { query_id: updates.query_id || undefined }),
+              ...(updates.chart_type !== undefined && { chart_type: updates.chart_type }),
+              ...(updates.chart_config !== undefined && { chart_config: updates.chart_config }),
+              ...(updates.position !== undefined && { position: updates.position }),
+            }
+          }
+          return creation
+        })
+      )
+    } else {
+      // For existing widgets, track update in pendingWidgetUpdates
+      setPendingWidgetUpdates(prev => ({
         ...prev,
-        widgets: prev.widgets?.map(w => w.id === updated.id ? updated : w),
-      } : null)
-      setSettingsDialogOpen(false)
-      setEditingWidget(null)
-      toast.success(t('dashboard.detail.toast.widgetUpdated'))
-    } catch (err) {
-      toast.error(t('dashboard.detail.toast.updateWidgetFailed'), getErrorMessage(err))
-      throw err
+        [widgetId]: {
+          ...(prev[widgetId] || {}),
+          ...updates,
+        },
+      }))
     }
-  }
+
+    setSettingsDialogOpen(false)
+    setEditingWidget(null)
+    toast.success(t('dashboard.detail.toast.widgetUpdated'))
+  }, [editingWidget, dashboard, recordWidgetSnapshot, t])
 
   const resetWidgetForm = () => {
     setWidgetName('')
@@ -959,7 +1118,7 @@ export const DashboardDetail: React.FC = () => {
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/dashboards')}>
+          <Button variant="ghost" size="icon" onClick={() => safeNavigate('/dashboards')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>

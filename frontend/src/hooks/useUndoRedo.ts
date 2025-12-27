@@ -155,11 +155,24 @@ export interface WidgetSnapshot {
   widgets: Array<{
     id: string
     name: string
+    query_id?: string | null
+    chart_type: string
+    chart_config: unknown
+    position: { x: number; y: number; w: number; h: number }
+    responsive_positions?: Record<string, { x: number; y: number; w: number; h: number }>
+  }>
+  // Pending state for draft mode (included in undo/redo)
+  pendingCreations?: Array<{
+    tempId: string  // Link to temp widget
+    name: string
     query_id?: string
     chart_type: string
     chart_config: unknown
     position: { x: number; y: number; w: number; h: number }
   }>
+  pendingDeletions?: string[]
+  pendingUpdates?: Record<string, unknown>
+  pendingResponsivePositions?: Record<string, Record<string, { x: number; y: number; w: number; h: number }>>
 }
 
 export function useWidgetHistory(initialWidgets: WidgetSnapshot['widgets']) {

@@ -305,3 +305,88 @@ func ValidateWidgetPosition(positionJSON json.RawMessage) (*LayoutPosition, erro
 
 	return &pos, nil
 }
+
+// ResponsivePositions represents positions for different breakpoints
+type ResponsivePositions map[string]LayoutPosition
+
+// ValidBreakpoints defines the allowed breakpoint names
+var ValidBreakpoints = map[string]int{
+	"lg": 12, // Desktop: 12 columns
+	"md": 10, // Medium: 10 columns
+	"sm": 6,  // Small: 6 columns
+	"xs": 4,  // Extra small: 4 columns
+}
+
+// Chart config validation constants
+const (
+	MaxChartConfigSize = 64 * 1024 // 64KB limit for chart_config JSON
+)
+
+// ValidateChartConfig validates chart_config JSONB field size
+func ValidateChartConfig(chartConfigJSON json.RawMessage) error {
+	if len(chartConfigJSON) == 0 {
+		return nil // Empty config is allowed
+	}
+
+	// Size check (prevent DoS with huge JSON)
+	if len(chartConfigJSON) > MaxChartConfigSize {
+		return &ValidationError{Field: "chart_config", Message: "chart_config JSON too large (max 64KB)"}
+	}
+
+	// Validate it's valid JSON (not just arbitrary bytes)
+	var dummy interface{}
+	if err := json.Unmarshal(chartConfigJSON, &dummy); err != nil {
+		return &ValidationError{Field: "chart_config", Message: "invalid chart_config JSON format"}
+	}
+
+	return nil
+}
+
+// ValidateResponsivePositions validates responsive_positions JSONB field
+func ValidateResponsivePositions(responsivePosJSON json.RawMessage) (ResponsivePositions, error) {
+	if len(responsivePosJSON) == 0 {
+		return nil, nil // Optional field
+	}
+
+	// Size check (prevent DoS with huge JSON)
+	if len(responsivePosJSON) > 4*1024 { // 4KB limit for responsive positions
+		return nil, &ValidationError{Field: "responsive_positions", Message: "responsive_positions JSON too large"}
+	}
+
+	var positions ResponsivePositions
+	if err := json.Unmarshal(responsivePosJSON, &positions); err != nil {
+		return nil, &ValidationError{Field: "responsive_positions", Message: "invalid responsive_positions format: must be an object with breakpoint keys"}
+	}
+
+	// Limit number of breakpoints (prevent adding arbitrary keys)
+	if len(positions) > len(ValidBreakpoints) {
+		return nil, &ValidationError{Field: "responsive_positions", Message: "too many breakpoints"}
+	}
+
+	// Validate each breakpoint
+	for bp, pos := range positions {
+		maxCols, ok := ValidBreakpoints[bp]
+		if !ok {
+			return nil, &ValidationError{Field: "responsive_positions", Message: "invalid breakpoint: " + bp + " (allowed: lg, md, sm, xs)"}
+		}
+
+		// Validate position bounds for this breakpoint
+		if pos.X < 0 || pos.X >= maxCols {
+			return nil, &ValidationError{Field: "responsive_positions." + bp + ".x", Message: "x must be between 0 and " + strconv.Itoa(maxCols-1)}
+		}
+		if pos.Y < 0 || pos.Y > MaxGridRows {
+			return nil, &ValidationError{Field: "responsive_positions." + bp + ".y", Message: "y must be between 0 and 100"}
+		}
+		if pos.W < MinWidgetWidth || pos.W > maxCols {
+			return nil, &ValidationError{Field: "responsive_positions." + bp + ".w", Message: "width must be between 1 and " + strconv.Itoa(maxCols)}
+		}
+		if pos.H < MinWidgetHeight || pos.H > MaxWidgetHeight {
+			return nil, &ValidationError{Field: "responsive_positions." + bp + ".h", Message: "height must be between 1 and 20"}
+		}
+		if pos.X+pos.W > maxCols {
+			return nil, &ValidationError{Field: "responsive_positions." + bp, Message: "widget exceeds grid bounds (x + w > " + strconv.Itoa(maxCols) + ")"}
+		}
+	}
+
+	return positions, nil
+}

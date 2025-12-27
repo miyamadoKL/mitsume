@@ -176,6 +176,28 @@ func (h *DashboardHandler) CreateWidget(c *gin.Context) {
 		return
 	}
 
+	// Validate responsive positions if provided
+	if len(req.ResponsivePositions) > 0 {
+		if _, err := models.ValidateResponsivePositions(req.ResponsivePositions); err != nil {
+			if validationErr, ok := err.(*models.ValidationError); ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message, "field": validationErr.Field})
+				return
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	// Validate chart config size
+	if err := models.ValidateChartConfig(req.ChartConfig); err != nil {
+		if validationErr, ok := err.(*models.ValidationError); ok {
+			c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message, "field": validationErr.Field})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
 	widget, err := h.dashboardService.CreateWidget(c.Request.Context(), dashboardID, userID, &req)
 	if err != nil {
 		if errors.Is(err, services.ErrNotFound) {
@@ -215,6 +237,30 @@ func (h *DashboardHandler) UpdateWidget(c *gin.Context) {
 	// Validate widget position if provided
 	if len(req.Position) > 0 {
 		if _, err := models.ValidateWidgetPosition(req.Position); err != nil {
+			if validationErr, ok := err.(*models.ValidationError); ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message, "field": validationErr.Field})
+				return
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	// Validate responsive positions if provided
+	if len(req.ResponsivePositions) > 0 {
+		if _, err := models.ValidateResponsivePositions(req.ResponsivePositions); err != nil {
+			if validationErr, ok := err.(*models.ValidationError); ok {
+				c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message, "field": validationErr.Field})
+				return
+			}
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+	}
+
+	// Validate chart config size if provided
+	if len(req.ChartConfig) > 0 {
+		if err := models.ValidateChartConfig(req.ChartConfig); err != nil {
 			if validationErr, ok := err.(*models.ValidationError); ok {
 				c.JSON(http.StatusBadRequest, gin.H{"error": validationErr.Message, "field": validationErr.Field})
 				return
