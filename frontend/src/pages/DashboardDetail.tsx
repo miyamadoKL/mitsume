@@ -115,17 +115,29 @@ export const DashboardDetail: React.FC = () => {
       if (aDeletions.length !== bDeletions.length) return false
       if (!aDeletions.every((id, i) => id === bDeletions[i])) return false
 
-      // Compare pending updates (by keys)
-      const aUpdates = Object.keys(a.pendingUpdates || {}).sort()
-      const bUpdates = Object.keys(b.pendingUpdates || {}).sort()
-      if (aUpdates.length !== bUpdates.length) return false
-      if (!aUpdates.every((k, i) => k === bUpdates[i])) return false
+      // Compare pending updates (by keys AND values)
+      const aUpdatesObj = a.pendingUpdates || {}
+      const bUpdatesObj = b.pendingUpdates || {}
+      const aUpdateKeys = Object.keys(aUpdatesObj).sort()
+      const bUpdateKeys = Object.keys(bUpdatesObj).sort()
+      if (aUpdateKeys.length !== bUpdateKeys.length) return false
+      if (!aUpdateKeys.every((k, i) => k === bUpdateKeys[i])) return false
+      // Compare values - use JSON.stringify per key for value comparison
+      for (const key of aUpdateKeys) {
+        if (JSON.stringify(aUpdatesObj[key]) !== JSON.stringify(bUpdatesObj[key])) return false
+      }
 
-      // Compare pending responsive positions (by keys)
-      const aResp = Object.keys(a.pendingResponsivePositions || {}).sort()
-      const bResp = Object.keys(b.pendingResponsivePositions || {}).sort()
-      if (aResp.length !== bResp.length) return false
-      if (!aResp.every((k, i) => k === bResp[i])) return false
+      // Compare pending responsive positions (by keys AND values)
+      const aRespObj = a.pendingResponsivePositions || {}
+      const bRespObj = b.pendingResponsivePositions || {}
+      const aRespKeys = Object.keys(aRespObj).sort()
+      const bRespKeys = Object.keys(bRespObj).sort()
+      if (aRespKeys.length !== bRespKeys.length) return false
+      if (!aRespKeys.every((k, i) => k === bRespKeys[i])) return false
+      // Compare values
+      for (const key of aRespKeys) {
+        if (JSON.stringify(aRespObj[key]) !== JSON.stringify(bRespObj[key])) return false
+      }
 
       return true
     }
@@ -167,10 +179,11 @@ export const DashboardDetail: React.FC = () => {
     if (editMode && dashboard) {
       // Save original dashboard state for discard
       setOriginalDashboard(JSON.parse(JSON.stringify(dashboard)))
-      // Reset pending changes
+      // Reset all pending changes including responsive positions
       setPendingWidgetCreations([])
       setPendingWidgetDeletions([])
       setPendingWidgetUpdates({})
+      setPendingResponsivePositions({})
       setIsDraft(false)
 
       // Initialize undo/redo history
@@ -216,6 +229,61 @@ export const DashboardDetail: React.FC = () => {
     return () => window.removeEventListener('beforeunload', handleBeforeUnload)
   }, [isDraft])
 
+  // SPA navigation blocking: Catch browser back/forward buttons
+  useEffect(() => {
+    if (!isDraft) return
+
+    // Push a dummy state to history so we can catch the popstate
+    const pushDummyState = () => {
+      window.history.pushState({ dashboardDraft: true }, '')
+    }
+
+    const handlePopState = (_e: PopStateEvent) => {
+      // If we're in draft mode and the user tries to navigate back
+      if (isDraft) {
+        // Ask for confirmation
+        if (window.confirm(t('dashboard.draft.navigationBlockDescription', 'You have unsaved changes. Are you sure you want to leave this page? Your changes will be lost.'))) {
+          // User confirmed - allow navigation by going back again
+          window.history.back()
+        } else {
+          // User cancelled - push state again to prevent leaving
+          pushDummyState()
+        }
+      }
+    }
+
+    pushDummyState()
+    window.addEventListener('popstate', handlePopState)
+
+    return () => {
+      window.removeEventListener('popstate', handlePopState)
+    }
+  }, [isDraft, t])
+
+  // Intercept link clicks for navigation blocking
+  useEffect(() => {
+    if (!isDraft) return
+
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      const link = target.closest('a')
+
+      if (link && link.href && !link.href.startsWith('javascript:') && link.getAttribute('target') !== '_blank') {
+        // Check if it's an internal navigation
+        const url = new URL(link.href, window.location.origin)
+        if (url.origin === window.location.origin && url.pathname !== window.location.pathname) {
+          e.preventDefault()
+          if (window.confirm(t('dashboard.draft.navigationBlockDescription', 'You have unsaved changes. Are you sure you want to leave this page? Your changes will be lost.'))) {
+            navigate(url.pathname + url.search)
+          }
+        }
+      }
+    }
+
+    document.addEventListener('click', handleClick, true)
+    return () => document.removeEventListener('click', handleClick, true)
+  }, [isDraft, navigate, t])
+
   // Safe navigation wrapper that warns about unsaved changes
   const safeNavigate = useCallback((to: string) => {
     if (isDraft) {
@@ -228,11 +296,23 @@ export const DashboardDetail: React.FC = () => {
     }
   }, [isDraft, navigate, t])
 
-  // Helper to record current widget state to history (includes pending states for proper undo/redo)
-  const recordWidgetSnapshot = useCallback(() => {
-    if (!dashboard?.widgets) return
-    const snapshot: WidgetSnapshot = {
-      widgets: dashboard.widgets.map(w => ({
+  // Helper to build a widget snapshot from given state (or current state if not provided)
+  const buildSnapshot = useCallback((overrides?: {
+    widgets?: Widget[],
+    creations?: typeof pendingWidgetCreations,
+    deletions?: typeof pendingWidgetDeletions,
+    updates?: typeof pendingWidgetUpdates,
+    responsivePositions?: typeof pendingResponsivePositions
+  }): WidgetSnapshot | null => {
+    const widgets = overrides?.widgets ?? dashboard?.widgets
+    if (!widgets) return null
+    const creations = overrides?.creations ?? pendingWidgetCreations
+    const deletions = overrides?.deletions ?? pendingWidgetDeletions
+    const updates = overrides?.updates ?? pendingWidgetUpdates
+    const responsivePositions = overrides?.responsivePositions ?? pendingResponsivePositions
+
+    return {
+      widgets: widgets.map(w => ({
         id: w.id,
         name: w.name,
         query_id: w.query_id,
@@ -242,7 +322,7 @@ export const DashboardDetail: React.FC = () => {
         responsive_positions: w.responsive_positions as Record<string, { x: number; y: number; w: number; h: number }> | undefined,
       })),
       // Include pending states so undo/redo restores them correctly
-      pendingCreations: pendingWidgetCreations.map(c => ({
+      pendingCreations: creations.map(c => ({
         tempId: c.tempId,
         name: c.name,
         query_id: c.query_id,
@@ -250,12 +330,16 @@ export const DashboardDetail: React.FC = () => {
         chart_config: c.chart_config,
         position: c.position,
       })),
-      pendingDeletions: [...pendingWidgetDeletions],
-      pendingUpdates: JSON.parse(JSON.stringify(pendingWidgetUpdates)),
-      pendingResponsivePositions: JSON.parse(JSON.stringify(pendingResponsivePositions)),
+      pendingDeletions: [...deletions],
+      pendingUpdates: JSON.parse(JSON.stringify(updates)),
+      pendingResponsivePositions: JSON.parse(JSON.stringify(responsivePositions)),
     }
+  }, [dashboard?.widgets, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions])
+
+  // Record a new snapshot to history (call with NEW state after change)
+  const recordSnapshot = useCallback((snapshot: WidgetSnapshot) => {
     historyActions.set(snapshot)
-  }, [dashboard?.widgets, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, historyActions])
+  }, [historyActions])
 
   // Handle undo action
   const handleUndo = useCallback(() => {
@@ -374,6 +458,7 @@ export const DashboardDetail: React.FC = () => {
     setPendingWidgetCreations([])
     setPendingWidgetDeletions([])
     setPendingWidgetUpdates({})
+    setPendingResponsivePositions({})
     setEditMode(false)
     setIsDraft(false)
     setShowDiscardConfirm(false)
@@ -717,11 +802,10 @@ export const DashboardDetail: React.FC = () => {
   const handleLayoutChangeComplete = useCallback((layout: Layout[], breakpoint: Breakpoint) => {
     if (!dashboard) return
 
-    // Record current state BEFORE applying change for undo
-    recordWidgetSnapshot()
-
     // Only update the main position for lg breakpoint (backward compatibility)
     if (breakpoint === 'lg') {
+      // Build the new state FIRST
+      const newUpdates = { ...pendingWidgetUpdates }
       const updatedWidgets = dashboard.widgets?.map(widget => {
         const layoutItem = layout.find(l => l.i === widget.id)
         if (layoutItem) {
@@ -733,23 +817,26 @@ export const DashboardDetail: React.FC = () => {
           }
           // Track position update for existing widgets (not temp ones)
           if (!widget.id.startsWith('temp-')) {
-            setPendingWidgetUpdates(prev => ({
-              ...prev,
-              [widget.id]: {
-                ...(prev[widget.id] || {}),
-                position: newPosition,
-              },
-            }))
+            newUpdates[widget.id] = {
+              ...(newUpdates[widget.id] || {}),
+              position: newPosition,
+            }
           }
           return { ...widget, position: newPosition }
         }
         return widget
-      })
+      }) || []
 
+      // Record NEW state to history (this pushes current state to past)
+      const newSnapshot = buildSnapshot({ widgets: updatedWidgets as Widget[], updates: newUpdates })
+      if (newSnapshot) recordSnapshot(newSnapshot)
+
+      // Now apply state changes
+      setPendingWidgetUpdates(newUpdates)
       setDashboard({ ...dashboard, widgets: updatedWidgets })
     }
     // Note: responsive_positions are tracked separately via handleAllLayoutsChange
-  }, [dashboard, recordWidgetSnapshot])
+  }, [dashboard, pendingWidgetUpdates, buildSnapshot, recordSnapshot])
 
   // Handle all layouts change (called with all breakpoint positions for all widgets)
   const handleAllLayoutsChange = useCallback((layouts: Record<string, ResponsivePositions>) => {
@@ -790,9 +877,6 @@ export const DashboardDetail: React.FC = () => {
   const handleAddWidget = useCallback(() => {
     if (!widgetName.trim() || !dashboard) return
 
-    // Record current state BEFORE change for undo
-    recordWidgetSnapshot()
-
     const maxY = dashboard.widgets?.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0) || 0
     const tempId = `temp-${Date.now()}`
 
@@ -818,24 +902,23 @@ export const DashboardDetail: React.FC = () => {
       updated_at: new Date().toISOString(),
     }
 
-    setDashboard(prev => prev ? {
-      ...prev,
-      widgets: [...(prev.widgets || []), tempWidget],
-    } : null)
+    // Build new state and record to history
+    const newWidgets = [...(dashboard.widgets || []), tempWidget]
+    const newCreations = [...pendingWidgetCreations, req]
+    const newSnapshot = buildSnapshot({ widgets: newWidgets, creations: newCreations })
+    if (newSnapshot) recordSnapshot(newSnapshot)
 
-    // Track for batch save (with tempId for linking)
-    setPendingWidgetCreations(prev => [...prev, req])
+    // Apply state changes
+    setDashboard(prev => prev ? { ...prev, widgets: newWidgets } : null)
+    setPendingWidgetCreations(newCreations)
 
     setAddWidgetOpen(false)
     resetWidgetForm()
-  }, [dashboard, widgetName, selectedQueryId, chartType, recordWidgetSnapshot])
+  }, [dashboard, widgetName, selectedQueryId, chartType, pendingWidgetCreations, buildSnapshot, recordSnapshot])
 
   // Quick add widget locally (no API call until save)
   const handleQuickAddWidget = useCallback((type: ChartType) => {
     if (!dashboard) return
-
-    // Record current state BEFORE change for undo
-    recordWidgetSnapshot()
 
     const maxY = dashboard.widgets?.reduce((max, w) => Math.max(max, w.position.y + w.position.h), 0) || 0
     const widgetCount = (dashboard.widgets?.length || 0) + 1
@@ -863,69 +946,69 @@ export const DashboardDetail: React.FC = () => {
       updated_at: new Date().toISOString(),
     }
 
-    setDashboard(prev => prev ? {
-      ...prev,
-      widgets: [...(prev.widgets || []), tempWidget],
-    } : null)
+    // Build new state and record to history
+    const newWidgets = [...(dashboard.widgets || []), tempWidget]
+    const newCreations = [...pendingWidgetCreations, req]
+    const newSnapshot = buildSnapshot({ widgets: newWidgets, creations: newCreations })
+    if (newSnapshot) recordSnapshot(newSnapshot)
 
-    // Track for batch save (with tempId for linking)
-    setPendingWidgetCreations(prev => [...prev, req])
+    // Apply state changes
+    setDashboard(prev => prev ? { ...prev, widgets: newWidgets } : null)
+    setPendingWidgetCreations(newCreations)
 
     // Open settings dialog for the new widget
     setEditingWidget(tempWidget)
     setSettingsDialogOpen(true)
-  }, [dashboard, t, recordWidgetSnapshot])
+  }, [dashboard, t, pendingWidgetCreations, buildSnapshot, recordSnapshot])
 
   // Delete widget locally (no API call until save)
   const handleDeleteWidget = useCallback((widgetId: string) => {
     if (!dashboard) return
 
-    // Record current state BEFORE change for undo
-    recordWidgetSnapshot()
-
-    // Remove from local state
-    setDashboard(prev => prev ? {
-      ...prev,
-      widgets: prev.widgets?.filter(w => w.id !== widgetId),
-    } : null)
+    // Build new state first
+    const newWidgets = dashboard.widgets?.filter(w => w.id !== widgetId) || []
+    let newCreations = pendingWidgetCreations
+    let newDeletions = pendingWidgetDeletions
+    let newUpdates = { ...pendingWidgetUpdates }
+    let newResponsivePositions = { ...pendingResponsivePositions }
 
     // Track for batch save (only for existing widgets, not temp ones)
     if (widgetId.startsWith('temp-')) {
       // Remove from pending creations by matching tempId
-      setPendingWidgetCreations(prev =>
-        prev.filter(creation => creation.tempId !== widgetId)
-      )
+      newCreations = pendingWidgetCreations.filter(creation => creation.tempId !== widgetId)
       // Also remove from pending responsive positions
-      setPendingResponsivePositions(prev => {
-        const next = { ...prev }
-        delete next[widgetId]
-        return next
-      })
+      delete newResponsivePositions[widgetId]
     } else {
-      setPendingWidgetDeletions(prev => [...prev, widgetId])
+      newDeletions = [...pendingWidgetDeletions, widgetId]
       // Also remove from pending updates
-      setPendingWidgetUpdates(prev => {
-        const next = { ...prev }
-        delete next[widgetId]
-        return next
-      })
+      delete newUpdates[widgetId]
       // Also remove from pending responsive positions
-      setPendingResponsivePositions(prev => {
-        const next = { ...prev }
-        delete next[widgetId]
-        return next
-      })
+      delete newResponsivePositions[widgetId]
     }
 
+    // Build and record new snapshot
+    const newSnapshot = buildSnapshot({
+      widgets: newWidgets,
+      creations: newCreations,
+      deletions: newDeletions,
+      updates: newUpdates,
+      responsivePositions: newResponsivePositions,
+    })
+    if (newSnapshot) recordSnapshot(newSnapshot)
+
+    // Apply state changes
+    setDashboard(prev => prev ? { ...prev, widgets: newWidgets } : null)
+    setPendingWidgetCreations(newCreations)
+    setPendingWidgetDeletions(newDeletions)
+    setPendingWidgetUpdates(newUpdates)
+    setPendingResponsivePositions(newResponsivePositions)
+
     toast.success(t('dashboard.detail.toast.widgetDeleted'))
-  }, [dashboard, recordWidgetSnapshot, t])
+  }, [dashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, buildSnapshot, recordSnapshot, t])
 
   // Duplicate widget locally (no API call until save)
   const handleDuplicateWidget = useCallback((widget: Widget) => {
     if (!dashboard) return
-
-    // Record current state BEFORE change for undo
-    recordWidgetSnapshot()
 
     const newY = widget.position.y + widget.position.h
     const tempId = `temp-${Date.now()}`
@@ -957,16 +1040,18 @@ export const DashboardDetail: React.FC = () => {
       updated_at: new Date().toISOString(),
     }
 
-    setDashboard(prev => prev ? {
-      ...prev,
-      widgets: [...(prev.widgets || []), tempWidget],
-    } : null)
+    // Build new state and record to history
+    const newWidgets = [...(dashboard.widgets || []), tempWidget]
+    const newCreations = [...pendingWidgetCreations, req]
+    const newSnapshot = buildSnapshot({ widgets: newWidgets, creations: newCreations })
+    if (newSnapshot) recordSnapshot(newSnapshot)
 
-    // Track for batch save (with tempId for linking)
-    setPendingWidgetCreations(prev => [...prev, req])
+    // Apply state changes
+    setDashboard(prev => prev ? { ...prev, widgets: newWidgets } : null)
+    setPendingWidgetCreations(newCreations)
 
     toast.success(t('dashboard.detail.toast.widgetDuplicated'))
-  }, [dashboard, recordWidgetSnapshot, t])
+  }, [dashboard, pendingWidgetCreations, buildSnapshot, recordSnapshot, t])
 
   const handleSettingsClick = (widget: Widget) => {
     setEditingWidget(widget)
@@ -977,50 +1062,56 @@ export const DashboardDetail: React.FC = () => {
   const handleWidgetUpdate = useCallback(async (updates: Partial<Widget>): Promise<void> => {
     if (!editingWidget || !dashboard) return
 
-    // Record current state BEFORE change for undo
-    recordWidgetSnapshot()
-
     const widgetId = editingWidget.id
 
-    // Update local dashboard state
-    setDashboard(prev => prev ? {
-      ...prev,
-      widgets: prev.widgets?.map(w => w.id === widgetId ? { ...w, ...updates, updated_at: new Date().toISOString() } : w),
-    } : null)
+    // Build new state first
+    const newWidgets = dashboard.widgets?.map(w =>
+      w.id === widgetId ? { ...w, ...updates, updated_at: new Date().toISOString() } : w
+    ) || []
+
+    let newCreations = pendingWidgetCreations
+    let newUpdates = { ...pendingWidgetUpdates }
 
     // Track for batch save
     if (widgetId.startsWith('temp-')) {
       // For temp widgets, update the pending creation
-      setPendingWidgetCreations(prev =>
-        prev.map(creation => {
-          if (creation.tempId === widgetId) {
-            return {
-              ...creation,
-              ...(updates.name !== undefined && { name: updates.name }),
-              ...(updates.query_id !== undefined && { query_id: updates.query_id || undefined }),
-              ...(updates.chart_type !== undefined && { chart_type: updates.chart_type }),
-              ...(updates.chart_config !== undefined && { chart_config: updates.chart_config }),
-              ...(updates.position !== undefined && { position: updates.position }),
-            }
+      newCreations = pendingWidgetCreations.map(creation => {
+        if (creation.tempId === widgetId) {
+          return {
+            ...creation,
+            ...(updates.name !== undefined && { name: updates.name }),
+            ...(updates.query_id !== undefined && { query_id: updates.query_id || undefined }),
+            ...(updates.chart_type !== undefined && { chart_type: updates.chart_type }),
+            ...(updates.chart_config !== undefined && { chart_config: updates.chart_config }),
+            ...(updates.position !== undefined && { position: updates.position }),
           }
-          return creation
-        })
-      )
+        }
+        return creation
+      })
     } else {
       // For existing widgets, track update in pendingWidgetUpdates
-      setPendingWidgetUpdates(prev => ({
-        ...prev,
+      newUpdates = {
+        ...pendingWidgetUpdates,
         [widgetId]: {
-          ...(prev[widgetId] || {}),
+          ...(pendingWidgetUpdates[widgetId] || {}),
           ...updates,
         },
-      }))
+      }
     }
+
+    // Build and record new snapshot
+    const newSnapshot = buildSnapshot({ widgets: newWidgets, creations: newCreations, updates: newUpdates })
+    if (newSnapshot) recordSnapshot(newSnapshot)
+
+    // Apply state changes
+    setDashboard(prev => prev ? { ...prev, widgets: newWidgets } : null)
+    setPendingWidgetCreations(newCreations)
+    setPendingWidgetUpdates(newUpdates)
 
     setSettingsDialogOpen(false)
     setEditingWidget(null)
     toast.success(t('dashboard.detail.toast.widgetUpdated'))
-  }, [editingWidget, dashboard, recordWidgetSnapshot, t])
+  }, [editingWidget, dashboard, pendingWidgetCreations, pendingWidgetUpdates, buildSnapshot, recordSnapshot, t])
 
   const resetWidgetForm = () => {
     setWidgetName('')
