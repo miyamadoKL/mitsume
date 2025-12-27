@@ -328,6 +328,107 @@ func (s *DashboardService) DeleteWidget(ctx context.Context, id, dashboardID, us
 	return nil
 }
 
+// BatchUpdateWidgets performs atomic create/update/delete operations within a transaction
+func (s *DashboardService) BatchUpdateWidgets(ctx context.Context, dashboardID, userID uuid.UUID, req *models.BatchWidgetUpdateRequest) (*models.BatchWidgetUpdateResponse, error) {
+	// Check edit permission
+	permLevel, err := s.permRepo.GetUserPermissionLevel(ctx, dashboardID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !permLevel.CanEdit() {
+		return nil, ErrPermissionDenied
+	}
+
+	pool := database.GetPool()
+
+	// Start transaction
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+
+	response := &models.BatchWidgetUpdateResponse{
+		Created: []models.Widget{},
+		Updated: []models.Widget{},
+		Deleted: []string{},
+	}
+
+	// 1. Delete widgets first (within transaction)
+	for _, widgetID := range req.Delete {
+		id, err := uuid.Parse(widgetID)
+		if err != nil {
+			return nil, ErrInvalidRequest
+		}
+
+		result, err := tx.Exec(ctx,
+			`DELETE FROM dashboard_widgets WHERE id = $1 AND dashboard_id = $2`,
+			id, dashboardID,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if result.RowsAffected() > 0 {
+			response.Deleted = append(response.Deleted, widgetID)
+		}
+	}
+
+	// 2. Create new widgets (within transaction)
+	for _, createReq := range req.Create {
+		var w models.Widget
+		err := tx.QueryRow(ctx,
+			`INSERT INTO dashboard_widgets (dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7)
+			 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at`,
+			dashboardID, createReq.Name, createReq.QueryID, createReq.ChartType, createReq.ChartConfig, createReq.Position, createReq.ResponsivePositions,
+		).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		response.Created = append(response.Created, w)
+	}
+
+	// 3. Update existing widgets (within transaction)
+	for widgetID, updateReq := range req.Update {
+		id, err := uuid.Parse(widgetID)
+		if err != nil {
+			return nil, ErrInvalidRequest
+		}
+
+		var w models.Widget
+		err = tx.QueryRow(ctx,
+			`UPDATE dashboard_widgets
+			 SET name = COALESCE(NULLIF($3, ''), name),
+			     query_id = COALESCE($4, query_id),
+			     chart_type = COALESCE(NULLIF($5, ''), chart_type),
+			     chart_config = COALESCE($6, chart_config),
+			     position = COALESCE($7, position),
+			     responsive_positions = COALESCE($8, responsive_positions),
+			     updated_at = CURRENT_TIMESTAMP
+			 WHERE id = $1 AND dashboard_id = $2
+			 RETURNING id, dashboard_id, name, query_id, chart_type, chart_config, position, responsive_positions, created_at, updated_at`,
+			id, dashboardID, updateReq.Name, updateReq.QueryID, updateReq.ChartType, updateReq.ChartConfig, updateReq.Position, updateReq.ResponsivePositions,
+		).Scan(&w.ID, &w.DashboardID, &w.Name, &w.QueryID, &w.ChartType, &w.ChartConfig, &w.Position, &w.ResponsivePositions, &w.CreatedAt, &w.UpdatedAt)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				// Widget not found - skip but don't fail the whole transaction
+				continue
+			}
+			return nil, err
+		}
+		response.Updated = append(response.Updated, w)
+	}
+
+	// Commit transaction - all changes are atomic
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
 func (s *DashboardService) DuplicateWidget(ctx context.Context, id, dashboardID, userID uuid.UUID) (*models.Widget, error) {
 	// Check edit permission
 	permLevel, err := s.permRepo.GetUserPermissionLevel(ctx, dashboardID, userID)

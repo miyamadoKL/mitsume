@@ -92,6 +92,8 @@ export interface Dashboard {
   layout: LayoutItem[]
   is_public?: boolean
   parameters?: ParameterDefinition[]
+  is_draft?: boolean
+  draft_of?: string  // Original dashboard ID if this is a draft
   created_at: string
   updated_at: string
   widgets?: Widget[]
@@ -458,6 +460,27 @@ export interface CreateWidgetRequest {
   chart_config: ChartConfig
   position: Position
   responsive_positions?: ResponsivePositions
+}
+
+export interface UpdateWidgetRequest {
+  name?: string
+  query_id?: string | null
+  chart_type?: ChartType
+  chart_config?: ChartConfig
+  position?: Position
+  responsive_positions?: ResponsivePositions
+}
+
+export interface BatchWidgetUpdateRequest {
+  create?: CreateWidgetRequest[]
+  update?: Record<string, UpdateWidgetRequest>
+  delete?: string[]
+}
+
+export interface BatchWidgetUpdateResponse {
+  created?: Widget[]
+  updated?: Widget[]
+  deleted?: string[]
 }
 
 // Notification Types

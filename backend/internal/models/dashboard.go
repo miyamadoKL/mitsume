@@ -41,6 +41,8 @@ type Dashboard struct {
 	Layout      json.RawMessage `json:"layout"`
 	IsPublic    bool            `json:"is_public"`
 	Parameters  json.RawMessage `json:"parameters"`
+	IsDraft     bool            `json:"is_draft"`            // Draft mode flag
+	DraftOf     *uuid.UUID      `json:"draft_of,omitempty"`  // Original dashboard ID if this is a draft
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
 	Widgets     []Widget        `json:"widgets,omitempty"`
@@ -389,4 +391,23 @@ func ValidateResponsivePositions(responsivePosJSON json.RawMessage) (ResponsiveP
 	}
 
 	return positions, nil
+}
+
+// BatchWidgetUpdateRequest represents a batch update operation for widgets
+type BatchWidgetUpdateRequest struct {
+	Create []CreateWidgetRequest         `json:"create,omitempty"` // Widgets to create
+	Update map[string]UpdateWidgetRequest `json:"update,omitempty"` // Widget ID -> update data
+	Delete []string                       `json:"delete,omitempty"` // Widget IDs to delete
+}
+
+// BatchWidgetUpdateResponse represents the result of a batch update
+type BatchWidgetUpdateResponse struct {
+	Created []Widget `json:"created,omitempty"` // Newly created widgets
+	Updated []Widget `json:"updated,omitempty"` // Updated widgets
+	Deleted []string `json:"deleted,omitempty"` // Deleted widget IDs
+}
+
+// PublishDraftRequest represents a request to publish a draft
+type PublishDraftRequest struct {
+	// No fields needed - draft ID comes from URL
 }

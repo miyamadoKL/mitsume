@@ -3,7 +3,7 @@ import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { Layout } from 'react-grid-layout'
 import { dashboardApi, queryApi, layoutTemplateApi } from '@/services/api'
-import type { Dashboard, SavedQuery, ChartType, CreateWidgetRequest, Widget, PermissionLevel, LayoutTemplate, ParameterDefinition, ResponsivePositions, Breakpoint } from '@/types'
+import type { Dashboard, SavedQuery, ChartType, CreateWidgetRequest, Widget, PermissionLevel, LayoutTemplate, ParameterDefinition, ResponsivePositions, Breakpoint, Position } from '@/types'
 import { DashboardGrid } from '@/components/dashboard/DashboardGrid'
 import { DashboardParameters } from '@/components/dashboard/DashboardParameters'
 import { WidgetSettingsDialog } from '@/components/dashboard/WidgetSettingsDialog'
@@ -377,26 +377,27 @@ export const DashboardDetail: React.FC = () => {
     toast.success(t('dashboard.detail.changesDiscarded', 'Changes discarded'))
   }, [originalDashboard, historyActions, t])
 
-  // Save all pending changes to backend with rollback on partial failure
+  // Save all pending changes to backend using atomic batch API
   const handleSaveChanges = useCallback(async () => {
     if (!id || !dashboard) return
     setSavingChanges(true)
 
-    // Track successful operations for potential rollback
-    const deletedWidgetIds: string[] = []
-    const createdWidgetIds: string[] = []
-    const updatedWidgetOriginals: Record<string, Partial<Widget>> = {}
-
     try {
-      // 1. Delete widgets (store IDs for rollback)
+      // Build batch request for atomic update
+      const batchReq: import('@/types').BatchWidgetUpdateRequest = {
+        create: [],
+        update: {},
+        delete: [],
+      }
+
+      // 1. Collect widgets to delete (exclude temp widgets)
       for (const widgetId of pendingWidgetDeletions) {
         if (!widgetId.startsWith('temp-')) {
-          await dashboardApi.deleteWidget(id, widgetId)
-          deletedWidgetIds.push(widgetId)
+          batchReq.delete!.push(widgetId)
         }
       }
 
-      // 2. Create new widgets (with responsive_positions if available)
+      // 2. Collect widgets to create (with responsive_positions if available)
       for (const req of pendingWidgetCreations) {
         const tempWidget = dashboard.widgets?.find(w => w.id === req.tempId)
         const responsivePos = tempWidget?.responsive_positions || pendingResponsivePositions[req.tempId]
@@ -405,45 +406,33 @@ export const DashboardDetail: React.FC = () => {
         const createReq = responsivePos
           ? { ...createReqBase, responsive_positions: responsivePos }
           : createReqBase
-        const widget = await dashboardApi.createWidget(id, createReq)
-        createdWidgetIds.push(widget.id)
+        batchReq.create!.push(createReq)
       }
 
-      // 3. Update existing widgets (including responsive_positions)
+      // 3. Collect widgets to update (including responsive_positions)
       for (const [widgetId, updates] of Object.entries(pendingWidgetUpdates)) {
         if (!widgetId.startsWith('temp-') && !pendingWidgetDeletions.includes(widgetId)) {
           const responsivePos = pendingResponsivePositions[widgetId]
           const updateWithResponsive = responsivePos
             ? { ...updates, responsive_positions: responsivePos }
             : updates
-          // Store original for rollback (position from current dashboard state)
-          const originalWidget = originalDashboard?.widgets?.find(w => w.id === widgetId)
-          if (originalWidget) {
-            updatedWidgetOriginals[widgetId] = {
-              position: originalWidget.position,
-              responsive_positions: originalWidget.responsive_positions,
-            }
-          }
-          await dashboardApi.updateWidget(id, widgetId, updateWithResponsive)
+          batchReq.update![widgetId] = updateWithResponsive
         }
       }
 
-      // 4. Update widgets that only have responsive_positions changes
+      // 4. Collect widgets that only have responsive_positions changes
       for (const [widgetId, responsivePos] of Object.entries(pendingResponsivePositions)) {
         if (!widgetId.startsWith('temp-') &&
             !pendingWidgetDeletions.includes(widgetId) &&
-            !pendingWidgetUpdates[widgetId]) {
-          const originalWidget = originalDashboard?.widgets?.find(w => w.id === widgetId)
-          if (originalWidget && !updatedWidgetOriginals[widgetId]) {
-            updatedWidgetOriginals[widgetId] = {
-              responsive_positions: originalWidget.responsive_positions,
-            }
-          }
-          await dashboardApi.updateWidget(id, widgetId, { responsive_positions: responsivePos })
+            !batchReq.update![widgetId]) {
+          batchReq.update![widgetId] = { responsive_positions: responsivePos }
         }
       }
 
-      // 5. Reload dashboard to get fresh state
+      // 5. Execute atomic batch update
+      await dashboardApi.batchUpdateWidgets(id, batchReq)
+
+      // 6. Reload dashboard to get fresh state
       const freshDashboard = await dashboardApi.getById(id)
       setDashboard(freshDashboard)
 
@@ -456,47 +445,9 @@ export const DashboardDetail: React.FC = () => {
       setEditMode(false)
       toast.success(t('dashboard.draft.saved', 'Changes saved'))
     } catch (err) {
-      // Attempt rollback of partial changes
-      console.error('Save failed, attempting rollback:', err)
-      const rollbackErrors: string[] = []
-
-      // Rollback created widgets (delete them)
-      for (const widgetId of createdWidgetIds) {
-        try {
-          await dashboardApi.deleteWidget(id, widgetId)
-        } catch (rollbackErr) {
-          rollbackErrors.push(`Failed to rollback created widget ${widgetId}`)
-          console.error('Rollback delete failed:', rollbackErr)
-        }
-      }
-
-      // Rollback updated widgets (restore original values)
-      for (const [widgetId, original] of Object.entries(updatedWidgetOriginals)) {
-        try {
-          await dashboardApi.updateWidget(id, widgetId, original)
-        } catch (rollbackErr) {
-          rollbackErrors.push(`Failed to rollback updated widget ${widgetId}`)
-          console.error('Rollback update failed:', rollbackErr)
-        }
-      }
-
-      // Note: Deleted widgets cannot be automatically restored (would need server-side soft delete)
-      if (deletedWidgetIds.length > 0) {
-        rollbackErrors.push(`${deletedWidgetIds.length} deleted widget(s) cannot be automatically restored`)
-      }
-
-      // Reload dashboard to reflect current server state
-      try {
-        const freshDashboard = await dashboardApi.getById(id)
-        setDashboard(freshDashboard)
-      } catch {
-        // Ignore reload error, user can refresh manually
-      }
-
-      const errorMsg = rollbackErrors.length > 0
-        ? `${getErrorMessage(err)}. Rollback issues: ${rollbackErrors.join('; ')}`
-        : getErrorMessage(err)
-      toast.error(t('dashboard.draft.saveFailed', 'Failed to save changes'), errorMsg)
+      // Atomic batch failed - no partial state, no rollback needed
+      console.error('Save failed:', err)
+      toast.error(t('dashboard.draft.saveFailed', 'Failed to save changes'), getErrorMessage(err))
     } finally {
       setSavingChanges(false)
     }
@@ -531,8 +482,13 @@ export const DashboardDetail: React.FC = () => {
     if (!editMode || !dashboard || widgetHistory.widgets.length === 0) return
 
     // Check if we need to apply changes (history differs from current state)
-    const currentSnapshot = dashboard.widgets?.map(w => `${w.id}:${w.position.x},${w.position.y},${w.position.w},${w.position.h}`).sort().join('|') || ''
-    const historySnapshot = widgetHistory.widgets.map(w => `${w.id}:${w.position.x},${w.position.y},${w.position.w},${w.position.h}`).sort().join('|')
+    // Include responsive_positions in comparison to properly detect responsive-only changes
+    const buildWidgetSnapshot = (w: { id: string; position: Position; responsive_positions?: ResponsivePositions }) => {
+      const respStr = w.responsive_positions ? JSON.stringify(w.responsive_positions) : ''
+      return `${w.id}:${w.position.x},${w.position.y},${w.position.w},${w.position.h}:${respStr}`
+    }
+    const currentSnapshot = dashboard.widgets?.map(buildWidgetSnapshot).sort().join('|') || ''
+    const historySnapshot = widgetHistory.widgets.map(buildWidgetSnapshot).sort().join('|')
 
     if (currentSnapshot !== historySnapshot) {
       // Reconstruct widgets from history
