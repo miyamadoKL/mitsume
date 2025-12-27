@@ -309,7 +309,7 @@ export const handlers = [
     return HttpResponse.json({ error: 'Not found' }, { status: 404 })
   }),
 
-  // Layout Templates handlers
+  // Layout templates handler
   http.get('/api/layout-templates', () => {
     return HttpResponse.json([])
   }),
@@ -330,29 +330,29 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 })
   }),
 
-  // Roles handlers
+  // Roles handler (for admin pages)
   http.get('/api/roles', () => {
     return HttpResponse.json([])
   }),
 
-  // Notification channels handlers
+  // Notification channels handler
   http.get('/api/notification-channels', () => {
     return HttpResponse.json([])
   }),
 
-  // Alerts handlers
+  // Alerts handler
   http.get('/api/alerts', () => {
     return HttpResponse.json([])
   }),
 
-  // Subscriptions handlers
+  // Subscriptions handler
   http.get('/api/subscriptions', () => {
     return HttpResponse.json([])
   }),
 
-  // Users handlers
+  // Users handler
   http.get('/api/users', () => {
-    return HttpResponse.json([mockUser])
+    return HttpResponse.json([])
   }),
 ]
 
