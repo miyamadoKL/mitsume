@@ -11,6 +11,10 @@ import (
 )
 
 func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.QueryCacheService) {
+	// Rate limiters
+	rateLimiter := middleware.NewRateLimiter(&cfg.RateLimit)
+	authRateLimiter := middleware.NewAuthRateLimiter(&cfg.RateLimit)
+
 	// Repositories
 	userRepo := repository.NewPostgresUserRepository(database.GetPool())
 	roleRepo := repository.NewPostgresRoleRepository(database.GetPool())
@@ -25,7 +29,7 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 	notificationService := services.NewNotificationService(database.GetPool(), &cfg.Notification)
 	alertService := services.NewAlertService(database.GetPool(), cachedTrinoService, notificationService, queryService)
 	subscriptionService := services.NewSubscriptionService(database.GetPool(), notificationService, dashboardService)
-	roleService := services.NewRoleService(roleRepo)
+	roleService := services.NewRoleService(roleRepo, userRepo)
 
 	// Handlers
 	authHandler := handlers.NewAuthHandler(authService, cfg)
@@ -41,12 +45,14 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 
 	// Middleware
 	r.Use(middleware.CORSMiddleware(cfg.Server.FrontendURL))
+	r.Use(middleware.RateLimitMiddleware(rateLimiter))
 
 	// API routes
 	api := r.Group("/api")
 	{
-		// Auth routes (public)
+		// Auth routes (public) - with stricter rate limiting
 		auth := api.Group("/auth")
+		auth.Use(middleware.AuthRateLimitMiddleware(authRateLimiter))
 		{
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
@@ -163,6 +169,13 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 				admin.GET("/users", roleHandler.GetUsersWithRoles)
 				admin.POST("/users/:userId/roles", roleHandler.AssignRole)
 				admin.DELETE("/users/:userId/roles/:roleId", roleHandler.UnassignRole)
+
+				// User approval management
+				admin.GET("/users/pending", roleHandler.GetPendingUsers)
+				admin.GET("/users/all", roleHandler.GetAllUsers)
+				admin.POST("/users/:userId/approve", roleHandler.ApproveUser)
+				admin.POST("/users/:userId/disable", roleHandler.DisableUser)
+				admin.POST("/users/:userId/enable", roleHandler.EnableUser)
 			}
 		}
 	}

@@ -327,6 +327,18 @@ func RunMigrations() error {
 
 		// Make email nullable for admin users
 		`ALTER TABLE users ALTER COLUMN email DROP NOT NULL`,
+
+		// User status for admin approval system
+		// status: 'pending' (waiting for approval), 'active' (approved), 'disabled' (deactivated)
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by UUID REFERENCES users(id) ON DELETE SET NULL`,
+
+		// Set existing users to 'active' status (migration safety)
+		`UPDATE users SET status = 'active' WHERE status IS NULL`,
+
+		// Add index for status queries
+		`CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)`,
 	}
 
 	for _, migration := range migrations {

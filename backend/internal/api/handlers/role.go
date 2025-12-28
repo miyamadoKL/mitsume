@@ -282,3 +282,149 @@ func (h *RoleHandler) UnassignRole(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "role unassigned"})
 }
+
+// User approval management
+
+func (h *RoleHandler) GetPendingUsers(c *gin.Context) {
+	adminUserID := c.MustGet("userID").(uuid.UUID)
+
+	users, err := h.roleService.GetPendingUsers(c.Request.Context(), adminUserID)
+	if err != nil {
+		if errors.Is(err, services.ErrUnauthorized) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if users == nil {
+		users = []models.User{}
+	}
+
+	c.JSON(http.StatusOK, users)
+}
+
+func (h *RoleHandler) GetAllUsers(c *gin.Context) {
+	adminUserID := c.MustGet("userID").(uuid.UUID)
+
+	// Optional status filter
+	status := c.Query("status")
+	if status != "" {
+		// Get users by status if specified
+		users, err := h.roleService.GetAllUsers(c.Request.Context(), adminUserID)
+		if err != nil {
+			if errors.Is(err, services.ErrUnauthorized) {
+				c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		// Filter by status
+		var filtered []models.User
+		for _, u := range users {
+			if string(u.Status) == status {
+				filtered = append(filtered, u)
+			}
+		}
+		if filtered == nil {
+			filtered = []models.User{}
+		}
+		c.JSON(http.StatusOK, filtered)
+		return
+	}
+
+	users, err := h.roleService.GetAllUsers(c.Request.Context(), adminUserID)
+	if err != nil {
+		if errors.Is(err, services.ErrUnauthorized) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if users == nil {
+		users = []models.User{}
+	}
+
+	c.JSON(http.StatusOK, users)
+}
+
+func (h *RoleHandler) ApproveUser(c *gin.Context) {
+	adminUserID := c.MustGet("userID").(uuid.UUID)
+	targetUserID, err := uuid.Parse(c.Param("userId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	if err := h.roleService.ApproveUser(c.Request.Context(), adminUserID, targetUserID); err != nil {
+		if errors.Is(err, services.ErrUnauthorized) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, services.ErrUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "user approved"})
+}
+
+func (h *RoleHandler) DisableUser(c *gin.Context) {
+	adminUserID := c.MustGet("userID").(uuid.UUID)
+	targetUserID, err := uuid.Parse(c.Param("userId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	if err := h.roleService.DisableUser(c.Request.Context(), adminUserID, targetUserID); err != nil {
+		if errors.Is(err, services.ErrUnauthorized) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, services.ErrUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, services.ErrCannotDisableSelf) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "user disabled"})
+}
+
+func (h *RoleHandler) EnableUser(c *gin.Context) {
+	adminUserID := c.MustGet("userID").(uuid.UUID)
+	targetUserID, err := uuid.Parse(c.Param("userId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user id"})
+		return
+	}
+
+	if err := h.roleService.EnableUser(c.Request.Context(), adminUserID, targetUserID); err != nil {
+		if errors.Is(err, services.ErrUnauthorized) {
+			c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+			return
+		}
+		if errors.Is(err, services.ErrUserNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "user enabled"})
+}

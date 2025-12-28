@@ -15,6 +15,14 @@ type Config struct {
 	Notification NotificationConfig
 	Cache        CacheConfig
 	Admin        AdminConfig
+	RateLimit    RateLimitConfig
+}
+
+type RateLimitConfig struct {
+	Enabled            bool
+	RequestsPerMinute  int
+	BurstSize          int
+	CleanupIntervalSec int
 }
 
 type AdminConfig struct {
@@ -149,6 +157,12 @@ func Load() (*Config, error) {
 			Username:          getEnv("MITSUME_ADMIN_USERNAME", "admin"),
 			Password:          os.Getenv("MITSUME_ADMIN_PASSWORD"), // No default - empty means skip
 			PasswordMinLength: adminPasswordMinLength,
+		},
+		RateLimit: RateLimitConfig{
+			Enabled:            getEnvBool("RATE_LIMIT_ENABLED", true),
+			RequestsPerMinute:  getEnvInt("RATE_LIMIT_REQUESTS_PER_MINUTE", 60),
+			BurstSize:          getEnvInt("RATE_LIMIT_BURST_SIZE", 10),
+			CleanupIntervalSec: getEnvInt("RATE_LIMIT_CLEANUP_INTERVAL_SEC", 60),
 		},
 	}, nil
 }

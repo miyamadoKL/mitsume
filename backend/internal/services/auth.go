@@ -28,6 +28,12 @@ func NewAuthService(cfg *config.Config, userRepo repository.UserRepository, role
 	}
 }
 
+// ErrUserPending is returned when a user is pending approval
+var ErrUserPending = errors.New("user account is pending approval")
+
+// ErrUserDisabled is returned when a user is disabled
+var ErrUserDisabled = errors.New("user account is disabled")
+
 func (s *AuthService) Register(ctx context.Context, req *models.RegisterRequest) (*models.AuthResponse, error) {
 	// Check if user already exists
 	exists, err := s.userRepo.ExistsByEmail(ctx, req.Email)
@@ -44,29 +50,16 @@ func (s *AuthService) Register(ctx context.Context, req *models.RegisterRequest)
 		return nil, err
 	}
 
-	// Create user
-	user, err := s.userRepo.Create(ctx, req.Email, string(hashedPassword), req.Name)
+	// Create user with pending status
+	_, err = s.userRepo.Create(ctx, req.Email, string(hashedPassword), req.Name)
 	if err != nil {
 		return nil, err
 	}
 
-	// Auto-assign admin role to the first registered user
-	if s.roleRepo != nil {
-		if err := s.autoAssignAdminToFirstUser(ctx, user.ID); err != nil {
-			log.Printf("[WARN] Failed to auto-assign admin role to first user %s: %v", user.ID, err)
-		}
-	}
+	log.Printf("[INFO] New user registered (pending approval): %s", req.Email)
 
-	// Generate token
-	token, err := s.generateToken(user.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &models.AuthResponse{
-		Token: token,
-		User:  *user,
-	}, nil
+	// Return pending status - no JWT issued until approved
+	return nil, ErrUserPending
 }
 
 func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest) (*models.AuthResponse, error) {
@@ -86,6 +79,19 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest) (*mod
 	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
 		return nil, errors.New("invalid credentials")
+	}
+
+	// Check user status - only active users can login
+	switch user.Status {
+	case models.UserStatusPending:
+		return nil, ErrUserPending
+	case models.UserStatusDisabled:
+		return nil, ErrUserDisabled
+	case models.UserStatusActive:
+		// OK, proceed
+	default:
+		// Unknown status, treat as pending
+		return nil, ErrUserPending
 	}
 
 	// Generate token
@@ -113,18 +119,29 @@ func (s *AuthService) FindOrCreateGoogleUser(ctx context.Context, googleID, emai
 
 	isNewUser := user == nil
 	if isNewUser {
-		// Create new user
+		// Create new user with pending status
 		user, err = s.userRepo.CreateGoogleUser(ctx, email, name, googleID)
 		if err != nil {
 			return nil, err
 		}
 
-		// Auto-assign admin role to the first registered user
-		if s.roleRepo != nil {
-			if err := s.autoAssignAdminToFirstUser(ctx, user.ID); err != nil {
-				log.Printf("[WARN] Failed to auto-assign admin role to first Google user %s: %v", user.ID, err)
-			}
-		}
+		log.Printf("[INFO] New Google user registered (pending approval): %s", email)
+
+		// Return pending status - no JWT issued until approved
+		return nil, ErrUserPending
+	}
+
+	// Check user status - only active users can login
+	switch user.Status {
+	case models.UserStatusPending:
+		return nil, ErrUserPending
+	case models.UserStatusDisabled:
+		return nil, ErrUserDisabled
+	case models.UserStatusActive:
+		// OK, proceed
+	default:
+		// Unknown status, treat as pending
+		return nil, ErrUserPending
 	}
 
 	// Generate token
@@ -171,25 +188,6 @@ func (s *AuthService) ValidateToken(tokenString string) (uuid.UUID, error) {
 	}
 
 	return uuid.Nil, errors.New("invalid token")
-}
-
-// autoAssignAdminToFirstUser assigns admin role to the first registered user
-func (s *AuthService) autoAssignAdminToFirstUser(ctx context.Context, userID uuid.UUID) error {
-	count, err := s.roleRepo.CountUsers(ctx)
-	if err != nil {
-		return err
-	}
-
-	// Only assign admin to the very first user
-	if count == 1 {
-		adminRole, err := s.roleRepo.GetAdminRole(ctx)
-		if err != nil {
-			return err
-		}
-		return s.roleRepo.AssignRole(ctx, userID, adminRole.ID, nil)
-	}
-
-	return nil
 }
 
 // GetUserRoles returns the roles for a specific user
