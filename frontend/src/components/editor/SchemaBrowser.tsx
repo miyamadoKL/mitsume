@@ -1,12 +1,56 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
+import { AxiosError } from 'axios'
 import { catalogApi } from '@/services/api'
-import { CatalogNode } from './CatalogNode'
+import { VirtualizedTree, FlatNode } from './VirtualizedTree'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
-import { Search, RefreshCw, Eye, EyeOff, Loader2, X } from 'lucide-react'
+import { Search, RefreshCw, Eye, EyeOff, Loader2, X, Globe } from 'lucide-react'
 import { buildFullyQualifiedName, quoteIdentifier } from '@/lib/sql-utils'
 import { useDebounce } from '@/hooks/useDebounce'
+import type { ColumnInfo, MetadataSearchResult } from '@/types'
+
+// Helper to check if error is 403
+const isAccessDenied = (err: unknown): boolean => {
+  if (err instanceof AxiosError) {
+    return err.response?.status === 403
+  }
+  return false
+}
+
+// Storage keys
+const STORAGE_KEYS = {
+  EXPANDED_CATALOGS: 'mitsume-schema-browser-expanded-catalogs',
+  EXPANDED_SCHEMAS: 'mitsume-schema-browser-expanded-schemas',
+  EXPANDED_TABLES: 'mitsume-schema-browser-expanded-tables',
+  SHOW_SYSTEM_SCHEMAS: 'mitsume-schema-browser-show-system-schemas',
+}
+
+// System schemas to filter
+const SYSTEM_SCHEMAS = new Set([
+  'information_schema',
+  'sys',
+  'pg_catalog',
+  '$system',
+])
+
+// Helper to load Set from localStorage
+const loadSetFromStorage = (key: string): Set<string> => {
+  try {
+    const stored = localStorage.getItem(key)
+    if (stored) {
+      return new Set(JSON.parse(stored))
+    }
+  } catch {
+    // Ignore parse errors
+  }
+  return new Set()
+}
+
+// Helper to save Set to localStorage
+const saveSetToStorage = (key: string, set: Set<string>) => {
+  localStorage.setItem(key, JSON.stringify([...set]))
+}
 
 interface SchemaBrowserProps {
   onInsert: (text: string) => void
@@ -15,17 +59,235 @@ interface SchemaBrowserProps {
 export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
   const { t } = useTranslation()
 
-  // Data state
+  // Data state - load from localStorage
   const [catalogs, setCatalogs] = useState<string[]>([])
-  const [expandedCatalogs, setExpandedCatalogs] = useState<Set<string>>(new Set())
+  const [expandedCatalogs, setExpandedCatalogs] = useState<Set<string>>(() =>
+    loadSetFromStorage(STORAGE_KEYS.EXPANDED_CATALOGS)
+  )
   const [schemasMap, setSchemasMap] = useState<Map<string, string[]>>(new Map())
-  const [expandedSchemas, setExpandedSchemas] = useState<Set<string>>(new Set())
+  const [expandedSchemas, setExpandedSchemas] = useState<Set<string>>(() =>
+    loadSetFromStorage(STORAGE_KEYS.EXPANDED_SCHEMAS)
+  )
   const [tablesMap, setTablesMap] = useState<Map<string, string[]>>(new Map())
+  const [expandedTables, setExpandedTables] = useState<Set<string>>(() =>
+    loadSetFromStorage(STORAGE_KEYS.EXPANDED_TABLES)
+  )
+  const [columnsMap, setColumnsMap] = useState<Map<string, ColumnInfo[]>>(new Map())
   const [searchQuery, setSearchQuery] = useState('')
-  const debouncedSearch = useDebounce(searchQuery, 200)
-  const [showSystemSchemas, setShowSystemSchemas] = useState(false)
+  const debouncedSearch = useDebounce(searchQuery, 300)
+  const [useServerSearch, setUseServerSearch] = useState(false)
+  const [serverSearchResults, setServerSearchResults] = useState<MetadataSearchResult[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showSystemSchemas, setShowSystemSchemas] = useState(() => {
+    const stored = localStorage.getItem(STORAGE_KEYS.SHOW_SYSTEM_SCHEMAS)
+    return stored === 'true'
+  })
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Track access denied items (403 errors)
+  const [accessDeniedCatalogs, setAccessDeniedCatalogs] = useState<Set<string>>(new Set())
+  const [accessDeniedSchemas, setAccessDeniedSchemas] = useState<Set<string>>(new Set())
+
+  // Track loading states
+  const [loadingNodes, setLoadingNodes] = useState<Set<string>>(new Set())
+
+  // Save expanded catalogs to localStorage
+  useEffect(() => {
+    saveSetToStorage(STORAGE_KEYS.EXPANDED_CATALOGS, expandedCatalogs)
+  }, [expandedCatalogs])
+
+  // Save expanded schemas to localStorage
+  useEffect(() => {
+    saveSetToStorage(STORAGE_KEYS.EXPANDED_SCHEMAS, expandedSchemas)
+  }, [expandedSchemas])
+
+  // Save expanded tables to localStorage
+  useEffect(() => {
+    saveSetToStorage(STORAGE_KEYS.EXPANDED_TABLES, expandedTables)
+  }, [expandedTables])
+
+  // Save showSystemSchemas to localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEYS.SHOW_SYSTEM_SCHEMAS, String(showSystemSchemas))
+  }, [showSystemSchemas])
+
+  // Server-side search effect
+  useEffect(() => {
+    if (!useServerSearch || !debouncedSearch || debouncedSearch.length < 2) {
+      setServerSearchResults([])
+      return
+    }
+
+    let cancelled = false
+    const search = async () => {
+      setIsSearching(true)
+      try {
+        const results = await catalogApi.searchMetadata(debouncedSearch, 'all', 50)
+        if (!cancelled) {
+          setServerSearchResults(results)
+        }
+      } catch (err) {
+        console.error('Search metadata failed:', err)
+        if (!cancelled) {
+          setServerSearchResults([])
+        }
+      } finally {
+        if (!cancelled) {
+          setIsSearching(false)
+        }
+      }
+    }
+
+    search()
+    return () => {
+      cancelled = true
+    }
+  }, [debouncedSearch, useServerSearch])
+
+  // Flatten tree into FlatNode array for virtualization
+  const flatNodes = useMemo(() => {
+    const result: FlatNode[] = []
+    const searchLower = debouncedSearch.toLowerCase()
+
+    // Server-side search mode: show flat list of results
+    if (useServerSearch && debouncedSearch.length >= 2 && serverSearchResults.length > 0) {
+      for (const sr of serverSearchResults) {
+        if (sr.type === 'table') {
+          const tableId = `${sr.catalog}.${sr.schema}.${sr.table}`
+          result.push({
+            id: tableId,
+            type: 'table',
+            depth: 0,
+            name: `${sr.catalog}.${sr.schema}.${sr.table}`,
+            isExpanded: false,
+            isLoading: false,
+            isAccessDenied: false,
+            hasChildren: false,
+            parentId: null,
+            matchesSearch: true,
+          })
+        } else if (sr.type === 'column' && sr.column) {
+          const columnId = `${sr.catalog}.${sr.schema}.${sr.table}.${sr.column}`
+          result.push({
+            id: columnId,
+            type: 'column',
+            depth: 0,
+            name: `${sr.catalog}.${sr.schema}.${sr.table}.${sr.column}`,
+            isExpanded: false,
+            isLoading: false,
+            isAccessDenied: false,
+            hasChildren: false,
+            parentId: null,
+            matchesSearch: true,
+          })
+        }
+      }
+      return result
+    }
+
+    for (const catalog of catalogs) {
+      const catalogId = catalog
+      const schemas = schemasMap.get(catalog) || []
+      const filteredSchemas = showSystemSchemas
+        ? schemas
+        : schemas.filter(s => !SYSTEM_SCHEMAS.has(s.toLowerCase()))
+
+      result.push({
+        id: catalogId,
+        type: 'catalog',
+        depth: 0,
+        name: catalog,
+        isExpanded: expandedCatalogs.has(catalogId),
+        isLoading: loadingNodes.has(catalogId),
+        isAccessDenied: accessDeniedCatalogs.has(catalogId),
+        hasChildren: true,
+        parentId: null,
+      })
+
+      if (!expandedCatalogs.has(catalogId)) continue
+
+      for (const schema of filteredSchemas) {
+        const schemaId = `${catalog}.${schema}`
+        const tables = tablesMap.get(schemaId) || []
+
+        result.push({
+          id: schemaId,
+          type: 'schema',
+          depth: 1,
+          name: schema,
+          isExpanded: expandedSchemas.has(schemaId),
+          isLoading: loadingNodes.has(schemaId),
+          isAccessDenied: accessDeniedSchemas.has(schemaId),
+          hasChildren: true,
+          parentId: catalogId,
+        })
+
+        if (!expandedSchemas.has(schemaId)) continue
+
+        // Filter tables by search query (local filtering when not using server search)
+        const filteredTables = (!useServerSearch && debouncedSearch)
+          ? tables.filter(t => t.toLowerCase().includes(searchLower))
+          : tables
+
+        for (const table of filteredTables) {
+          const tableId = `${catalog}.${schema}.${table}`
+          const columns = columnsMap.get(tableId) || []
+
+          result.push({
+            id: tableId,
+            type: 'table',
+            depth: 2,
+            name: table,
+            isExpanded: expandedTables.has(tableId),
+            isLoading: loadingNodes.has(tableId),
+            isAccessDenied: false,
+            hasChildren: true,
+            parentId: schemaId,
+            matchesSearch: debouncedSearch ? table.toLowerCase().includes(searchLower) : undefined,
+          })
+
+          if (!expandedTables.has(tableId)) continue
+
+          for (const col of columns) {
+            result.push({
+              id: `${tableId}.${col.name}`,
+              type: 'column',
+              depth: 3,
+              name: col.name,
+              isExpanded: false,
+              isLoading: false,
+              isAccessDenied: false,
+              hasChildren: false,
+              parentId: tableId,
+              columnInfo: {
+                type: col.type,
+                nullable: col.nullable,
+                comment: col.comment ?? null,
+              },
+            })
+          }
+        }
+      }
+    }
+
+    return result
+  }, [
+    catalogs,
+    schemasMap,
+    tablesMap,
+    columnsMap,
+    expandedCatalogs,
+    expandedSchemas,
+    expandedTables,
+    loadingNodes,
+    accessDeniedCatalogs,
+    accessDeniedSchemas,
+    showSystemSchemas,
+    debouncedSearch,
+    useServerSearch,
+    serverSearchResults,
+  ])
 
   // Initial load
   useEffect(() => {
@@ -38,6 +300,39 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
     try {
       const data = await catalogApi.getCatalogs()
       setCatalogs(data)
+
+      // Restore previously expanded catalogs by loading their schemas
+      const restoredCatalogs = new Set<string>()
+      for (const catalog of expandedCatalogs) {
+        if (data.includes(catalog) && !schemasMap.has(catalog)) {
+          try {
+            const schemas = await catalogApi.getSchemas(catalog)
+            setSchemasMap(prev => new Map(prev).set(catalog, schemas))
+            restoredCatalogs.add(catalog)
+          } catch (err) {
+            if (isAccessDenied(err)) {
+              setAccessDeniedCatalogs(prev => new Set(prev).add(catalog))
+            }
+          }
+        }
+      }
+
+      // Restore previously expanded schemas by loading their tables
+      for (const key of expandedSchemas) {
+        const [catalog, schema] = key.split('.')
+        if (restoredCatalogs.has(catalog) || schemasMap.has(catalog)) {
+          if (!tablesMap.has(key)) {
+            try {
+              const tables = await catalogApi.getTables(catalog, schema)
+              setTablesMap(prev => new Map(prev).set(key, tables))
+            } catch (err) {
+              if (isAccessDenied(err)) {
+                setAccessDeniedSchemas(prev => new Set(prev).add(key))
+              }
+            }
+          }
+        }
+      }
     } catch {
       setError(t('editor.schemaBrowser.error', 'Failed to load catalogs'))
     } finally {
@@ -46,71 +341,154 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
   }
 
   const handleRefresh = () => {
-    // Clear cache
+    // Clear cache and expansion state
     setSchemasMap(new Map())
     setTablesMap(new Map())
+    setColumnsMap(new Map())
+    setExpandedCatalogs(new Set())
+    setExpandedSchemas(new Set())
+    setExpandedTables(new Set())
+    setAccessDeniedCatalogs(new Set())
+    setAccessDeniedSchemas(new Set())
     loadCatalogs()
   }
 
-  // Catalog expand
-  const handleCatalogExpand = async (catalog: string) => {
-    if (expandedCatalogs.has(catalog)) {
-      setExpandedCatalogs(prev => {
-        const next = new Set(prev)
-        next.delete(catalog)
-        return next
-      })
-      return
-    }
+  // Handle node expand/collapse
+  const handleNodeExpand = useCallback(async (node: FlatNode) => {
+    const nodeId = node.id
 
-    setExpandedCatalogs(prev => new Set(prev).add(catalog))
+    // Don't expand if access denied
+    if (node.isAccessDenied) return
 
-    if (!schemasMap.has(catalog)) {
-      try {
-        const schemas = await catalogApi.getSchemas(catalog)
-        setSchemasMap(prev => new Map(prev).set(catalog, schemas))
-      } catch {
-        // Error handling
+    if (node.type === 'catalog') {
+      if (expandedCatalogs.has(nodeId)) {
+        setExpandedCatalogs(prev => {
+          const next = new Set(prev)
+          next.delete(nodeId)
+          return next
+        })
+        return
+      }
+
+      setExpandedCatalogs(prev => new Set(prev).add(nodeId))
+
+      if (!schemasMap.has(nodeId)) {
+        setLoadingNodes(prev => new Set(prev).add(nodeId))
+        try {
+          const schemas = await catalogApi.getSchemas(nodeId)
+          setSchemasMap(prev => new Map(prev).set(nodeId, schemas))
+        } catch (err) {
+          if (isAccessDenied(err)) {
+            setAccessDeniedCatalogs(prev => new Set(prev).add(nodeId))
+            setExpandedCatalogs(prev => {
+              const next = new Set(prev)
+              next.delete(nodeId)
+              return next
+            })
+          }
+        } finally {
+          setLoadingNodes(prev => {
+            const next = new Set(prev)
+            next.delete(nodeId)
+            return next
+          })
+        }
+      }
+    } else if (node.type === 'schema') {
+      if (expandedSchemas.has(nodeId)) {
+        setExpandedSchemas(prev => {
+          const next = new Set(prev)
+          next.delete(nodeId)
+          return next
+        })
+        return
+      }
+
+      setExpandedSchemas(prev => new Set(prev).add(nodeId))
+
+      if (!tablesMap.has(nodeId)) {
+        setLoadingNodes(prev => new Set(prev).add(nodeId))
+        try {
+          const [catalog, schema] = nodeId.split('.')
+          const tables = await catalogApi.getTables(catalog, schema)
+          setTablesMap(prev => new Map(prev).set(nodeId, tables))
+        } catch (err) {
+          if (isAccessDenied(err)) {
+            setAccessDeniedSchemas(prev => new Set(prev).add(nodeId))
+            setExpandedSchemas(prev => {
+              const next = new Set(prev)
+              next.delete(nodeId)
+              return next
+            })
+          }
+        } finally {
+          setLoadingNodes(prev => {
+            const next = new Set(prev)
+            next.delete(nodeId)
+            return next
+          })
+        }
+      }
+    } else if (node.type === 'table') {
+      if (expandedTables.has(nodeId)) {
+        setExpandedTables(prev => {
+          const next = new Set(prev)
+          next.delete(nodeId)
+          return next
+        })
+        return
+      }
+
+      setExpandedTables(prev => new Set(prev).add(nodeId))
+
+      if (!columnsMap.has(nodeId)) {
+        setLoadingNodes(prev => new Set(prev).add(nodeId))
+        try {
+          const [catalog, schema, table] = nodeId.split('.')
+          const columns = await catalogApi.getColumns(catalog, schema, table)
+          setColumnsMap(prev => new Map(prev).set(nodeId, columns))
+        } catch (err) {
+          console.error('Failed to load columns:', err)
+        } finally {
+          setLoadingNodes(prev => {
+            const next = new Set(prev)
+            next.delete(nodeId)
+            return next
+          })
+        }
       }
     }
-  }
+  }, [expandedCatalogs, expandedSchemas, expandedTables, schemasMap, tablesMap, columnsMap])
 
-  // Schema expand
-  const handleSchemaExpand = async (catalog: string, schema: string) => {
-    const key = `${catalog}.${schema}`
+  // Handle node click - insert name
+  const handleNodeClick = useCallback((node: FlatNode) => {
+    // Server search mode shows full paths in name, use id for proper parsing
+    const parts = node.id.split('.')
 
-    if (expandedSchemas.has(key)) {
-      setExpandedSchemas(prev => {
-        const next = new Set(prev)
-        next.delete(key)
-        return next
-      })
-      return
+    if (node.type === 'table') {
+      const [catalog, schema, table] = parts
+      const fullName = buildFullyQualifiedName(catalog, schema, table)
+      onInsert(fullName)
+    } else if (node.type === 'column') {
+      // In server search mode, column id is catalog.schema.table.column
+      // Extract just the column name
+      const columnName = parts[parts.length - 1]
+      const quotedColumn = quoteIdentifier(columnName)
+      onInsert(quotedColumn)
+    } else if (node.type === 'catalog' || node.type === 'schema') {
+      const quotedName = parts.map(p => quoteIdentifier(p)).join('.')
+      onInsert(quotedName)
     }
+  }, [onInsert])
 
-    setExpandedSchemas(prev => new Set(prev).add(key))
-
-    if (!tablesMap.has(key)) {
-      try {
-        const tables = await catalogApi.getTables(catalog, schema)
-        setTablesMap(prev => new Map(prev).set(key, tables))
-      } catch {
-        // Error handling
-      }
+  // Handle node double click - insert SELECT statement for tables
+  const handleNodeDoubleClick = useCallback((node: FlatNode) => {
+    if (node.type === 'table') {
+      const [catalog, schema, table] = node.id.split('.')
+      const fullName = buildFullyQualifiedName(catalog, schema, table)
+      onInsert(`SELECT * FROM ${fullName} LIMIT 100`)
     }
-  }
-
-  // Table click
-  const handleTableClick = (catalog: string, schema: string, table: string) => {
-    const fullName = buildFullyQualifiedName(catalog, schema, table)
-    onInsert(fullName)
-  }
-
-  // Column click
-  const handleColumnClick = (column: string) => {
-    const quotedColumn = quoteIdentifier(column)
-    onInsert(quotedColumn)
-  }
+  }, [onInsert])
 
   return (
     <div className="w-full flex flex-col h-full">
@@ -152,10 +530,20 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
         >
           {showSystemSchemas ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </Button>
+        <Button
+          variant={useServerSearch ? 'secondary' : 'ghost'}
+          size="icon"
+          onClick={() => setUseServerSearch(!useServerSearch)}
+          title={useServerSearch
+            ? t('editor.schemaBrowser.useLocalSearch', 'Switch to local search')
+            : t('editor.schemaBrowser.useServerSearch', 'Switch to cross-catalog search')}
+        >
+          <Globe className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Tree */}
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className="flex-1 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-4">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -167,27 +555,29 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
               {t('editor.schemaBrowser.retry', 'Retry')}
             </Button>
           </div>
+        ) : isSearching ? (
+          <div className="flex items-center justify-center py-4 gap-2">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            <span className="text-sm text-muted-foreground">
+              {t('editor.schemaBrowser.searching', 'Searching...')}
+            </span>
+          </div>
+        ) : useServerSearch && debouncedSearch.length >= 2 && serverSearchResults.length === 0 ? (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            {t('editor.schemaBrowser.noSearchResults', 'No results found')}
+          </p>
         ) : catalogs.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">
             {t('editor.schemaBrowser.noCatalogs', 'No catalogs available')}
           </p>
         ) : (
-          catalogs.map(catalog => (
-            <CatalogNode
-              key={catalog}
-              catalog={catalog}
-              isExpanded={expandedCatalogs.has(catalog)}
-              schemas={schemasMap.get(catalog) || []}
-              expandedSchemas={expandedSchemas}
-              tablesMap={tablesMap}
-              showSystemSchemas={showSystemSchemas}
-              searchQuery={debouncedSearch}
-              onExpand={() => handleCatalogExpand(catalog)}
-              onSchemaExpand={(schema) => handleSchemaExpand(catalog, schema)}
-              onTableClick={(schema, table) => handleTableClick(catalog, schema, table)}
-              onColumnClick={(_, __, column) => handleColumnClick(column)}
-            />
-          ))
+          <VirtualizedTree
+            nodes={flatNodes}
+            searchQuery={debouncedSearch}
+            onNodeExpand={handleNodeExpand}
+            onNodeClick={handleNodeClick}
+            onNodeDoubleClick={handleNodeDoubleClick}
+          />
         )}
       </div>
     </div>

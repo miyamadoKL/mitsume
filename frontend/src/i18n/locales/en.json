@@ -107,7 +107,11 @@
       "noSchemas": "No schemas",
       "noTables": "No tables",
       "noColumns": "No columns",
-      "loadingColumns": "Loading columns..."
+      "loadingColumns": "Loading columns...",
+      "searching": "Searching...",
+      "noSearchResults": "No results found",
+      "useLocalSearch": "Switch to local search",
+      "useServerSearch": "Switch to cross-catalog search"
     }
   },
   "export": {

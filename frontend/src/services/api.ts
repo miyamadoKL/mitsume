@@ -34,6 +34,7 @@ import type {
   WidgetDataResponse,
   BatchWidgetUpdateRequest,
   BatchWidgetUpdateResponse,
+  MetadataSearchResult,
 } from '@/types'
 
 const api = axios.create({
@@ -173,6 +174,19 @@ export const catalogApi = {
       `/catalogs/${catalog}/schemas/${schema}/tables/${table}/columns`
     )
     return data.columns
+  },
+
+  searchMetadata: async (
+    query: string,
+    searchType: 'table' | 'column' | 'all' = 'all',
+    limit = 50
+  ): Promise<MetadataSearchResult[]> => {
+    const { data } = await api.post<{ results: MetadataSearchResult[] }>('/search/metadata', {
+      query,
+      search_type: searchType,
+      limit,
+    })
+    return data.results || []
   },
 }
 

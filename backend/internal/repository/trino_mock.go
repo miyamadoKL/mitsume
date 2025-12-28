@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/mitsume/backend/internal/models"
@@ -181,4 +182,71 @@ func (m *MockTrinoExecutor) SetColumns(catalog, schema, table string, columns []
 // In mock, it simply delegates to ExecuteQuery (no actual caching)
 func (m *MockTrinoExecutor) ExecuteQueryWithCache(ctx context.Context, query, catalog, schema string, priority int, savedQueryID *uuid.UUID) (*models.QueryResult, error) {
 	return m.ExecuteQuery(ctx, query, catalog, schema)
+}
+
+// SearchMetadata implements TrinoExecutor interface
+// Returns mock search results matching the query string
+func (m *MockTrinoExecutor) SearchMetadata(ctx context.Context, query, searchType string, catalogs []string, limit int) ([]models.MetadataSearchResult, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+
+	var results []models.MetadataSearchResult
+	queryLower := strings.ToLower(query)
+
+	// Filter catalogs to only those we have data for
+	allowedCatalogs := make(map[string]bool)
+	for _, c := range catalogs {
+		allowedCatalogs[c] = true
+	}
+
+	for _, catalog := range m.Catalogs {
+		if !allowedCatalogs[catalog] {
+			continue
+		}
+
+		for schema, tables := range m.Tables[catalog] {
+			// Skip system schemas
+			if schema == "information_schema" || schema == "sys" || schema == "pg_catalog" {
+				continue
+			}
+
+			for _, table := range tables {
+				// Search tables
+				if (searchType == "table" || searchType == "all") && strings.Contains(strings.ToLower(table), queryLower) {
+					results = append(results, models.MetadataSearchResult{
+						Catalog: catalog,
+						Schema:  schema,
+						Table:   table,
+						Type:    "table",
+					})
+					if len(results) >= limit {
+						return results, nil
+					}
+				}
+
+				// Search columns
+				if searchType == "column" || searchType == "all" {
+					if columns, ok := m.Columns[catalog][schema][table]; ok {
+						for _, col := range columns {
+							if strings.Contains(strings.ToLower(col.Name), queryLower) {
+								results = append(results, models.MetadataSearchResult{
+									Catalog: catalog,
+									Schema:  schema,
+									Table:   table,
+									Column:  col.Name,
+									Type:    "column",
+								})
+								if len(results) >= limit {
+									return results, nil
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return results, nil
 }

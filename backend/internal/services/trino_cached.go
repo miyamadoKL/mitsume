@@ -90,3 +90,8 @@ func (s *CachedTrinoService) GetTables(ctx context.Context, catalog, schema stri
 func (s *CachedTrinoService) GetColumns(ctx context.Context, catalog, schema, table string) ([]models.ColumnInfo, error) {
 	return s.trino.GetColumns(ctx, catalog, schema, table)
 }
+
+// SearchMetadata delegates to the underlying Trino service
+func (s *CachedTrinoService) SearchMetadata(ctx context.Context, query, searchType string, catalogs []string, limit int) ([]models.MetadataSearchResult, error) {
+	return s.trino.SearchMetadata(ctx, query, searchType, catalogs, limit)
+}

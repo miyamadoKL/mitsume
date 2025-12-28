@@ -91,3 +91,28 @@ func TestFormatValue(t *testing.T) {
 		})
 	}
 }
+
+func TestEscapeSearchQuery(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"simple_text", "users", "users"},
+		{"single_quote", "user's", "user''s"},
+		{"percent_sign", "100%", "100\\%"},
+		{"underscore", "user_name", "user\\_name"},
+		{"multiple_special", "user's_data%", "user''s\\_data\\%"},
+		{"empty_string", "", ""},
+		{"multiple_quotes", "it's user's data", "it''s user''s data"},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			got := escapeSearchQuery(tt.input)
+			if got != tt.want {
+				t.Fatalf("escapeSearchQuery(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}

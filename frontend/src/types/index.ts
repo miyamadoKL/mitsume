@@ -695,3 +695,18 @@ export interface WidgetDataResponse {
   required_parameters?: string[]
   missing_parameters?: string[]
 }
+
+// Metadata Search Types
+export interface MetadataSearchResult {
+  catalog: string
+  schema: string
+  table: string
+  column?: string
+  type: 'table' | 'column'
+}
+
+export interface MetadataSearchRequest {
+  query: string
+  search_type?: 'table' | 'column' | 'all'
+  limit?: number
+}

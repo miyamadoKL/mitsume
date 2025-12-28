@@ -248,6 +248,132 @@ func (s *TrinoService) GetColumns(ctx context.Context, catalog, schema, table st
 	return columns, nil
 }
 
+func (s *TrinoService) SearchMetadata(ctx context.Context, query, searchType string, catalogs []string, limit int) ([]models.MetadataSearchResult, error) {
+	if query == "" {
+		return []models.MetadataSearchResult{}, nil
+	}
+
+	if limit <= 0 || limit > 100 {
+		limit = 50 // Default limit
+	}
+
+	// Escape single quotes for SQL and create search pattern
+	escapedQuery := escapeSearchQuery(query)
+	searchPattern := "%" + escapedQuery + "%"
+
+	var results []models.MetadataSearchResult
+
+	// Search through each allowed catalog
+	for _, catalog := range catalogs {
+		if err := validateIdentifier(catalog); err != nil {
+			continue
+		}
+
+		// Search tables
+		if searchType == "table" || searchType == "all" {
+			tableQuery := fmt.Sprintf(`
+				SELECT
+					table_catalog,
+					table_schema,
+					table_name
+				FROM "%s".information_schema.tables
+				WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'sys')
+				  AND LOWER(table_name) LIKE LOWER('%s')
+				ORDER BY table_name
+				LIMIT %d
+			`, catalog, searchPattern, limit)
+
+			result, err := s.ExecuteQuery(ctx, tableQuery, catalog, "information_schema")
+			if err != nil {
+				continue // Skip catalogs with errors
+			}
+
+			for _, row := range result.Rows {
+				if len(row) < 3 {
+					continue
+				}
+				tableCatalog, _ := row[0].(string)
+				tableSchema, _ := row[1].(string)
+				tableName, _ := row[2].(string)
+
+				results = append(results, models.MetadataSearchResult{
+					Catalog: tableCatalog,
+					Schema:  tableSchema,
+					Table:   tableName,
+					Type:    "table",
+				})
+			}
+		}
+
+		// Search columns
+		if searchType == "column" || searchType == "all" {
+			columnQuery := fmt.Sprintf(`
+				SELECT
+					table_catalog,
+					table_schema,
+					table_name,
+					column_name
+				FROM "%s".information_schema.columns
+				WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'sys')
+				  AND LOWER(column_name) LIKE LOWER('%s')
+				ORDER BY column_name
+				LIMIT %d
+			`, catalog, searchPattern, limit)
+
+			result, err := s.ExecuteQuery(ctx, columnQuery, catalog, "information_schema")
+			if err != nil {
+				continue // Skip catalogs with errors
+			}
+
+			for _, row := range result.Rows {
+				if len(row) < 4 {
+					continue
+				}
+				tableCatalog, _ := row[0].(string)
+				tableSchema, _ := row[1].(string)
+				tableName, _ := row[2].(string)
+				columnName, _ := row[3].(string)
+
+				results = append(results, models.MetadataSearchResult{
+					Catalog: tableCatalog,
+					Schema:  tableSchema,
+					Table:   tableName,
+					Column:  columnName,
+					Type:    "column",
+				})
+			}
+		}
+
+		// Stop if we have enough results
+		if len(results) >= limit {
+			results = results[:limit]
+			break
+		}
+	}
+
+	return results, nil
+}
+
+// escapeSearchQuery escapes special characters in search query to prevent SQL injection
+func escapeSearchQuery(query string) string {
+	// Escape single quotes by doubling them
+	result := ""
+	for _, c := range query {
+		if c == '\'' {
+			result += "''"
+		} else if c == '%' {
+			// Escape % in LIKE pattern
+			result += "\\%"
+		} else if c == '_' {
+			// Escape _ in LIKE pattern
+			result += "\\_"
+		} else {
+			result += string(c)
+		}
+	}
+	return result
+}
+
 func (s *TrinoService) getDB(dsn string) (*sql.DB, error) {
 	if db, ok := s.dbs.Load(dsn); ok {
 		return db.(*sql.DB), nil

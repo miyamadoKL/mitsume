@@ -11,6 +11,7 @@ interface TableNodeProps {
   table: string
   searchQuery: string
   onTableClick: () => void
+  onTableDoubleClick: () => void
   onColumnClick: (columnName: string) => void
 }
 
@@ -20,6 +21,7 @@ export function TableNode({
   table,
   searchQuery,
   onTableClick,
+  onTableDoubleClick,
   onColumnClick,
 }: TableNodeProps) {
   const [expanded, setExpanded] = useState(false)
@@ -84,6 +86,7 @@ export function TableNode({
         <div
           className="flex items-center gap-1 flex-1 min-w-0"
           onClick={onTableClick}
+          onDoubleClick={onTableDoubleClick}
         >
           <Table2 className="h-4 w-4 shrink-0" />
           <span className="truncate">{highlightMatch(table, searchQuery)}</span>
