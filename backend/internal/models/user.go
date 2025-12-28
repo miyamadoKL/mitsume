@@ -8,7 +8,8 @@ import (
 
 type User struct {
 	ID           uuid.UUID `json:"id"`
-	Email        string    `json:"email"`
+	Email        *string   `json:"email,omitempty"`
+	Username     *string   `json:"username,omitempty"`
 	PasswordHash string    `json:"-"`
 	Name         string    `json:"name"`
 	AuthProvider string    `json:"auth_provider"`
@@ -18,7 +19,7 @@ type User struct {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required,email"`
+	Email    string `json:"email"`    // Email or username for admin users
 	Password string `json:"password" binding:"required,min=6"`
 }
 

@@ -321,6 +321,12 @@ func RunMigrations() error {
 		 ORDER BY u.created_at ASC
 		 LIMIT 1
 		 ON CONFLICT (user_id, role_id) DO NOTHING`,
+
+		// Add username column for admin users (who don't have email)
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(255) UNIQUE`,
+
+		// Make email nullable for admin users
+		`ALTER TABLE users ALTER COLUMN email DROP NOT NULL`,
 	}
 
 	for _, migration := range migrations {

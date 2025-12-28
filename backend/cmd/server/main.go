@@ -13,6 +13,7 @@ import (
 	"github.com/mitsume/backend/internal/api"
 	"github.com/mitsume/backend/internal/config"
 	"github.com/mitsume/backend/internal/database"
+	"github.com/mitsume/backend/internal/repository"
 	"github.com/mitsume/backend/internal/services"
 )
 
@@ -37,6 +38,15 @@ func main() {
 		log.Fatalf("Failed to run migrations: %v", err)
 	}
 
+	// Bootstrap admin user from environment variables
+	pool := database.GetPool()
+	userRepo := repository.NewPostgresUserRepository(pool)
+	roleRepo := repository.NewPostgresRoleRepository(pool)
+	adminBootstrap := services.NewAdminBootstrapService(&cfg.Admin, userRepo, roleRepo)
+	if err := adminBootstrap.EnsureAdminUser(context.Background()); err != nil {
+		log.Fatalf("Failed to bootstrap admin user: %v", err)
+	}
+
 	// Initialize cache service (if enabled)
 	var cacheService *services.QueryCacheService
 	if cfg.Cache.Enabled {
@@ -57,7 +67,7 @@ func main() {
 	api.SetupRoutes(r, cfg, cacheService)
 
 	// Initialize services for scheduler
-	pool := database.GetPool()
+	// pool is already initialized above for admin bootstrap
 	trinoService := services.NewTrinoService(&cfg.Trino)
 	cachedTrinoService := services.NewCachedTrinoService(trinoService, cacheService, &cfg.Cache)
 	queryService := services.NewQueryService(cacheService)

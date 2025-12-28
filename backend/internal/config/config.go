@@ -14,6 +14,12 @@ type Config struct {
 	Google       GoogleOAuthConfig
 	Notification NotificationConfig
 	Cache        CacheConfig
+	Admin        AdminConfig
+}
+
+type AdminConfig struct {
+	Username string // MITSUME_ADMIN_USERNAME (default: "admin")
+	Password string // MITSUME_ADMIN_PASSWORD (required for creation)
 }
 
 type CacheConfig struct {
@@ -131,6 +137,10 @@ func Load() (*Config, error) {
 			TTLNormalSeconds: getEnvInt("CACHE_TTL_NORMAL_SECONDS", 600),
 			TTLLowSeconds:    getEnvInt("CACHE_TTL_LOW_SECONDS", 60),
 			KeyPrefix:        getEnv("CACHE_KEY_PREFIX", "mitsume:cache:"),
+		},
+		Admin: AdminConfig{
+			Username: getEnv("MITSUME_ADMIN_USERNAME", "admin"),
+			Password: os.Getenv("MITSUME_ADMIN_PASSWORD"), // No default - empty means skip
 		},
 	}, nil
 }

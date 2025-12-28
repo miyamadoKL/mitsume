@@ -88,7 +88,7 @@ func TestRegister_Success(t *testing.T) {
 	if resp.Token == "" {
 		t.Fatal("Register() returned empty token")
 	}
-	if resp.User.Email != req.Email {
+	if resp.User.Email == nil || *resp.User.Email != req.Email {
 		t.Fatalf("Register() user email = %v, want %v", resp.User.Email, req.Email)
 	}
 	if resp.User.Name != req.Name {
@@ -102,9 +102,10 @@ func TestRegister_DuplicateEmail(t *testing.T) {
 	service := NewAuthService(cfg, mockRepo, nil)
 
 	// Add existing user
+	existingEmail := "existing@example.com"
 	existingUser := &models.User{
 		ID:    uuid.New(),
-		Email: "existing@example.com",
+		Email: &existingEmail,
 		Name:  "Existing User",
 	}
 	mockRepo.AddUser(existingUser)
@@ -134,9 +135,10 @@ func TestLogin_Success(t *testing.T) {
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 
 	// Add user with hashed password
+	email := "test@example.com"
 	user := &models.User{
 		ID:           uuid.New(),
-		Email:        "test@example.com",
+		Email:        &email,
 		PasswordHash: string(hashedPassword),
 		Name:         "Test User",
 		AuthProvider: "local",
@@ -156,7 +158,7 @@ func TestLogin_Success(t *testing.T) {
 	if resp.Token == "" {
 		t.Fatal("Login() returned empty token")
 	}
-	if resp.User.Email != user.Email {
+	if resp.User.Email == nil || *resp.User.Email != *user.Email {
 		t.Fatalf("Login() user email = %v, want %v", resp.User.Email, user.Email)
 	}
 }
@@ -175,8 +177,8 @@ func TestLogin_InvalidEmail(t *testing.T) {
 	if err == nil {
 		t.Fatal("Login() expected error for invalid email, got nil")
 	}
-	if err.Error() != "invalid email or password" {
-		t.Fatalf("Login() error = %v, want 'invalid email or password'", err)
+	if err.Error() != "invalid credentials" {
+		t.Fatalf("Login() error = %v, want 'invalid credentials'", err)
 	}
 }
 
@@ -188,9 +190,10 @@ func TestLogin_InvalidPassword(t *testing.T) {
 	// Create hashed password
 	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
 
+	email := "test@example.com"
 	user := &models.User{
 		ID:           uuid.New(),
-		Email:        "test@example.com",
+		Email:        &email,
 		PasswordHash: string(hashedPassword),
 		Name:         "Test User",
 		AuthProvider: "local",
@@ -206,8 +209,8 @@ func TestLogin_InvalidPassword(t *testing.T) {
 	if err == nil {
 		t.Fatal("Login() expected error for invalid password, got nil")
 	}
-	if err.Error() != "invalid email or password" {
-		t.Fatalf("Login() error = %v, want 'invalid email or password'", err)
+	if err.Error() != "invalid credentials" {
+		t.Fatalf("Login() error = %v, want 'invalid credentials'", err)
 	}
 }
 
@@ -216,9 +219,10 @@ func TestGetUserByID_Success(t *testing.T) {
 	mockRepo := repository.NewMockUserRepository()
 	service := NewAuthService(cfg, mockRepo, nil)
 
+	email := "test@example.com"
 	user := &models.User{
 		ID:    uuid.New(),
-		Email: "test@example.com",
+		Email: &email,
 		Name:  "Test User",
 	}
 	mockRepo.Users[user.ID] = user
@@ -249,9 +253,10 @@ func TestFindOrCreateGoogleUser_ExistingUser(t *testing.T) {
 	service := NewAuthService(cfg, mockRepo, nil)
 
 	googleID := "google-123"
+	email := "test@example.com"
 	user := &models.User{
 		ID:           uuid.New(),
-		Email:        "test@example.com",
+		Email:        &email,
 		Name:         "Test User",
 		AuthProvider: "google",
 	}
@@ -287,7 +292,7 @@ func TestFindOrCreateGoogleUser_NewUser(t *testing.T) {
 	if resp.Token == "" {
 		t.Fatal("FindOrCreateGoogleUser() returned empty token")
 	}
-	if resp.User.Email != email {
+	if resp.User.Email == nil || *resp.User.Email != email {
 		t.Fatalf("FindOrCreateGoogleUser() email = %v, want %v", resp.User.Email, email)
 	}
 	if resp.User.Name != name {
