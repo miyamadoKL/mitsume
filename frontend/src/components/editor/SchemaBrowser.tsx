@@ -296,7 +296,10 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
     loadCatalogs()
   }, [])
 
-  const loadCatalogs = async () => {
+  const loadCatalogs = useCallback(async (
+    catalogsToRestore: Set<string> = expandedCatalogs,
+    schemasToRestore: Set<string> = expandedSchemas
+  ) => {
     setIsLoading(true)
     setError(null)
     try {
@@ -305,7 +308,7 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
 
       // Restore previously expanded catalogs by loading their schemas
       const restoredCatalogs = new Set<string>()
-      for (const catalog of expandedCatalogs) {
+      for (const catalog of catalogsToRestore) {
         if (data.includes(catalog) && !schemasMap.has(catalog)) {
           try {
             const schemas = await catalogApi.getSchemas(catalog)
@@ -314,13 +317,16 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
           } catch (err) {
             if (isAccessDenied(err)) {
               setAccessDeniedCatalogs(prev => new Set(prev).add(catalog))
+            } else {
+              console.error(`Failed to restore schemas for catalog: ${catalog}`, err)
+              toast.error('Schema Browser', getErrorMessage(err))
             }
           }
         }
       }
 
       // Restore previously expanded schemas by loading their tables
-      for (const key of expandedSchemas) {
+      for (const key of schemasToRestore) {
         const [catalog, schema] = key.split('.')
         if (restoredCatalogs.has(catalog) || schemasMap.has(catalog)) {
           if (!tablesMap.has(key)) {
@@ -330,6 +336,9 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
             } catch (err) {
               if (isAccessDenied(err)) {
                 setAccessDeniedSchemas(prev => new Set(prev).add(key))
+              } else {
+                console.error(`Failed to restore tables for schema: ${key}`, err)
+                toast.error('Schema Browser', getErrorMessage(err))
               }
             }
           }
@@ -340,9 +349,9 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [expandedCatalogs, expandedSchemas, schemasMap, tablesMap, t])
 
-  const handleRefresh = () => {
+  const handleRefresh = useCallback(() => {
     // Clear cache and expansion state
     setSchemasMap(new Map())
     setTablesMap(new Map())
@@ -352,8 +361,9 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
     setExpandedTables(new Set())
     setAccessDeniedCatalogs(new Set())
     setAccessDeniedSchemas(new Set())
-    loadCatalogs()
-  }
+    // Pass empty sets to avoid restoring old expansion state
+    loadCatalogs(new Set(), new Set())
+  }, [loadCatalogs])
 
   // Handle node expand/collapse
   const handleNodeExpand = useCallback(async (node: FlatNode) => {
@@ -456,7 +466,8 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
           const columns = await catalogApi.getColumns(catalog, schema, table)
           setColumnsMap(prev => new Map(prev).set(nodeId, columns))
         } catch (err) {
-          console.error('Failed to load columns:', err)
+          console.error(`Failed to load columns for table: ${nodeId}`, err)
+          toast.error('Schema Browser', getErrorMessage(err))
         } finally {
           setLoadingNodes(prev => {
             const next = new Set(prev)
@@ -559,7 +570,7 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
         ) : error ? (
           <div className="text-center py-4">
             <p className="text-sm text-destructive">{error}</p>
-            <Button variant="link" onClick={loadCatalogs}>
+            <Button variant="link" onClick={() => loadCatalogs()}>
               {t('editor.schemaBrowser.retry', 'Retry')}
             </Button>
           </div>
@@ -585,6 +596,7 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
             onNodeExpand={handleNodeExpand}
             onNodeClick={handleNodeClick}
             onNodeDoubleClick={handleNodeDoubleClick}
+            emptyMessage={t('editor.schemaBrowser.noSearchResults', 'No results found')}
           />
         )}
       </div>

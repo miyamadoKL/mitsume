@@ -43,6 +43,7 @@ interface VirtualizedTreeProps {
   onNodeExpand: (node: FlatNode) => void
   onNodeClick: (node: FlatNode) => void
   onNodeDoubleClick: (node: FlatNode) => void
+  emptyMessage?: string
 }
 
 // Row height in pixels
@@ -54,6 +55,7 @@ export function VirtualizedTree({
   onNodeExpand,
   onNodeClick,
   onNodeDoubleClick,
+  emptyMessage = 'No items found',
 }: VirtualizedTreeProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   const [focusedIndex, setFocusedIndex] = useState(0)
@@ -226,7 +228,7 @@ export function VirtualizedTree({
   if (nodes.length === 0) {
     return (
       <div className="text-sm text-muted-foreground text-center py-4">
-        No items found
+        {emptyMessage}
       </div>
     )
   }
