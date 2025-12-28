@@ -34,6 +34,12 @@ func (s *AdminBootstrapService) EnsureAdminUser(ctx context.Context) error {
 		return nil
 	}
 
+	// Validate password length
+	if s.cfg.PasswordMinLength > 0 && len(s.cfg.Password) < s.cfg.PasswordMinLength {
+		return fmt.Errorf("MITSUME_ADMIN_PASSWORD is too short: got %d characters, minimum required is %d (set by MITSUME_ADMIN_PASSWORD_MIN_LENGTH)",
+			len(s.cfg.Password), s.cfg.PasswordMinLength)
+	}
+
 	// Check if user already exists by username
 	exists, err := s.userRepo.ExistsByUsername(ctx, s.cfg.Username)
 	if err != nil {

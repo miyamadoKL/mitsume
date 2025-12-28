@@ -236,3 +236,91 @@ func TestEnsureAdminUser_DefaultUsername(t *testing.T) {
 		t.Error("Expected user with username 'admin' to exist")
 	}
 }
+
+func TestEnsureAdminUser_PasswordTooShort_FailsStartup(t *testing.T) {
+	userRepo := repository.NewMockUserRepository()
+	roleRepo := newMockRoleRepository()
+
+	cfg := &config.AdminConfig{
+		Username:          "admin",
+		Password:          "test", // Only 4 characters
+		PasswordMinLength: 6,      // Requires 6
+	}
+
+	svc := NewAdminBootstrapService(cfg, userRepo, roleRepo)
+	err := svc.EnsureAdminUser(context.Background())
+
+	if err == nil {
+		t.Error("Expected error when password is too short, got nil")
+	}
+
+	// Check error message contains useful information
+	expectedSubstr := "too short"
+	if err != nil && !contains(err.Error(), expectedSubstr) {
+		t.Errorf("Expected error message to contain '%s', got: %v", expectedSubstr, err)
+	}
+
+	// Should not create any user
+	if len(userRepo.Users) != 0 {
+		t.Errorf("Expected 0 users when password too short, got: %d", len(userRepo.Users))
+	}
+}
+
+func TestEnsureAdminUser_PasswordMinLengthZero_AllowsShortPassword(t *testing.T) {
+	userRepo := repository.NewMockUserRepository()
+	roleRepo := newMockRoleRepository()
+
+	cfg := &config.AdminConfig{
+		Username:          "admin",
+		Password:          "test", // Only 4 characters
+		PasswordMinLength: 0,      // No minimum
+	}
+
+	svc := NewAdminBootstrapService(cfg, userRepo, roleRepo)
+	err := svc.EnsureAdminUser(context.Background())
+
+	if err != nil {
+		t.Errorf("Expected no error when min length is 0, got: %v", err)
+	}
+
+	// Should create user
+	if len(userRepo.Users) != 1 {
+		t.Errorf("Expected 1 user, got: %d", len(userRepo.Users))
+	}
+}
+
+func TestEnsureAdminUser_PasswordExactlyMinLength_Succeeds(t *testing.T) {
+	userRepo := repository.NewMockUserRepository()
+	roleRepo := newMockRoleRepository()
+
+	cfg := &config.AdminConfig{
+		Username:          "admin",
+		Password:          "123456", // Exactly 6 characters
+		PasswordMinLength: 6,        // Requires 6
+	}
+
+	svc := NewAdminBootstrapService(cfg, userRepo, roleRepo)
+	err := svc.EnsureAdminUser(context.Background())
+
+	if err != nil {
+		t.Errorf("Expected no error when password is exactly min length, got: %v", err)
+	}
+
+	// Should create user
+	if len(userRepo.Users) != 1 {
+		t.Errorf("Expected 1 user, got: %d", len(userRepo.Users))
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

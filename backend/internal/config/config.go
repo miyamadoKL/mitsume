@@ -18,8 +18,9 @@ type Config struct {
 }
 
 type AdminConfig struct {
-	Username string // MITSUME_ADMIN_USERNAME (default: "admin")
-	Password string // MITSUME_ADMIN_PASSWORD (required for creation)
+	Username          string // MITSUME_ADMIN_USERNAME (default: "admin")
+	Password          string // MITSUME_ADMIN_PASSWORD (required for creation)
+	PasswordMinLength int    // MITSUME_ADMIN_PASSWORD_MIN_LENGTH (default: 0)
 }
 
 type CacheConfig struct {
@@ -139,8 +140,9 @@ func Load() (*Config, error) {
 			KeyPrefix:        getEnv("CACHE_KEY_PREFIX", "mitsume:cache:"),
 		},
 		Admin: AdminConfig{
-			Username: getEnv("MITSUME_ADMIN_USERNAME", "admin"),
-			Password: os.Getenv("MITSUME_ADMIN_PASSWORD"), // No default - empty means skip
+			Username:          getEnv("MITSUME_ADMIN_USERNAME", "admin"),
+			Password:          os.Getenv("MITSUME_ADMIN_PASSWORD"), // No default - empty means skip
+			PasswordMinLength: getEnvInt("MITSUME_ADMIN_PASSWORD_MIN_LENGTH", 0),
 		},
 	}, nil
 }
