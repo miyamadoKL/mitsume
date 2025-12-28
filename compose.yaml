@@ -69,6 +69,8 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URL: ${GOOGLE_REDIRECT_URL:-http://localhost:8080/api/auth/google/callback}
+      MITSUME_ADMIN_USERNAME: ${MITSUME_ADMIN_USERNAME:-admin}
+      MITSUME_ADMIN_PASSWORD: ${MITSUME_ADMIN_PASSWORD:-}
     ports:
       - "8080:8080"
     depends_on:
