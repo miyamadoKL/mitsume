@@ -40,6 +40,14 @@ export interface QueryResult {
   execution_time_ms: number
 }
 
+export interface ColumnInfo {
+  name: string
+  type: string
+  nullable: boolean
+  comment?: string
+  ordinal_position: number
+}
+
 export type PermissionLevel = 'view' | 'edit' | 'owner' | ''
 
 // Parameter Definition Types for Dashboard Filters

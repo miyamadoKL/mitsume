@@ -11,8 +11,9 @@ import (
 type MockTrinoExecutor struct {
 	// Predefined responses
 	Catalogs []string
-	Schemas  map[string][]string          // catalog -> schemas
-	Tables   map[string]map[string][]string // catalog -> schema -> tables
+	Schemas  map[string][]string                               // catalog -> schemas
+	Tables   map[string]map[string][]string                    // catalog -> schema -> tables
+	Columns  map[string]map[string]map[string][]models.ColumnInfo // catalog -> schema -> table -> columns
 
 	// Query results
 	QueryResults map[string]*models.QueryResult // query -> result
@@ -22,12 +23,14 @@ type MockTrinoExecutor struct {
 	GetCatalogsError  error
 	GetSchemasError   error
 	GetTablesError    error
+	GetColumnsError   error
 
 	// Function hooks for custom behavior
 	ExecuteQueryFunc func(ctx context.Context, query, catalog, schema string) (*models.QueryResult, error)
 	GetCatalogsFunc  func(ctx context.Context) ([]string, error)
 	GetSchemasFunc   func(ctx context.Context, catalog string) ([]string, error)
 	GetTablesFunc    func(ctx context.Context, catalog, schema string) ([]string, error)
+	GetColumnsFunc   func(ctx context.Context, catalog, schema, table string) ([]models.ColumnInfo, error)
 
 	// Call tracking
 	ExecuteQueryCalls []ExecuteQueryCall
@@ -46,6 +49,7 @@ func NewMockTrinoExecutor() *MockTrinoExecutor {
 		Catalogs:     []string{},
 		Schemas:      make(map[string][]string),
 		Tables:       make(map[string]map[string][]string),
+		Columns:      make(map[string]map[string]map[string][]models.ColumnInfo),
 		QueryResults: make(map[string]*models.QueryResult),
 	}
 }
@@ -125,6 +129,26 @@ func (m *MockTrinoExecutor) GetTables(ctx context.Context, catalog, schema strin
 	return []string{}, nil
 }
 
+func (m *MockTrinoExecutor) GetColumns(ctx context.Context, catalog, schema, table string) ([]models.ColumnInfo, error) {
+	if m.GetColumnsFunc != nil {
+		return m.GetColumnsFunc(ctx, catalog, schema, table)
+	}
+
+	if m.GetColumnsError != nil {
+		return nil, m.GetColumnsError
+	}
+
+	if catalogSchemas, ok := m.Columns[catalog]; ok {
+		if schemaTables, ok := catalogSchemas[schema]; ok {
+			if columns, ok := schemaTables[table]; ok {
+				return columns, nil
+			}
+		}
+	}
+
+	return []models.ColumnInfo{}, nil
+}
+
 // SetupCatalog adds a catalog with schemas and tables for testing
 func (m *MockTrinoExecutor) SetupCatalog(catalog string, schemas map[string][]string) {
 	m.Catalogs = append(m.Catalogs, catalog)
@@ -140,6 +164,17 @@ func (m *MockTrinoExecutor) SetupCatalog(catalog string, schemas map[string][]st
 // SetQueryResult sets a predefined result for a specific query
 func (m *MockTrinoExecutor) SetQueryResult(query string, result *models.QueryResult) {
 	m.QueryResults[query] = result
+}
+
+// SetColumns sets predefined columns for a specific table
+func (m *MockTrinoExecutor) SetColumns(catalog, schema, table string, columns []models.ColumnInfo) {
+	if m.Columns[catalog] == nil {
+		m.Columns[catalog] = make(map[string]map[string][]models.ColumnInfo)
+	}
+	if m.Columns[catalog][schema] == nil {
+		m.Columns[catalog][schema] = make(map[string][]models.ColumnInfo)
+	}
+	m.Columns[catalog][schema][table] = columns
 }
 
 // ExecuteQueryWithCache implements CachedTrinoExecutor interface

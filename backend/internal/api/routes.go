@@ -66,6 +66,7 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 			protected.GET("/catalogs", queryHandler.GetCatalogs)
 			protected.GET("/catalogs/:catalog/schemas", queryHandler.GetSchemas)
 			protected.GET("/catalogs/:catalog/schemas/:schema/tables", queryHandler.GetTables)
+			protected.GET("/catalogs/:catalog/schemas/:schema/tables/:table/columns", queryHandler.GetColumns)
 
 			// Saved queries
 			protected.GET("/queries/saved", savedQueryHandler.GetSavedQueries)

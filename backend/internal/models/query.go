@@ -76,3 +76,12 @@ type WidgetDataResponse struct {
 type ParameterOptionsRequest struct {
 	Parameters map[string]interface{} `json:"parameters"`
 }
+
+// ColumnInfo represents column metadata from information_schema
+type ColumnInfo struct {
+	Name            string  `json:"name"`
+	Type            string  `json:"type"`
+	Nullable        bool    `json:"nullable"`
+	Comment         *string `json:"comment,omitempty"`
+	OrdinalPosition int     `json:"ordinal_position"`
+}

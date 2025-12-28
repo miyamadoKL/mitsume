@@ -94,6 +94,22 @@
     "csv": "CSV",
     "tsv": "TSV"
   },
+  "editor": {
+    "schemaBrowser": {
+      "searchPlaceholder": "Search tables...",
+      "refresh": "Refresh",
+      "showSystemSchemas": "Show system schemas",
+      "hideSystemSchemas": "Hide system schemas",
+      "toggleSidebar": "Toggle sidebar",
+      "error": "Failed to load catalogs",
+      "retry": "Retry",
+      "noCatalogs": "No catalogs available",
+      "noSchemas": "No schemas",
+      "noTables": "No tables",
+      "noColumns": "No columns",
+      "loadingColumns": "Loading columns..."
+    }
+  },
   "export": {
     "title": "Export as {{format}}",
     "filename": "Filename",

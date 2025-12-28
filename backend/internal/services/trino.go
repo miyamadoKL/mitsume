@@ -174,6 +174,80 @@ func (s *TrinoService) GetTables(ctx context.Context, catalog, schema string) ([
 	return tables, nil
 }
 
+func (s *TrinoService) GetColumns(ctx context.Context, catalog, schema, table string) ([]models.ColumnInfo, error) {
+	if err := validateIdentifier(catalog); err != nil {
+		return nil, err
+	}
+	if err := validateIdentifier(schema); err != nil {
+		return nil, err
+	}
+	if err := validateIdentifier(table); err != nil {
+		return nil, err
+	}
+
+	// Query information_schema for column metadata
+	// is_nullable returns 'YES' or 'NO' as string in Trino
+	query := fmt.Sprintf(`
+		SELECT
+			column_name,
+			data_type,
+			is_nullable,
+			comment,
+			ordinal_position
+		FROM "%s".information_schema.columns
+		WHERE table_schema = '%s'
+		  AND table_name = '%s'
+		ORDER BY ordinal_position
+	`, catalog, schema, table)
+
+	result, err := s.ExecuteQuery(ctx, query, catalog, "information_schema")
+	if err != nil {
+		return nil, err
+	}
+
+	columns := make([]models.ColumnInfo, 0, len(result.Rows))
+	for _, row := range result.Rows {
+		if len(row) < 5 {
+			continue
+		}
+
+		col := models.ColumnInfo{}
+
+		// column_name
+		if name, ok := row[0].(string); ok {
+			col.Name = name
+		}
+
+		// data_type
+		if dataType, ok := row[1].(string); ok {
+			col.Type = dataType
+		}
+
+		// is_nullable ('YES' or 'NO')
+		if isNullable, ok := row[2].(string); ok {
+			col.Nullable = (isNullable == "YES")
+		}
+
+		// comment (may be nil)
+		if row[3] != nil {
+			if comment, ok := row[3].(string); ok {
+				col.Comment = &comment
+			}
+		}
+
+		// ordinal_position
+		if pos, ok := row[4].(int64); ok {
+			col.OrdinalPosition = int(pos)
+		} else if pos, ok := row[4].(int); ok {
+			col.OrdinalPosition = pos
+		}
+
+		columns = append(columns, col)
+	}
+
+	return columns, nil
+}
+
 func (s *TrinoService) getDB(dsn string) (*sql.DB, error) {
 	if db, ok := s.dbs.Load(dsn); ok {
 		return db.(*sql.DB), nil

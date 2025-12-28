@@ -191,3 +191,35 @@ func (h *QueryHandler) GetTables(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"tables": tables})
 }
+
+func (h *QueryHandler) GetColumns(c *gin.Context) {
+	userID := c.MustGet("userID").(uuid.UUID)
+	catalog := c.Param("catalog")
+	schema := c.Param("schema")
+	table := c.Param("table")
+	if catalog == "" || schema == "" || table == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "catalog, schema, and table are required"})
+		return
+	}
+
+	// Check catalog access permission
+	if h.roleService != nil {
+		hasAccess, err := h.roleService.CanUserAccessCatalog(c.Request.Context(), userID, catalog)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasAccess {
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied to catalog"})
+			return
+		}
+	}
+
+	columns, err := h.trinoExecutor.GetColumns(c.Request.Context(), catalog, schema, table)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"columns": columns})
+}

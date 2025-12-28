@@ -41,6 +41,9 @@ type TrinoExecutor interface {
 
 	// GetTables returns a list of tables in the specified catalog and schema
 	GetTables(ctx context.Context, catalog, schema string) ([]string, error)
+
+	// GetColumns returns a list of columns in the specified table
+	GetColumns(ctx context.Context, catalog, schema, table string) ([]models.ColumnInfo, error)
 }
 
 // CachedTrinoExecutor extends TrinoExecutor with caching capability

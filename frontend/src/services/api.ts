@@ -4,6 +4,7 @@ import type {
   SavedQuery,
   QueryHistory,
   QueryResult,
+  ColumnInfo,
   Dashboard,
   Widget,
   CreateDashboardRequest,
@@ -165,6 +166,13 @@ export const catalogApi = {
       `/catalogs/${catalog}/schemas/${schema}/tables`
     )
     return data.tables
+  },
+
+  getColumns: async (catalog: string, schema: string, table: string): Promise<ColumnInfo[]> => {
+    const { data } = await api.get<{ columns: ColumnInfo[] }>(
+      `/catalogs/${catalog}/schemas/${schema}/tables/${table}/columns`
+    )
+    return data.columns
   },
 }
 
