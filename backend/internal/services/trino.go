@@ -131,7 +131,7 @@ func (s *TrinoService) GetSchemas(ctx context.Context, catalog string) ([]string
 	}
 
 	query := fmt.Sprintf("SHOW SCHEMAS FROM %s", catalog)
-	result, err := s.ExecuteQuery(ctx, query, catalog, "")
+	result, err := s.ExecuteQuery(ctx, query, catalog, "information_schema")
 	if err != nil {
 		return nil, err
 	}

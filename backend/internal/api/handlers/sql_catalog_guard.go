@@ -21,8 +21,8 @@ var (
 	catalogThreePartPattern = regexp.MustCompile(`(?i)([a-zA-Z_][a-zA-Z0-9_]*|"[^"]+")\s*\.\s*([a-zA-Z_][a-zA-Z0-9_]*|"[^"]+")\s*\.\s*([a-zA-Z_][a-zA-Z0-9_]*|"[^"]+")`)
 
 	// Trino metadata statements
-	showSchemasFromCatalogPattern = regexp.MustCompile(`(?i)\bSHOW\s+SCHEMAS\s+FROM\s+("([^"]+)"|[a-zA-Z_][a-zA-Z0-9_]*)`)
-	showTablesFromCatalogSchema   = regexp.MustCompile(`(?i)\bSHOW\s+TABLES\s+FROM\s+("([^"]+)"|[a-zA-Z_][a-zA-Z0-9_]*)\s*\.`)
+	showSchemasFromCatalogPattern = regexp.MustCompile(`(?i)\bSHOW\s+SCHEMAS\s+(?:FROM|IN)\s+("([^"]+)"|[a-zA-Z_][a-zA-Z0-9_]*)`)
+	showTablesFromCatalogSchema   = regexp.MustCompile(`(?i)\bSHOW\s+TABLES\s+(?:FROM|IN)\s+("([^"]+)"|[a-zA-Z_][a-zA-Z0-9_]*)\s*\.`)
 	useCatalogSchemaPattern       = regexp.MustCompile(`(?i)\bUSE\s+("([^"]+)"|[a-zA-Z_][a-zA-Z0-9_]*)\s*\.`)
 )
 

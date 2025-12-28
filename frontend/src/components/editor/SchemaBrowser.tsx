@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/button'
 import { Search, RefreshCw, Eye, EyeOff, Loader2, X, Globe } from 'lucide-react'
 import { buildFullyQualifiedName, quoteIdentifier } from '@/lib/sql-utils'
 import { useDebounce } from '@/hooks/useDebounce'
+import { toast } from '@/stores/toastStore'
+import { getErrorMessage } from '@/lib/errors'
 import type { ColumnInfo, MetadataSearchResult } from '@/types'
 
 // Helper to check if error is 403
@@ -385,6 +387,9 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
               next.delete(nodeId)
               return next
             })
+          } else {
+            console.error(`Failed to load schemas for catalog: ${nodeId}`, err)
+            toast.error('Schema Browser', getErrorMessage(err))
           }
         } finally {
           setLoadingNodes(prev => {
@@ -420,6 +425,9 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
               next.delete(nodeId)
               return next
             })
+          } else {
+            console.error(`Failed to load tables for schema: ${nodeId}`, err)
+            toast.error('Schema Browser', getErrorMessage(err))
           }
         } finally {
           setLoadingNodes(prev => {
