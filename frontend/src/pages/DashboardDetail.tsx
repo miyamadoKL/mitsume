@@ -598,13 +598,14 @@ export const DashboardDetail: React.FC = () => {
   }, [dashboard, originalDashboardId, isDraft, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
 
   // Handle exit edit mode with confirmation if draft
+  // Show confirmation if there are local changes OR a server-side draft exists
   const handleExitEditMode = useCallback(() => {
-    if (isDraft) {
+    if (isDraft || dashboard?.is_draft) {
       setShowDiscardConfirm(true)
     } else {
       setEditMode(false)
     }
-  }, [isDraft])
+  }, [isDraft, dashboard?.is_draft])
 
   // Force exit edit mode without saving (after confirmation)
   // Discards the server-side draft and restores the original dashboard
@@ -1255,12 +1256,13 @@ export const DashboardDetail: React.FC = () => {
 
   // Duplicate widget - use API for existing widgets, local for temp widgets
   const handleDuplicateWidget = useCallback(async (widget: Widget) => {
-    if (!dashboard || !id) return
+    if (!dashboard || !activeDashboardId) return
 
     // For existing widgets, use the duplicate API
+    // Use activeDashboardId (draft ID when editing) instead of URL id
     if (!widget.id.startsWith('temp-')) {
       try {
-        const duplicatedWidget = await dashboardApi.duplicateWidget(id, widget.id)
+        const duplicatedWidget = await dashboardApi.duplicateWidget(activeDashboardId, widget.id)
         // Add to local state
         const newWidgets = [...(dashboard.widgets || []), duplicatedWidget]
         const newSnapshot = buildSnapshot({ widgets: newWidgets })
@@ -1315,7 +1317,7 @@ export const DashboardDetail: React.FC = () => {
     setPendingWidgetCreations(newCreations)
 
     toast.success(t('dashboard.detail.toast.widgetDuplicated'))
-  }, [dashboard, id, pendingWidgetCreations, buildSnapshot, recordSnapshot, t])
+  }, [dashboard, activeDashboardId, pendingWidgetCreations, buildSnapshot, recordSnapshot, t])
 
   const handleSettingsClick = (widget: Widget) => {
     setEditingWidget(widget)

@@ -158,15 +158,38 @@ func (r *PostgresDashboardPermissionRepository) GetAccessibleDashboards(ctx cont
 	return dashboards, nil
 }
 
-// GetDashboardByIDWithPermission returns a dashboard if user has at least view permission
+// GetDashboardByIDWithPermission returns a dashboard if user has appropriate permission
+// For drafts (is_draft=true): requires edit permission (editors/owners only)
+// For published dashboards: requires view permission
 func (r *PostgresDashboardPermissionRepository) GetDashboardByIDWithPermission(ctx context.Context, dashboardID, userID uuid.UUID) (*models.Dashboard, error) {
 	permLevel, err := r.GetUserPermissionLevel(ctx, dashboardID, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	if !permLevel.CanView() {
-		return nil, ErrNotFound
+	// First, check if this is a draft to determine required permission level
+	var isDraft bool
+	err = r.pool.QueryRow(ctx,
+		`SELECT COALESCE(is_draft, false) FROM dashboards WHERE id = $1`,
+		dashboardID,
+	).Scan(&isDraft)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	// Drafts require edit permission (only editors/owners can access)
+	// Published dashboards only require view permission
+	if isDraft {
+		if !permLevel.CanEdit() {
+			return nil, ErrNotFound
+		}
+	} else {
+		if !permLevel.CanView() {
+			return nil, ErrNotFound
+		}
 	}
 
 	var d models.Dashboard

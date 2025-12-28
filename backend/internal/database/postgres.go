@@ -290,7 +290,9 @@ func RunMigrations() error {
 		`CREATE INDEX IF NOT EXISTS idx_dashboards_draft_of ON dashboards(draft_of) WHERE draft_of IS NOT NULL`,
 
 		// Phase 0.1: Ensure all drafts are private (fix any existing public drafts)
-		`UPDATE dashboards SET is_public = false WHERE COALESCE(is_draft, false) = true`,
+		// Only update rows that are actually public to avoid unnecessary writes on every startup
+		`UPDATE dashboards SET is_public = false
+		 WHERE COALESCE(is_draft, false) = true AND COALESCE(is_public, false) = true`,
 
 		// Phase 0.2: Delete duplicate drafts (keep only the latest one per original dashboard)
 		// This must run before the unique index creation
