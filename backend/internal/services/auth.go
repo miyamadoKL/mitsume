@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"log"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -51,7 +52,9 @@ func (s *AuthService) Register(ctx context.Context, req *models.RegisterRequest)
 
 	// Auto-assign admin role to the first registered user
 	if s.roleRepo != nil {
-		_ = s.autoAssignAdminToFirstUser(ctx, user.ID)
+		if err := s.autoAssignAdminToFirstUser(ctx, user.ID); err != nil {
+			log.Printf("[WARN] Failed to auto-assign admin role to first user %s: %v", user.ID, err)
+		}
 	}
 
 	// Generate token
@@ -113,7 +116,9 @@ func (s *AuthService) FindOrCreateGoogleUser(ctx context.Context, googleID, emai
 
 		// Auto-assign admin role to the first registered user
 		if s.roleRepo != nil {
-			_ = s.autoAssignAdminToFirstUser(ctx, user.ID)
+			if err := s.autoAssignAdminToFirstUser(ctx, user.ID); err != nil {
+				log.Printf("[WARN] Failed to auto-assign admin role to first Google user %s: %v", user.ID, err)
+			}
 		}
 	}
 
