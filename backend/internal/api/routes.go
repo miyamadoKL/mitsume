@@ -87,6 +87,8 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 			protected.POST("/dashboards", dashboardHandler.CreateDashboard)
 			protected.PUT("/dashboards/:id", dashboardHandler.UpdateDashboard)
 			protected.DELETE("/dashboards/:id", dashboardHandler.DeleteDashboard)
+			protected.POST("/dashboards/:id/save-draft", dashboardHandler.SaveAsDraft)
+			protected.POST("/dashboards/:id/publish", dashboardHandler.PublishDraft)
 
 			// Dashboard widgets
 			protected.POST("/dashboards/:id/widgets", dashboardHandler.CreateWidget)

@@ -283,6 +283,11 @@ func RunMigrations() error {
 		// Add responsive_positions to dashboard_widgets for per-breakpoint layouts
 		// Structure: {"lg": {x, y, w, h}, "md": {x, y, w, h}, "sm": {x, y, w, h}, "xs": {x, y, w, h}}
 		`ALTER TABLE dashboard_widgets ADD COLUMN IF NOT EXISTS responsive_positions JSONB`,
+
+		// Add is_draft and draft_of columns for persistent draft functionality
+		`ALTER TABLE dashboards ADD COLUMN IF NOT EXISTS is_draft BOOLEAN DEFAULT FALSE`,
+		`ALTER TABLE dashboards ADD COLUMN IF NOT EXISTS draft_of UUID REFERENCES dashboards(id) ON DELETE CASCADE`,
+		`CREATE INDEX IF NOT EXISTS idx_dashboards_draft_of ON dashboards(draft_of) WHERE draft_of IS NOT NULL`,
 	}
 
 	for _, migration := range migrations {

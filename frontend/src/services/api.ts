@@ -233,6 +233,18 @@ export const dashboardApi = {
     return data
   },
 
+  // Save as draft (marks dashboard as draft)
+  saveAsDraft: async (dashboardId: string): Promise<Dashboard> => {
+    const { data } = await api.post<Dashboard>(`/dashboards/${dashboardId}/save-draft`)
+    return data
+  },
+
+  // Publish draft (clears draft flag)
+  publishDraft: async (dashboardId: string): Promise<Dashboard> => {
+    const { data } = await api.post<Dashboard>(`/dashboards/${dashboardId}/publish`)
+    return data
+  },
+
   // Permissions
   getPermissions: async (dashboardId: string): Promise<DashboardPermission[]> => {
     const { data } = await api.get<DashboardPermission[]>(`/dashboards/${dashboardId}/permissions`)

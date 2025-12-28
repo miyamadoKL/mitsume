@@ -555,6 +555,101 @@ func (s *DashboardService) GetUserPermissionLevel(ctx context.Context, dashboard
 	return s.permRepo.GetUserPermissionLevel(ctx, dashboardID, userID)
 }
 
+// SaveAsDraft saves the current dashboard state as a draft
+// If the dashboard is already a draft, it updates it in place
+// If the dashboard is published, it creates a new draft linked to the original
+func (s *DashboardService) SaveAsDraft(ctx context.Context, dashboardID, userID uuid.UUID) (*models.Dashboard, error) {
+	// Check edit permission
+	permLevel, err := s.permRepo.GetUserPermissionLevel(ctx, dashboardID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !permLevel.CanEdit() {
+		return nil, ErrPermissionDenied
+	}
+
+	pool := database.GetPool()
+
+	// Check if this is already a draft
+	var isDraft bool
+	err = pool.QueryRow(ctx, `SELECT COALESCE(is_draft, FALSE) FROM dashboards WHERE id = $1`, dashboardID).Scan(&isDraft)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	if isDraft {
+		// Already a draft - just update the updated_at
+		var d models.Dashboard
+		err = pool.QueryRow(ctx,
+			`UPDATE dashboards SET updated_at = CURRENT_TIMESTAMP WHERE id = $1
+			 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'), COALESCE(is_draft, false), draft_of, created_at, updated_at`,
+			dashboardID,
+		).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters, &d.IsDraft, &d.DraftOf, &d.CreatedAt, &d.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		d.MyPermission = permLevel
+		return &d, nil
+	}
+
+	// Mark as draft
+	var d models.Dashboard
+	err = pool.QueryRow(ctx,
+		`UPDATE dashboards SET is_draft = TRUE, updated_at = CURRENT_TIMESTAMP WHERE id = $1
+		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'), COALESCE(is_draft, false), draft_of, created_at, updated_at`,
+		dashboardID,
+	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters, &d.IsDraft, &d.DraftOf, &d.CreatedAt, &d.UpdatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	d.MyPermission = permLevel
+	return &d, nil
+}
+
+// PublishDraft publishes a draft dashboard (clears the is_draft flag)
+func (s *DashboardService) PublishDraft(ctx context.Context, dashboardID, userID uuid.UUID) (*models.Dashboard, error) {
+	// Check edit permission
+	permLevel, err := s.permRepo.GetUserPermissionLevel(ctx, dashboardID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if !permLevel.CanEdit() {
+		return nil, ErrPermissionDenied
+	}
+
+	pool := database.GetPool()
+
+	var d models.Dashboard
+	err = pool.QueryRow(ctx,
+		`UPDATE dashboards SET is_draft = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = $1
+		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'), COALESCE(is_draft, false), draft_of, created_at, updated_at`,
+		dashboardID,
+	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters, &d.IsDraft, &d.DraftOf, &d.CreatedAt, &d.UpdatedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	d.MyPermission = permLevel
+
+	// Load widgets
+	widgets, err := s.GetWidgets(ctx, dashboardID)
+	if err != nil {
+		return nil, err
+	}
+	d.Widgets = widgets
+
+	return &d, nil
+}
+
 // GetDashboardOwner returns the owner user ID of a dashboard
 func (s *DashboardService) GetDashboardOwner(ctx context.Context, dashboardID uuid.UUID) (uuid.UUID, error) {
 	return s.permRepo.GetDashboardOwner(ctx, dashboardID)

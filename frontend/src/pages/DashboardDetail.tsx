@@ -377,8 +377,8 @@ export const DashboardDetail: React.FC = () => {
     toast.success(t('dashboard.detail.changesDiscarded', 'Changes discarded'))
   }, [originalDashboard, historyActions, t])
 
-  // Save all pending changes to backend using atomic batch API
-  const handleSaveChanges = useCallback(async () => {
+  // Save as draft: save widget changes and mark as draft (persistent server-side)
+  const handleSaveDraft = useCallback(async () => {
     if (!id || !dashboard) return
     setSavingChanges(true)
 
@@ -432,9 +432,83 @@ export const DashboardDetail: React.FC = () => {
       // 5. Execute atomic batch update
       await dashboardApi.batchUpdateWidgets(id, batchReq)
 
-      // 6. Reload dashboard to get fresh state
-      const freshDashboard = await dashboardApi.getById(id)
-      setDashboard(freshDashboard)
+      // 6. Mark as draft (server-side)
+      const updatedDashboard = await dashboardApi.saveAsDraft(id)
+      setDashboard(updatedDashboard)
+
+      // Reset pending changes
+      setPendingWidgetCreations([])
+      setPendingWidgetDeletions([])
+      setPendingWidgetUpdates({})
+      setPendingResponsivePositions({})
+      setIsDraft(false)
+      toast.success(t('dashboard.draft.draftSaved', 'Draft saved'))
+    } catch (err) {
+      console.error('Save draft failed:', err)
+      toast.error(t('dashboard.draft.saveFailed', 'Failed to save draft'), getErrorMessage(err))
+    } finally {
+      setSavingChanges(false)
+    }
+  }, [id, dashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
+
+  // Publish: save widget changes and clear draft flag
+  const handlePublish = useCallback(async () => {
+    if (!id || !dashboard) return
+    setSavingChanges(true)
+
+    try {
+      // Build batch request for atomic update
+      const batchReq: import('@/types').BatchWidgetUpdateRequest = {
+        create: [],
+        update: {},
+        delete: [],
+      }
+
+      // 1. Collect widgets to delete (exclude temp widgets)
+      for (const widgetId of pendingWidgetDeletions) {
+        if (!widgetId.startsWith('temp-')) {
+          batchReq.delete!.push(widgetId)
+        }
+      }
+
+      // 2. Collect widgets to create (with responsive_positions if available)
+      for (const req of pendingWidgetCreations) {
+        const tempWidget = dashboard.widgets?.find(w => w.id === req.tempId)
+        const responsivePos = tempWidget?.responsive_positions || pendingResponsivePositions[req.tempId]
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { tempId: _tempId, ...createReqBase } = req
+        const createReq = responsivePos
+          ? { ...createReqBase, responsive_positions: responsivePos }
+          : createReqBase
+        batchReq.create!.push(createReq)
+      }
+
+      // 3. Collect widgets to update (including responsive_positions)
+      for (const [widgetId, updates] of Object.entries(pendingWidgetUpdates)) {
+        if (!widgetId.startsWith('temp-') && !pendingWidgetDeletions.includes(widgetId)) {
+          const responsivePos = pendingResponsivePositions[widgetId]
+          const updateWithResponsive = responsivePos
+            ? { ...updates, responsive_positions: responsivePos }
+            : updates
+          batchReq.update![widgetId] = updateWithResponsive
+        }
+      }
+
+      // 4. Collect widgets that only have responsive_positions changes
+      for (const [widgetId, responsivePos] of Object.entries(pendingResponsivePositions)) {
+        if (!widgetId.startsWith('temp-') &&
+            !pendingWidgetDeletions.includes(widgetId) &&
+            !batchReq.update![widgetId]) {
+          batchReq.update![widgetId] = { responsive_positions: responsivePos }
+        }
+      }
+
+      // 5. Execute atomic batch update
+      await dashboardApi.batchUpdateWidgets(id, batchReq)
+
+      // 6. Publish (clear draft flag)
+      const updatedDashboard = await dashboardApi.publishDraft(id)
+      setDashboard(updatedDashboard)
 
       // Reset pending changes
       setPendingWidgetCreations([])
@@ -443,15 +517,14 @@ export const DashboardDetail: React.FC = () => {
       setPendingResponsivePositions({})
       setIsDraft(false)
       setEditMode(false)
-      toast.success(t('dashboard.draft.saved', 'Changes saved'))
+      toast.success(t('dashboard.draft.published', 'Dashboard published'))
     } catch (err) {
-      // Atomic batch failed - no partial state, no rollback needed
-      console.error('Save failed:', err)
-      toast.error(t('dashboard.draft.saveFailed', 'Failed to save changes'), getErrorMessage(err))
+      console.error('Publish failed:', err)
+      toast.error(t('dashboard.draft.publishFailed', 'Failed to publish'), getErrorMessage(err))
     } finally {
       setSavingChanges(false)
     }
-  }, [id, dashboard, originalDashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
+  }, [id, dashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
 
   // Handle exit edit mode with confirmation if draft
   const handleExitEditMode = useCallback(() => {
@@ -1444,25 +1517,38 @@ export const DashboardDetail: React.FC = () => {
           )}
           {editMode && (
             <>
-              {/* Draft indicator */}
-              {isDraft && (
+              {/* Draft indicator - show when server-side is_draft is true or local changes */}
+              {(dashboard.is_draft || isDraft) && (
                 <span className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700 border border-yellow-300">
                   <AlertTriangle className="h-3 w-3" />
-                  {t('dashboard.draft.unsavedChanges', 'Unsaved changes')}
+                  {dashboard.is_draft
+                    ? t('dashboard.draft.draftMode', 'Draft')
+                    : t('dashboard.draft.unsavedChanges', 'Unsaved changes')}
                 </span>
               )}
-              {/* Save button - only show when there are unsaved changes */}
+              {/* Save Draft button - only show when there are unsaved changes */}
               {isDraft && (
                 <Button
-                  variant="default"
-                  onClick={handleSaveChanges}
+                  variant="outline"
+                  onClick={handleSaveDraft}
                   disabled={savingChanges}
                 >
                   <Save className="h-4 w-4 mr-2" />
-                  {savingChanges ? t('common.saving', 'Saving...') : t('common.save', 'Save')}
+                  {savingChanges ? t('common.saving', 'Saving...') : t('dashboard.draft.saveDraft', 'Save Draft')}
                 </Button>
               )}
-              {/* Done button - exit edit mode */}
+              {/* Publish button - save and publish */}
+              {isDraft && (
+                <Button
+                  variant="default"
+                  onClick={handlePublish}
+                  disabled={savingChanges}
+                >
+                  <Globe className="h-4 w-4 mr-2" />
+                  {savingChanges ? t('common.saving', 'Saving...') : t('dashboard.draft.publish', 'Publish')}
+                </Button>
+              )}
+              {/* Done/Cancel button - exit edit mode */}
               <Button
                 variant={isDraft ? 'outline' : 'default'}
                 onClick={handleExitEditMode}
