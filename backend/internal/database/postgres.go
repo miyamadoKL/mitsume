@@ -279,6 +279,36 @@ func RunMigrations() error {
 
 		// Add parameters JSONB column to dashboards for typed parameter definitions
 		`ALTER TABLE dashboards ADD COLUMN IF NOT EXISTS parameters JSONB DEFAULT '[]'`,
+
+		// Add responsive_positions to dashboard_widgets for per-breakpoint layouts
+		// Structure: {"lg": {x, y, w, h}, "md": {x, y, w, h}, "sm": {x, y, w, h}, "xs": {x, y, w, h}}
+		`ALTER TABLE dashboard_widgets ADD COLUMN IF NOT EXISTS responsive_positions JSONB`,
+
+		// Add is_draft and draft_of columns for persistent draft functionality
+		`ALTER TABLE dashboards ADD COLUMN IF NOT EXISTS is_draft BOOLEAN DEFAULT FALSE`,
+		`ALTER TABLE dashboards ADD COLUMN IF NOT EXISTS draft_of UUID REFERENCES dashboards(id) ON DELETE CASCADE`,
+		`CREATE INDEX IF NOT EXISTS idx_dashboards_draft_of ON dashboards(draft_of) WHERE draft_of IS NOT NULL`,
+
+		// Phase 0.1: Ensure all drafts are private (fix any existing public drafts)
+		// Only update rows that are actually public to avoid unnecessary writes on every startup
+		`UPDATE dashboards SET is_public = false
+		 WHERE COALESCE(is_draft, false) = true AND COALESCE(is_public, false) = true`,
+
+		// Phase 0.2: Delete duplicate drafts (keep only the latest one per original dashboard)
+		// This must run before the unique index creation
+		`DELETE FROM dashboards d
+		 USING (
+		   SELECT id,
+		          ROW_NUMBER() OVER (PARTITION BY draft_of ORDER BY updated_at DESC, created_at DESC) AS rn
+		   FROM dashboards
+		   WHERE COALESCE(is_draft, false) = true AND draft_of IS NOT NULL
+		 ) x
+		 WHERE d.id = x.id AND x.rn > 1`,
+
+		// Phase 0.2: Add unique constraint to ensure only one draft per dashboard
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_dashboards_draft_of_unique
+		 ON dashboards(draft_of)
+		 WHERE COALESCE(is_draft, false) = true AND draft_of IS NOT NULL`,
 	}
 
 	for _, migration := range migrations {

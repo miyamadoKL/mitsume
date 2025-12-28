@@ -36,18 +36,24 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
   const [permissionLevel, setPermissionLevel] = useState<'view' | 'edit'>('view')
   const [saving, setSaving] = useState(false)
 
+  // For drafts, use the original dashboard ID for permission operations
+  // Permissions are managed on the original dashboard, not the draft
+  const effectiveDashboardId = dashboard.is_draft && dashboard.draft_of
+    ? dashboard.draft_of
+    : dashboard.id
+
   useEffect(() => {
     if (open) {
       loadPermissions()
       loadRoles()
       setIsPublic(dashboard.is_public || false)
     }
-  }, [open, dashboard.id])
+  }, [open, effectiveDashboardId])
 
   const loadPermissions = async () => {
     setLoading(true)
     try {
-      const data = await dashboardApi.getPermissions(dashboard.id)
+      const data = await dashboardApi.getPermissions(effectiveDashboardId)
       setPermissions(data)
     } catch (err) {
       console.error('Failed to load permissions:', err)
@@ -68,7 +74,7 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
 
   const handleTogglePublic = async () => {
     try {
-      await dashboardApi.updateVisibility(dashboard.id, { is_public: !isPublic })
+      await dashboardApi.updateVisibility(effectiveDashboardId, { is_public: !isPublic })
       setIsPublic(!isPublic)
       onUpdate({ ...dashboard, is_public: !isPublic })
       toast.success(isPublic ? t('dashboard.shareDialog.toast.nowPrivate') : t('dashboard.shareDialog.toast.nowPublic'))
@@ -96,7 +102,7 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
         ? { user_id: userEmail.trim(), permission_level: permissionLevel }
         : { role_id: selectedRoleId, permission_level: permissionLevel }
 
-      const newPermission = await dashboardApi.grantPermission(dashboard.id, req)
+      const newPermission = await dashboardApi.grantPermission(effectiveDashboardId, req)
       setPermissions([...permissions, newPermission])
       setUserEmail('')
       setSelectedRoleId('')
@@ -110,7 +116,7 @@ export const ShareDashboardDialog: React.FC<ShareDashboardDialogProps> = ({
 
   const handleRevokePermission = async (permissionId: string) => {
     try {
-      await dashboardApi.revokePermission(dashboard.id, permissionId)
+      await dashboardApi.revokePermission(effectiveDashboardId, permissionId)
       setPermissions(permissions.filter(p => p.id !== permissionId))
       toast.success(t('dashboard.shareDialog.toast.permissionRevoked'))
     } catch (err) {

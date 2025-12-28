@@ -75,3 +75,17 @@
   justify-content: center;
   min-height: 300px;
 }
+
+/* Dropping state - visual feedback when dragging widget from QuickAddPanel */
+.dashboard-grid.dropping {
+  border: 2px dashed #3b82f6;
+  background-color: rgba(59, 130, 246, 0.05);
+  border-radius: 8px;
+  min-height: 400px;
+}
+
+/* Dropping placeholder styling */
+.dashboard-grid.dropping .react-grid-item.react-grid-placeholder {
+  background: rgba(59, 130, 246, 0.2) !important;
+  border: 2px solid #3b82f6 !important;
+}

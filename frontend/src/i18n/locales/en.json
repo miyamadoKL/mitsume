@@ -136,6 +136,18 @@
     "export": "Export",
     "refresh": "Refresh",
     "autoRefresh": "Auto Refresh",
+    "undo": "Undo (Ctrl+Z)",
+    "redo": "Redo (Ctrl+Shift+Z)",
+    "draft": {
+      "unsavedChanges": "Unsaved changes",
+      "discard": "Discard",
+      "discardConfirmTitle": "Discard changes?",
+      "discardConfirmDescription": "You have unsaved changes. Are you sure you want to discard them? This action cannot be undone.",
+      "exitWithoutSaving": "Exit without saving",
+      "discardAndReload": "Discard changes",
+      "saved": "Changes saved",
+      "saveFailed": "Failed to save changes"
+    },
     "empty": "No dashboards yet",
     "emptyDescription": "Create your first dashboard to visualize your data",
     "quickAdd": {
@@ -146,7 +158,16 @@
       "refresh": "Refresh",
       "settings": "Settings",
       "duplicate": "Duplicate",
-      "delete": "Delete"
+      "delete": "Delete",
+      "previewMode": "Preview:",
+      "previewAuto": "Auto",
+      "previewDesktop": "Desktop",
+      "previewTablet": "Tablet",
+      "previewMobile": "Mobile",
+      "compactMode": "Compact:",
+      "compactVertical": "Vertical",
+      "compactHorizontal": "Horizontal",
+      "compactNone": "None (Free)"
     },
     "templates": {
       "selectTemplate": "Select a template",
@@ -226,6 +247,7 @@
     "detail": {
       "toast": {
         "refreshAll": "Refreshing all widgets",
+        "changesDiscarded": "Changes discarded",
         "widgetDeleted": "Widget deleted",
         "deleteWidgetFailed": "Failed to delete widget",
         "widgetDuplicated": "Widget duplicated",

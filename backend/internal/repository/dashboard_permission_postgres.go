@@ -19,13 +19,19 @@ func NewPostgresDashboardPermissionRepository(pool *pgxpool.Pool) *PostgresDashb
 }
 
 // GetUserPermissionLevel returns the permission level for a user on a dashboard
+// For drafts (is_draft=true), permission is evaluated against the original dashboard (draft_of)
+// Drafts are never treated as public (even if the original is public)
 func (r *PostgresDashboardPermissionRepository) GetUserPermissionLevel(ctx context.Context, dashboardID, userID uuid.UUID) (models.PermissionLevel, error) {
-	// Check if user is owner
+	// First, check if dashboard exists and get draft info
 	var ownerID uuid.UUID
+	var isDraft bool
+	var draftOf *uuid.UUID
+	var isPublic bool
 	err := r.pool.QueryRow(ctx,
-		`SELECT user_id FROM dashboards WHERE id = $1`,
+		`SELECT user_id, COALESCE(is_draft, false), draft_of, COALESCE(is_public, false)
+		 FROM dashboards WHERE id = $1`,
 		dashboardID,
-	).Scan(&ownerID)
+	).Scan(&ownerID, &isDraft, &draftOf, &isPublic)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return models.PermissionNone, ErrNotFound
@@ -33,26 +39,41 @@ func (r *PostgresDashboardPermissionRepository) GetUserPermissionLevel(ctx conte
 		return models.PermissionNone, err
 	}
 
-	if ownerID == userID {
+	// Determine which dashboard ID to use for permission evaluation
+	// For drafts, use the original dashboard (draft_of)
+	permDashboardID := dashboardID
+	permOwnerID := ownerID
+	permIsPublic := isPublic
+
+	if isDraft && draftOf != nil {
+		permDashboardID = *draftOf
+		// Get original dashboard's owner and public status
+		err = r.pool.QueryRow(ctx,
+			`SELECT user_id, COALESCE(is_public, false) FROM dashboards WHERE id = $1`,
+			permDashboardID,
+		).Scan(&permOwnerID, &permIsPublic)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				// Original dashboard doesn't exist (orphaned draft)
+				return models.PermissionNone, ErrNotFound
+			}
+			return models.PermissionNone, err
+		}
+		// Drafts are NEVER treated as public (even if original is public)
+		permIsPublic = false
+	}
+
+	// Check if user is owner of the original dashboard
+	if permOwnerID == userID {
 		return models.PermissionOwner, nil
 	}
 
-	// Check if dashboard is public
-	var isPublic bool
-	err = r.pool.QueryRow(ctx,
-		`SELECT COALESCE(is_public, false) FROM dashboards WHERE id = $1`,
-		dashboardID,
-	).Scan(&isPublic)
-	if err != nil {
-		return models.PermissionNone, err
-	}
-
-	// Check explicit user permission
+	// Check explicit user permission (against original dashboard)
 	var userPermLevel string
 	err = r.pool.QueryRow(ctx,
 		`SELECT permission_level FROM dashboard_permissions
 		 WHERE dashboard_id = $1 AND user_id = $2`,
-		dashboardID, userID,
+		permDashboardID, userID,
 	).Scan(&userPermLevel)
 	if err == nil {
 		return models.PermissionLevel(userPermLevel), nil
@@ -61,7 +82,7 @@ func (r *PostgresDashboardPermissionRepository) GetUserPermissionLevel(ctx conte
 		return models.PermissionNone, err
 	}
 
-	// Check role-based permission (get highest permission level from user's roles)
+	// Check role-based permission (against original dashboard)
 	var rolePermLevel string
 	err = r.pool.QueryRow(ctx,
 		`SELECT dp.permission_level FROM dashboard_permissions dp
@@ -69,7 +90,7 @@ func (r *PostgresDashboardPermissionRepository) GetUserPermissionLevel(ctx conte
 		 WHERE dp.dashboard_id = $1 AND ur.user_id = $2
 		 ORDER BY CASE dp.permission_level WHEN 'edit' THEN 1 WHEN 'view' THEN 2 END
 		 LIMIT 1`,
-		dashboardID, userID,
+		permDashboardID, userID,
 	).Scan(&rolePermLevel)
 	if err == nil {
 		return models.PermissionLevel(rolePermLevel), nil
@@ -78,8 +99,8 @@ func (r *PostgresDashboardPermissionRepository) GetUserPermissionLevel(ctx conte
 		return models.PermissionNone, err
 	}
 
-	// If public, return view permission
-	if isPublic {
+	// If public (and not a draft), return view permission
+	if permIsPublic {
 		return models.PermissionView, nil
 	}
 
@@ -87,9 +108,11 @@ func (r *PostgresDashboardPermissionRepository) GetUserPermissionLevel(ctx conte
 }
 
 // GetAccessibleDashboards returns all dashboards accessible to a user
+// Note: Excludes draft dashboards (is_draft = true) from the list - drafts are accessed via their original dashboard
 func (r *PostgresDashboardPermissionRepository) GetAccessibleDashboards(ctx context.Context, userID uuid.UUID) ([]models.Dashboard, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT DISTINCT d.id, d.user_id, d.name, d.description, d.layout, COALESCE(d.is_public, false), COALESCE(d.parameters, '[]'), d.created_at, d.updated_at,
+		`SELECT DISTINCT d.id, d.user_id, d.name, d.description, d.layout, COALESCE(d.is_public, false), COALESCE(d.parameters, '[]'),
+		        COALESCE(d.is_draft, false), d.draft_of, d.created_at, d.updated_at,
 		        CASE
 		            WHEN d.user_id = $1 THEN 'owner'
 		            WHEN dp_user.permission_level IS NOT NULL THEN dp_user.permission_level
@@ -107,10 +130,11 @@ func (r *PostgresDashboardPermissionRepository) GetAccessibleDashboards(ctx cont
 		     WHERE ur.user_id = $1
 		     GROUP BY dp.dashboard_id
 		 ) dp_role ON d.id = dp_role.dashboard_id
-		 WHERE d.user_id = $1
+		 WHERE (d.user_id = $1
 		    OR dp_user.id IS NOT NULL
 		    OR dp_role.dashboard_id IS NOT NULL
-		    OR COALESCE(d.is_public, false) = true
+		    OR COALESCE(d.is_public, false) = true)
+		   AND COALESCE(d.is_draft, false) = false
 		 ORDER BY d.updated_at DESC`,
 		userID,
 	)
@@ -123,7 +147,8 @@ func (r *PostgresDashboardPermissionRepository) GetAccessibleDashboards(ctx cont
 	for rows.Next() {
 		var d models.Dashboard
 		var myPermission string
-		if err := rows.Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters, &d.CreatedAt, &d.UpdatedAt, &myPermission); err != nil {
+		if err := rows.Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters,
+			&d.IsDraft, &d.DraftOf, &d.CreatedAt, &d.UpdatedAt, &myPermission); err != nil {
 			return nil, err
 		}
 		d.MyPermission = models.PermissionLevel(myPermission)
@@ -133,23 +158,48 @@ func (r *PostgresDashboardPermissionRepository) GetAccessibleDashboards(ctx cont
 	return dashboards, nil
 }
 
-// GetDashboardByIDWithPermission returns a dashboard if user has at least view permission
+// GetDashboardByIDWithPermission returns a dashboard if user has appropriate permission
+// For drafts (is_draft=true): requires edit permission (editors/owners only)
+// For published dashboards: requires view permission
 func (r *PostgresDashboardPermissionRepository) GetDashboardByIDWithPermission(ctx context.Context, dashboardID, userID uuid.UUID) (*models.Dashboard, error) {
 	permLevel, err := r.GetUserPermissionLevel(ctx, dashboardID, userID)
 	if err != nil {
 		return nil, err
 	}
 
-	if !permLevel.CanView() {
-		return nil, ErrNotFound
+	// First, check if this is a draft to determine required permission level
+	var isDraft bool
+	err = r.pool.QueryRow(ctx,
+		`SELECT COALESCE(is_draft, false) FROM dashboards WHERE id = $1`,
+		dashboardID,
+	).Scan(&isDraft)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	// Drafts require edit permission (only editors/owners can access)
+	// Published dashboards only require view permission
+	if isDraft {
+		if !permLevel.CanEdit() {
+			return nil, ErrNotFound
+		}
+	} else {
+		if !permLevel.CanView() {
+			return nil, ErrNotFound
+		}
 	}
 
 	var d models.Dashboard
 	err = r.pool.QueryRow(ctx,
-		`SELECT id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'), created_at, updated_at
+		`SELECT id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'),
+		        COALESCE(is_draft, false), draft_of, created_at, updated_at
 		 FROM dashboards WHERE id = $1`,
 		dashboardID,
-	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters, &d.CreatedAt, &d.UpdatedAt)
+	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters,
+		&d.IsDraft, &d.DraftOf, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound

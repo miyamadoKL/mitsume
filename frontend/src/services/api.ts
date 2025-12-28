@@ -31,6 +31,8 @@ import type {
   Position,
   WidgetDataRequest,
   WidgetDataResponse,
+  BatchWidgetUpdateRequest,
+  BatchWidgetUpdateResponse,
 } from '@/types'
 
 const api = axios.create({
@@ -212,6 +214,61 @@ export const dashboardApi = {
 
   deleteWidget: async (dashboardId: string, widgetId: string): Promise<void> => {
     await api.delete(`/dashboards/${dashboardId}/widgets/${widgetId}`)
+  },
+
+  duplicateWidget: async (dashboardId: string, widgetId: string): Promise<Widget> => {
+    const { data } = await api.post<Widget>(`/dashboards/${dashboardId}/widgets/${widgetId}/duplicate`)
+    return data
+  },
+
+  // Batch widget update (atomic transaction)
+  batchUpdateWidgets: async (
+    dashboardId: string,
+    req: BatchWidgetUpdateRequest
+  ): Promise<BatchWidgetUpdateResponse> => {
+    const { data } = await api.post<BatchWidgetUpdateResponse>(
+      `/dashboards/${dashboardId}/widgets/batch`,
+      req
+    )
+    return data
+  },
+
+  // Draft management
+
+  // Get existing draft for a published dashboard (returns null if no draft)
+  getDraft: async (dashboardId: string): Promise<Dashboard | null> => {
+    try {
+      const { data } = await api.get<Dashboard>(`/dashboards/${dashboardId}/draft`)
+      return data
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return null // No draft exists
+      }
+      throw error
+    }
+  },
+
+  // Create a draft copy of a published dashboard (or get existing draft)
+  createDraft: async (dashboardId: string): Promise<Dashboard> => {
+    const { data } = await api.post<Dashboard>(`/dashboards/${dashboardId}/draft`)
+    return data
+  },
+
+  // Save changes to an existing draft (draftId is the draft dashboard ID)
+  saveAsDraft: async (draftId: string): Promise<Dashboard> => {
+    const { data } = await api.post<Dashboard>(`/dashboards/${draftId}/save-draft`)
+    return data
+  },
+
+  // Publish draft: merge to original and delete draft (draftId is the draft dashboard ID)
+  publishDraft: async (draftId: string): Promise<Dashboard> => {
+    const { data } = await api.post<Dashboard>(`/dashboards/${draftId}/publish`)
+    return data
+  },
+
+  // Discard draft without merging (draftId is the draft dashboard ID)
+  discardDraft: async (draftId: string): Promise<void> => {
+    await api.delete(`/dashboards/${draftId}/discard-draft`)
   },
 
   // Permissions
