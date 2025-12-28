@@ -1254,28 +1254,13 @@ export const DashboardDetail: React.FC = () => {
     toast.success(t('dashboard.detail.toast.widgetDeleted'))
   }, [dashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, buildSnapshot, recordSnapshot, t])
 
-  // Duplicate widget - use API for existing widgets, local for temp widgets
-  const handleDuplicateWidget = useCallback(async (widget: Widget) => {
-    if (!dashboard || !activeDashboardId) return
+  // Duplicate widget - always create locally (no immediate server API call)
+  // This ensures duplication works with undo/redo and doesn't leave orphaned widgets on discard
+  const handleDuplicateWidget = useCallback((widget: Widget) => {
+    if (!dashboard) return
 
-    // For existing widgets, use the duplicate API
-    // Use activeDashboardId (draft ID when editing) instead of URL id
-    if (!widget.id.startsWith('temp-')) {
-      try {
-        const duplicatedWidget = await dashboardApi.duplicateWidget(activeDashboardId, widget.id)
-        // Add to local state
-        const newWidgets = [...(dashboard.widgets || []), duplicatedWidget]
-        const newSnapshot = buildSnapshot({ widgets: newWidgets })
-        if (newSnapshot) recordSnapshot(newSnapshot)
-        setDashboard(prev => prev ? { ...prev, widgets: newWidgets } : null)
-        toast.success(t('dashboard.detail.toast.widgetDuplicated'))
-      } catch (err) {
-        toast.error(t('dashboard.detail.toast.widgetDuplicateFailed', 'Failed to duplicate widget'), getErrorMessage(err))
-      }
-      return
-    }
-
-    // For temp widgets, duplicate locally
+    // Create a local copy with a temp ID (even for existing widgets)
+    // This is added to pendingWidgetCreations and saved on Save Draft/Publish
     const newY = widget.position.y + widget.position.h
     const tempId = `temp-${Date.now()}`
 
@@ -1317,7 +1302,7 @@ export const DashboardDetail: React.FC = () => {
     setPendingWidgetCreations(newCreations)
 
     toast.success(t('dashboard.detail.toast.widgetDuplicated'))
-  }, [dashboard, activeDashboardId, pendingWidgetCreations, buildSnapshot, recordSnapshot, t])
+  }, [dashboard, pendingWidgetCreations, buildSnapshot, recordSnapshot, t])
 
   const handleSettingsClick = (widget: Widget) => {
     setEditingWidget(widget)

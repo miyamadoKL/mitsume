@@ -927,3 +927,17 @@ func (s *DashboardService) ensureSavedQueryOwned(ctx context.Context, queryID, u
 	}
 	return nil
 }
+
+// IsDraft checks if a dashboard is a draft
+func (s *DashboardService) IsDraft(ctx context.Context, dashboardID uuid.UUID) (bool, error) {
+	pool := database.GetPool()
+	var isDraft bool
+	err := pool.QueryRow(ctx, `SELECT COALESCE(is_draft, false) FROM dashboards WHERE id = $1`, dashboardID).Scan(&isDraft)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, ErrNotFound
+		}
+		return false, err
+	}
+	return isDraft, nil
+}

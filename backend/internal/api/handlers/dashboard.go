@@ -44,6 +44,37 @@ func NewDashboardHandler(
 	}
 }
 
+// checkDashboardViewPermission checks if user has appropriate permission to view dashboard content.
+// For drafts (is_draft=true): requires edit permission (only editors/owners can access)
+// For published dashboards: requires view permission
+// Returns the permission level and any error. If permission is denied, returns ErrPermissionDenied.
+func (h *DashboardHandler) checkDashboardViewPermission(ctx gin.Context, dashboardID, userID uuid.UUID) (models.PermissionLevel, error) {
+	permLevel, err := h.dashboardService.GetUserPermissionLevel(ctx.Request.Context(), dashboardID, userID)
+	if err != nil {
+		return models.PermissionNone, err
+	}
+
+	// Check if this is a draft
+	isDraft, err := h.dashboardService.IsDraft(ctx.Request.Context(), dashboardID)
+	if err != nil {
+		return models.PermissionNone, err
+	}
+
+	// Drafts require edit permission (only editors/owners can access)
+	// Published dashboards only require view permission
+	if isDraft {
+		if !permLevel.CanEdit() {
+			return models.PermissionNone, services.ErrPermissionDenied
+		}
+	} else {
+		if !permLevel.CanView() {
+			return models.PermissionNone, services.ErrPermissionDenied
+		}
+	}
+
+	return permLevel, nil
+}
+
 func (h *DashboardHandler) GetDashboards(c *gin.Context) {
 	userID := c.MustGet("userID").(uuid.UUID)
 
@@ -715,19 +746,18 @@ func (h *DashboardHandler) GetWidgetData(c *gin.Context) {
 		return
 	}
 
-	// Check if user has at least view permission on the dashboard
-	permLevel, err := h.dashboardService.GetUserPermissionLevel(ctx, dashboardID, userID)
+	// Check if user has appropriate permission (view for published, edit for drafts)
+	_, err = h.checkDashboardViewPermission(*c, dashboardID, userID)
 	if err != nil {
 		if errors.Is(err, services.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "dashboard not found"})
 			return
 		}
+		if errors.Is(err, services.ErrPermissionDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	if !permLevel.CanView() {
-		c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
 		return
 	}
 
@@ -1239,19 +1269,18 @@ func (h *DashboardHandler) GetWidgetDataWithParams(c *gin.Context) {
 		return
 	}
 
-	// Check if user has at least view permission on the dashboard
-	permLevel, err := h.dashboardService.GetUserPermissionLevel(ctx, dashboardID, userID)
+	// Check if user has appropriate permission (view for published, edit for drafts)
+	permLevel, err := h.checkDashboardViewPermission(*c, dashboardID, userID)
 	if err != nil {
 		if errors.Is(err, services.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "dashboard not found"})
 			return
 		}
+		if errors.Is(err, services.ErrPermissionDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	if !permLevel.CanView() {
-		c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
 		return
 	}
 
@@ -1382,19 +1411,18 @@ func (h *DashboardHandler) GetParameterOptions(c *gin.Context) {
 		req = models.ParameterOptionsRequest{}
 	}
 
-	// Check if user has at least view permission on the dashboard
-	permLevel, err := h.dashboardService.GetUserPermissionLevel(ctx, dashboardID, userID)
+	// Check if user has appropriate permission (view for published, edit for drafts)
+	permLevel, err := h.checkDashboardViewPermission(*c, dashboardID, userID)
 	if err != nil {
 		if errors.Is(err, services.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "dashboard not found"})
 			return
 		}
+		if errors.Is(err, services.ErrPermissionDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	if !permLevel.CanView() {
-		c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
 		return
 	}
 
