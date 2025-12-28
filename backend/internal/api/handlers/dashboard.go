@@ -150,7 +150,9 @@ func (h *DashboardHandler) DeleteDashboard(c *gin.Context) {
 	c.JSON(http.StatusNoContent, nil)
 }
 
-func (h *DashboardHandler) SaveAsDraft(c *gin.Context) {
+// GetDraft returns the existing draft for a published dashboard (if any)
+// GET /dashboards/:id/draft
+func (h *DashboardHandler) GetDraft(c *gin.Context) {
 	userID := c.MustGet("userID").(uuid.UUID)
 	dashboardID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -158,7 +160,7 @@ func (h *DashboardHandler) SaveAsDraft(c *gin.Context) {
 		return
 	}
 
-	dashboard, err := h.dashboardService.SaveAsDraft(c.Request.Context(), dashboardID, userID)
+	draft, err := h.dashboardService.GetDraft(c.Request.Context(), dashboardID, userID)
 	if err != nil {
 		if errors.Is(err, services.ErrNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "dashboard not found"})
@@ -166,6 +168,69 @@ func (h *DashboardHandler) SaveAsDraft(c *gin.Context) {
 		}
 		if errors.Is(err, services.ErrPermissionDenied) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get draft"})
+		return
+	}
+
+	if draft == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "no draft exists"})
+		return
+	}
+
+	c.JSON(http.StatusOK, draft)
+}
+
+// CreateDraft creates a new draft copy of a published dashboard
+// POST /dashboards/:id/draft
+func (h *DashboardHandler) CreateDraft(c *gin.Context) {
+	userID := c.MustGet("userID").(uuid.UUID)
+	dashboardID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid dashboard id"})
+		return
+	}
+
+	draft, err := h.dashboardService.CreateDraft(c.Request.Context(), dashboardID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "dashboard not found"})
+			return
+		}
+		if errors.Is(err, services.ErrPermissionDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create draft"})
+		return
+	}
+
+	c.JSON(http.StatusCreated, draft)
+}
+
+// SaveAsDraft saves changes to an existing draft dashboard
+// POST /dashboards/:id/save-draft (where :id is the draft ID)
+func (h *DashboardHandler) SaveAsDraft(c *gin.Context) {
+	userID := c.MustGet("userID").(uuid.UUID)
+	draftID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid draft id"})
+		return
+	}
+
+	dashboard, err := h.dashboardService.SaveAsDraft(c.Request.Context(), draftID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "draft not found"})
+			return
+		}
+		if errors.Is(err, services.ErrPermissionDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+			return
+		}
+		if errors.Is(err, services.ErrInvalidRequest) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "not a draft - use create draft first"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save draft"})
@@ -175,22 +240,28 @@ func (h *DashboardHandler) SaveAsDraft(c *gin.Context) {
 	c.JSON(http.StatusOK, dashboard)
 }
 
+// PublishDraft merges the draft back to the original dashboard and deletes the draft
+// POST /dashboards/:id/publish (where :id is the draft ID)
 func (h *DashboardHandler) PublishDraft(c *gin.Context) {
 	userID := c.MustGet("userID").(uuid.UUID)
-	dashboardID, err := uuid.Parse(c.Param("id"))
+	draftID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid dashboard id"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid draft id"})
 		return
 	}
 
-	dashboard, err := h.dashboardService.PublishDraft(c.Request.Context(), dashboardID, userID)
+	dashboard, err := h.dashboardService.PublishDraft(c.Request.Context(), draftID, userID)
 	if err != nil {
 		if errors.Is(err, services.ErrNotFound) {
-			c.JSON(http.StatusNotFound, gin.H{"error": "dashboard not found"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "draft not found"})
 			return
 		}
 		if errors.Is(err, services.ErrPermissionDenied) {
 			c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+			return
+		}
+		if errors.Is(err, services.ErrInvalidRequest) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "not a draft or no original"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to publish"})
@@ -198,6 +269,38 @@ func (h *DashboardHandler) PublishDraft(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, dashboard)
+}
+
+// DiscardDraft deletes a draft without merging to the original
+// DELETE /dashboards/:id/draft (where :id is the original dashboard ID)
+// or DELETE /dashboards/:id (where :id is the draft ID and is_draft=true)
+func (h *DashboardHandler) DiscardDraft(c *gin.Context) {
+	userID := c.MustGet("userID").(uuid.UUID)
+	draftID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid draft id"})
+		return
+	}
+
+	err = h.dashboardService.DiscardDraft(c.Request.Context(), draftID, userID)
+	if err != nil {
+		if errors.Is(err, services.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": "draft not found"})
+			return
+		}
+		if errors.Is(err, services.ErrPermissionDenied) {
+			c.JSON(http.StatusForbidden, gin.H{"error": "permission denied"})
+			return
+		}
+		if errors.Is(err, services.ErrInvalidRequest) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "not a draft"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to discard draft"})
+		return
+	}
+
+	c.JSON(http.StatusNoContent, nil)
 }
 
 // Widget handlers

@@ -39,6 +39,8 @@ export const DashboardDetail: React.FC = () => {
   const [isDraft, setIsDraft] = useState(false)
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
   const [originalDashboard, setOriginalDashboard] = useState<Dashboard | null>(null)  // Snapshot when entering edit mode
+  const [originalDashboardId, setOriginalDashboardId] = useState<string | null>(null)  // Original dashboard ID when editing a draft copy
+  const [creatingDraft, setCreatingDraft] = useState(false)  // Loading state for draft creation
   // pendingWidgetCreations now includes tempId for linking with temp widgets
   const [pendingWidgetCreations, setPendingWidgetCreations] = useState<Array<CreateWidgetRequest & { tempId: string }>>([])
   const [pendingWidgetDeletions, setPendingWidgetDeletions] = useState<string[]>([])
@@ -183,12 +185,23 @@ export const DashboardDetail: React.FC = () => {
     }
   }, [id])
 
-  // Initialize edit mode: save original state and reset pending changes
-  useEffect(() => {
-    if (editMode && dashboard) {
-      // Save original dashboard state for discard
+  // Enter edit mode: create a draft copy on the server
+  const enterEditMode = useCallback(async () => {
+    if (!id || !dashboard || creatingDraft) return
+
+    setCreatingDraft(true)
+    try {
+      // Create a draft copy (or get existing draft)
+      const draft = await dashboardApi.createDraft(id)
+
+      // Store original dashboard info
+      setOriginalDashboardId(id)
       setOriginalDashboard(JSON.parse(JSON.stringify(dashboard)))
-      // Reset all pending changes including responsive positions
+
+      // Switch to editing the draft
+      setDashboard(draft)
+
+      // Reset all pending changes
       setPendingWidgetCreations([])
       setPendingWidgetDeletions([])
       setPendingWidgetUpdates({})
@@ -196,9 +209,9 @@ export const DashboardDetail: React.FC = () => {
       setIsDraft(false)
 
       // Initialize undo/redo history
-      if (dashboard.widgets) {
+      if (draft.widgets) {
         const snapshot: WidgetSnapshot = {
-          widgets: dashboard.widgets.map(w => ({
+          widgets: draft.widgets.map(w => ({
             id: w.id,
             name: w.name,
             query_id: w.query_id || undefined,
@@ -207,11 +220,18 @@ export const DashboardDetail: React.FC = () => {
             position: w.position,
           })),
         }
-        historyActions.set(snapshot, true) // Skip adding to history - just set initial state
-        historyActions.clear() // Clear any previous history
+        historyActions.set(snapshot, true)
+        historyActions.clear()
       }
+
+      setEditMode(true)
+    } catch (err) {
+      console.error('Failed to create draft:', err)
+      toast.error(t('dashboard.draft.createFailed', 'Failed to enter edit mode'), getErrorMessage(err))
+    } finally {
+      setCreatingDraft(false)
     }
-  }, [editMode])
+  }, [id, dashboard, creatingDraft, historyActions, t])
 
   // Mark as draft when there are pending changes
   useEffect(() => {
@@ -362,9 +382,21 @@ export const DashboardDetail: React.FC = () => {
     historyActions.redo()
   }, [historyActions, dashboard])
 
-  // Handle discard changes - restore from original state
-  const handleDiscardChanges = useCallback(() => {
+  // Handle discard changes - discard draft and restore original dashboard
+  const handleDiscardChanges = useCallback(async () => {
     if (!originalDashboard) return
+
+    // If we have a draft on the server, discard it
+    if (dashboard?.is_draft) {
+      try {
+        await dashboardApi.discardDraft(dashboard.id)
+      } catch (err) {
+        console.error('Failed to discard draft:', err)
+        toast.error(t('dashboard.draft.discardFailed', 'Failed to discard draft'), getErrorMessage(err))
+        return
+      }
+    }
+
     setDashboard(JSON.parse(JSON.stringify(originalDashboard)))
     setPendingWidgetCreations([])
     setPendingWidgetDeletions([])
@@ -374,12 +406,15 @@ export const DashboardDetail: React.FC = () => {
     setIsDraft(false)
     setShowDiscardConfirm(false)
     setEditMode(false)
+    setOriginalDashboardId(null)
+    setOriginalDashboard(null)
     toast.success(t('dashboard.detail.changesDiscarded', 'Changes discarded'))
-  }, [originalDashboard, historyActions, t])
+  }, [dashboard, originalDashboard, historyActions, t])
 
-  // Save as draft: save widget changes and mark as draft (persistent server-side)
+  // Save draft: save widget changes to the draft dashboard
   const handleSaveDraft = useCallback(async () => {
-    if (!id || !dashboard) return
+    if (!dashboard || !dashboard.is_draft) return
+    const draftId = dashboard.id
     setSavingChanges(true)
 
     try {
@@ -429,12 +464,12 @@ export const DashboardDetail: React.FC = () => {
         }
       }
 
-      // 5. Execute atomic batch update
-      await dashboardApi.batchUpdateWidgets(id, batchReq)
+      // 5. Execute atomic batch update on the draft
+      await dashboardApi.batchUpdateWidgets(draftId, batchReq)
 
-      // 6. Mark as draft (server-side)
-      const updatedDashboard = await dashboardApi.saveAsDraft(id)
-      setDashboard(updatedDashboard)
+      // 6. Update draft timestamp
+      const updatedDraft = await dashboardApi.saveAsDraft(draftId)
+      setDashboard(updatedDraft)
 
       // Reset pending changes
       setPendingWidgetCreations([])
@@ -449,11 +484,12 @@ export const DashboardDetail: React.FC = () => {
     } finally {
       setSavingChanges(false)
     }
-  }, [id, dashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
+  }, [dashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
 
-  // Publish: save widget changes and clear draft flag
+  // Publish: save widget changes to draft, then merge draft to original
   const handlePublish = useCallback(async () => {
-    if (!id || !dashboard) return
+    if (!dashboard || !dashboard.is_draft || !originalDashboardId) return
+    const draftId = dashboard.id
     setSavingChanges(true)
 
     try {
@@ -503,20 +539,22 @@ export const DashboardDetail: React.FC = () => {
         }
       }
 
-      // 5. Execute atomic batch update
-      await dashboardApi.batchUpdateWidgets(id, batchReq)
+      // 5. Execute atomic batch update on the draft
+      await dashboardApi.batchUpdateWidgets(draftId, batchReq)
 
-      // 6. Publish (clear draft flag)
-      const updatedDashboard = await dashboardApi.publishDraft(id)
-      setDashboard(updatedDashboard)
+      // 6. Publish: merge draft to original and delete draft
+      const publishedDashboard = await dashboardApi.publishDraft(draftId)
+      setDashboard(publishedDashboard)
 
-      // Reset pending changes
+      // Reset state
       setPendingWidgetCreations([])
       setPendingWidgetDeletions([])
       setPendingWidgetUpdates({})
       setPendingResponsivePositions({})
       setIsDraft(false)
       setEditMode(false)
+      setOriginalDashboardId(null)
+      setOriginalDashboard(null)
       toast.success(t('dashboard.draft.published', 'Dashboard published'))
     } catch (err) {
       console.error('Publish failed:', err)
@@ -524,7 +562,7 @@ export const DashboardDetail: React.FC = () => {
     } finally {
       setSavingChanges(false)
     }
-  }, [id, dashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
+  }, [dashboard, originalDashboardId, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
 
   // Handle exit edit mode with confirmation if draft
   const handleExitEditMode = useCallback(() => {
@@ -536,19 +574,35 @@ export const DashboardDetail: React.FC = () => {
   }, [isDraft])
 
   // Force exit edit mode without saving (after confirmation)
-  const handleConfirmExit = useCallback(() => {
-    // Restore original state
+  // Discards the server-side draft and restores the original dashboard
+  const handleConfirmExit = useCallback(async () => {
+    setShowDiscardConfirm(false)
+
+    // If we have a draft on the server, discard it
+    if (dashboard?.is_draft) {
+      try {
+        await dashboardApi.discardDraft(dashboard.id)
+      } catch (err) {
+        console.error('Failed to discard draft:', err)
+        // Continue anyway - the draft will be orphaned but user can still exit
+      }
+    }
+
+    // Restore original dashboard state
     if (originalDashboard) {
       setDashboard(JSON.parse(JSON.stringify(originalDashboard)))
     }
+
+    // Reset all state
     setPendingWidgetCreations([])
     setPendingWidgetDeletions([])
     setPendingWidgetUpdates({})
     setPendingResponsivePositions({})
     setEditMode(false)
     setIsDraft(false)
-    setShowDiscardConfirm(false)
-  }, [originalDashboard])
+    setOriginalDashboardId(null)
+    setOriginalDashboard(null)
+  }, [dashboard, originalDashboard])
 
   // Apply widget history changes to dashboard state (including pending states)
   useEffect(() => {
@@ -1509,9 +1563,14 @@ export const DashboardDetail: React.FC = () => {
           {canEdit && !editMode && (
             <Button
               variant="outline"
-              onClick={() => setEditMode(true)}
+              onClick={enterEditMode}
+              disabled={creatingDraft}
             >
-              <Edit className="h-4 w-4 mr-2" />
+              {creatingDraft ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Edit className="h-4 w-4 mr-2" />
+              )}
               {t('common.edit')}
             </Button>
           )}
@@ -1646,8 +1705,18 @@ export const DashboardDetail: React.FC = () => {
         ) : (
           <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
             <p className="mb-4">{t('dashboard.detail.noWidgetsYet')}</p>
-            <Button onClick={() => { setEditMode(true); setAddWidgetOpen(true); }}>
-              <Plus className="h-4 w-4 mr-2" />
+            <Button
+              onClick={async () => {
+                await enterEditMode()
+                setAddWidgetOpen(true)
+              }}
+              disabled={creatingDraft}
+            >
+              {creatingDraft ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4 mr-2" />
+              )}
               {t('dashboard.addWidget')}
             </Button>
           </div>

@@ -233,16 +233,42 @@ export const dashboardApi = {
     return data
   },
 
-  // Save as draft (marks dashboard as draft)
-  saveAsDraft: async (dashboardId: string): Promise<Dashboard> => {
-    const { data } = await api.post<Dashboard>(`/dashboards/${dashboardId}/save-draft`)
+  // Draft management
+
+  // Get existing draft for a published dashboard (returns null if no draft)
+  getDraft: async (dashboardId: string): Promise<Dashboard | null> => {
+    try {
+      const { data } = await api.get<Dashboard>(`/dashboards/${dashboardId}/draft`)
+      return data
+    } catch (error) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        return null // No draft exists
+      }
+      throw error
+    }
+  },
+
+  // Create a draft copy of a published dashboard (or get existing draft)
+  createDraft: async (dashboardId: string): Promise<Dashboard> => {
+    const { data } = await api.post<Dashboard>(`/dashboards/${dashboardId}/draft`)
     return data
   },
 
-  // Publish draft (clears draft flag)
-  publishDraft: async (dashboardId: string): Promise<Dashboard> => {
-    const { data } = await api.post<Dashboard>(`/dashboards/${dashboardId}/publish`)
+  // Save changes to an existing draft (draftId is the draft dashboard ID)
+  saveAsDraft: async (draftId: string): Promise<Dashboard> => {
+    const { data } = await api.post<Dashboard>(`/dashboards/${draftId}/save-draft`)
     return data
+  },
+
+  // Publish draft: merge to original and delete draft (draftId is the draft dashboard ID)
+  publishDraft: async (draftId: string): Promise<Dashboard> => {
+    const { data } = await api.post<Dashboard>(`/dashboards/${draftId}/publish`)
+    return data
+  },
+
+  // Discard draft without merging (draftId is the draft dashboard ID)
+  discardDraft: async (draftId: string): Promise<void> => {
+    await api.delete(`/dashboards/${draftId}/discard-draft`)
   },
 
   // Permissions
