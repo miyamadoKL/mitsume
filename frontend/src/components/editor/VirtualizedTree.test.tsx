@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
 
 // Mock @tanstack/react-virtual to render all items without virtualization
 vi.mock('@tanstack/react-virtual', () => ({
