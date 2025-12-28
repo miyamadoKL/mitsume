@@ -86,6 +86,8 @@ export const mockDashboards: Dashboard[] = [
     updated_at: '2024-01-01T00:00:00Z',
     widgets: [],
     my_permission: 'owner',
+    is_draft: false,
+    is_public: false,
   },
 ]
 
@@ -309,6 +311,94 @@ export const handlers = [
     return HttpResponse.json({ error: 'Not found' }, { status: 404 })
   }),
 
+  // Draft handlers
+  http.post('/api/dashboards/:id/draft', ({ params }) => {
+    const dashboard = mockDashboards.find((d) => d.id === params.id)
+    if (dashboard) {
+      // Return a draft copy of the dashboard
+      const draftDashboard: Dashboard = {
+        ...dashboard,
+        id: `draft-${dashboard.id}`,
+        is_draft: true,
+        draft_of: dashboard.id,
+        widgets: mockWidgets.filter((w) => w.dashboard_id === dashboard.id).map(w => ({
+          ...w,
+          dashboard_id: `draft-${dashboard.id}`,
+        })),
+      }
+      return HttpResponse.json<Dashboard>(draftDashboard)
+    }
+    return HttpResponse.json({ error: 'Not found' }, { status: 404 })
+  }),
+
+  http.post('/api/dashboards/:id/save-draft', ({ params }) => {
+    // Return the updated draft dashboard
+    const draftId = params.id as string
+    const originalId = draftId.replace('draft-', '')
+    const dashboard = mockDashboards.find((d) => d.id === originalId)
+    if (dashboard) {
+      const draftDashboard: Dashboard = {
+        ...dashboard,
+        id: draftId,
+        is_draft: true,
+        draft_of: originalId,
+        updated_at: new Date().toISOString(),
+        widgets: mockWidgets.filter((w) => w.dashboard_id === originalId).map(w => ({
+          ...w,
+          dashboard_id: draftId,
+        })),
+      }
+      return HttpResponse.json<Dashboard>(draftDashboard)
+    }
+    return HttpResponse.json({ error: 'Not found' }, { status: 404 })
+  }),
+
+  http.post('/api/dashboards/:id/publish', ({ params }) => {
+    const draftId = params.id as string
+    const originalId = draftId.replace('draft-', '')
+    const dashboard = mockDashboards.find((d) => d.id === originalId)
+    if (dashboard) {
+      // Return the published (original) dashboard
+      return HttpResponse.json<Dashboard>({
+        ...dashboard,
+        is_draft: false,
+        draft_of: undefined,
+        updated_at: new Date().toISOString(),
+        widgets: mockWidgets.filter((w) => w.dashboard_id === originalId),
+      })
+    }
+    return HttpResponse.json({ error: 'Not found' }, { status: 404 })
+  }),
+
+  http.delete('/api/dashboards/:id/discard-draft', () => {
+    return new HttpResponse(null, { status: 204 })
+  }),
+
+  // Batch widget update handler
+  http.post('/api/dashboards/:dashboardId/widgets/batch', async ({ request }) => {
+    const body = await request.json() as {
+      create?: Array<{ name: string; chart_type: string }>
+      update?: Record<string, Partial<Widget>>
+      delete?: string[]
+    }
+    const result = {
+      created: (body.create || []).map((w, i) => ({
+        id: `widget-new-${Date.now()}-${i}`,
+        dashboard_id: 'dashboard-1',
+        name: w.name,
+        query_id: null,
+        chart_type: w.chart_type as Widget['chart_type'],
+        chart_config: {},
+        position: { x: 0, y: 0, w: 6, h: 4 },
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })),
+      updated: Object.keys(body.update || {}),
+      deleted: body.delete || [],
+    }
+    return HttpResponse.json(result)
+  }),
+
   // Layout templates handler
   http.get('/api/layout-templates', () => {
     return HttpResponse.json([])
@@ -448,6 +538,8 @@ export function resetMockData() {
     updated_at: '2024-01-01T00:00:00Z',
     widgets: [],
     my_permission: 'owner',
+    is_draft: false,
+    is_public: false,
   }
 
   // Reset widgets
