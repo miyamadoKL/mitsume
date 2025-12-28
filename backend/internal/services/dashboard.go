@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mitsume/backend/internal/database"
 	"github.com/mitsume/backend/internal/models"
 	"github.com/mitsume/backend/internal/repository"
@@ -71,9 +72,11 @@ func (s *DashboardService) CreateDashboard(ctx context.Context, userID uuid.UUID
 	err := pool.QueryRow(ctx,
 		`INSERT INTO dashboards (user_id, name, description, layout, is_public, parameters)
 		 VALUES ($1, $2, $3, $4, false, $5)
-		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'), created_at, updated_at`,
+		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'),
+		           COALESCE(is_draft, false), draft_of, created_at, updated_at`,
 		userID, req.Name, req.Description, defaultLayout, defaultParams,
-	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters, &d.CreatedAt, &d.UpdatedAt)
+	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters,
+		&d.IsDraft, &d.DraftOf, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -104,9 +107,11 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id, userID uuid.
 		     parameters = COALESCE($5, parameters),
 		     updated_at = CURRENT_TIMESTAMP
 		 WHERE id = $1
-		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'), created_at, updated_at`,
+		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'),
+		           COALESCE(is_draft, false), draft_of, created_at, updated_at`,
 		id, req.Name, req.Description, req.Layout, req.Parameters,
-	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters, &d.CreatedAt, &d.UpdatedAt)
+	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters,
+		&d.IsDraft, &d.DraftOf, &d.CreatedAt, &d.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -569,12 +574,14 @@ func (s *DashboardService) GetDraft(ctx context.Context, originalDashboardID, us
 
 	pool := database.GetPool()
 
-	// Find existing draft for this dashboard
+	// Find existing draft for this dashboard (Phase 1.3: ORDER BY + LIMIT for stability)
 	var d models.Dashboard
 	err = pool.QueryRow(ctx,
 		`SELECT id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'),
 		        COALESCE(is_draft, false), draft_of, created_at, updated_at
-		 FROM dashboards WHERE draft_of = $1 AND is_draft = true`,
+		 FROM dashboards WHERE draft_of = $1 AND COALESCE(is_draft, false) = true
+		 ORDER BY updated_at DESC, created_at DESC
+		 LIMIT 1`,
 		originalDashboardID,
 	).Scan(&d.ID, &d.UserID, &d.Name, &d.Description, &d.Layout, &d.IsPublic, &d.Parameters,
 		&d.IsDraft, &d.DraftOf, &d.CreatedAt, &d.UpdatedAt)
@@ -644,17 +651,33 @@ func (s *DashboardService) CreateDraft(ctx context.Context, originalDashboardID,
 	}
 	defer tx.Rollback(ctx)
 
-	// Create draft dashboard
+	// Create draft dashboard (Phase 1.2: is_public is always false for drafts)
 	var draft models.Dashboard
 	err = tx.QueryRow(ctx,
 		`INSERT INTO dashboards (user_id, name, description, layout, is_public, parameters, is_draft, draft_of)
-		 VALUES ($1, $2, $3, $4, $5, $6, true, $7)
+		 VALUES ($1, $2, $3, $4, false, $5, true, $6)
 		 RETURNING id, user_id, name, description, layout, COALESCE(is_public, false), COALESCE(parameters, '[]'),
 		           COALESCE(is_draft, false), draft_of, created_at, updated_at`,
-		original.UserID, original.Name, original.Description, original.Layout, original.IsPublic, original.Parameters, originalDashboardID,
+		original.UserID, original.Name, original.Description, original.Layout, original.Parameters, originalDashboardID,
 	).Scan(&draft.ID, &draft.UserID, &draft.Name, &draft.Description, &draft.Layout, &draft.IsPublic, &draft.Parameters,
 		&draft.IsDraft, &draft.DraftOf, &draft.CreatedAt, &draft.UpdatedAt)
 	if err != nil {
+		// Phase 1.4: Handle unique constraint violation (concurrent CreateDraft)
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			// Unique violation - another draft was created concurrently
+			tx.Rollback(ctx)
+			// Return the existing draft
+			existingDraft, getDraftErr := s.GetDraft(ctx, originalDashboardID, userID)
+			if getDraftErr != nil {
+				return nil, getDraftErr
+			}
+			if existingDraft != nil {
+				return existingDraft, nil
+			}
+			// Shouldn't happen, but fallback to error
+			return nil, err
+		}
 		return nil, err
 	}
 

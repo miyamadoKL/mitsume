@@ -178,6 +178,10 @@ export const DashboardDetail: React.FC = () => {
   const canEdit = myPermission === 'owner' || myPermission === 'edit'
   const isOwner = myPermission === 'owner'
 
+  // Phase 3.1: Unified active dashboard ID
+  // When editing a draft, all operations should target the draft (dashboard.id), not the URL ID
+  const activeDashboardId = dashboard?.id ?? id
+
   useEffect(() => {
     if (id) {
       loadDashboard()
@@ -185,20 +189,45 @@ export const DashboardDetail: React.FC = () => {
     }
   }, [id])
 
-  // Enter edit mode: create a draft copy on the server
+  // Enter edit mode: create a draft copy on the server (or use existing draft)
+  // Phase 4.3: Handle case when already viewing a draft (draft preview state)
   const enterEditMode = useCallback(async () => {
     if (!id || !dashboard || creatingDraft) return
 
     setCreatingDraft(true)
     try {
-      // Create a draft copy (or get existing draft)
-      const draft = await dashboardApi.createDraft(id)
+      let draft: Dashboard
+      let origId: string
+      let origDashboard: Dashboard | null = null
+
+      // Phase 4.3: Check if we're already viewing a draft
+      if (dashboard.is_draft && dashboard.draft_of) {
+        // Already viewing a draft - use it directly
+        draft = dashboard
+        origId = dashboard.draft_of
+
+        // Fetch the original dashboard to store as snapshot for discard
+        try {
+          origDashboard = await dashboardApi.getById(origId)
+        } catch (err) {
+          console.error('Failed to fetch original dashboard:', err)
+          // If we can't fetch the original, we can still edit but discard won't work properly
+          toast.error(t('dashboard.draft.originalNotFound', 'Warning: Could not load original dashboard'))
+        }
+      } else {
+        // Not a draft - create one
+        draft = await dashboardApi.createDraft(id)
+        origId = id
+        origDashboard = JSON.parse(JSON.stringify(dashboard))
+      }
 
       // Store original dashboard info
-      setOriginalDashboardId(id)
-      setOriginalDashboard(JSON.parse(JSON.stringify(dashboard)))
+      setOriginalDashboardId(origId)
+      if (origDashboard) {
+        setOriginalDashboard(origDashboard)
+      }
 
-      // Switch to editing the draft
+      // Switch to editing the draft (or stay on current draft)
       setDashboard(draft)
 
       // Reset all pending changes
@@ -486,61 +515,65 @@ export const DashboardDetail: React.FC = () => {
     }
   }, [dashboard, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
 
-  // Publish: save widget changes to draft, then merge draft to original
+  // Publish: save widget changes to draft (if any), then merge draft to original
+  // Phase 4.2: Only save if there are pending changes (isDraft)
   const handlePublish = useCallback(async () => {
     if (!dashboard || !dashboard.is_draft || !originalDashboardId) return
     const draftId = dashboard.id
     setSavingChanges(true)
 
     try {
-      // Build batch request for atomic update
-      const batchReq: import('@/types').BatchWidgetUpdateRequest = {
-        create: [],
-        update: {},
-        delete: [],
-      }
-
-      // 1. Collect widgets to delete (exclude temp widgets)
-      for (const widgetId of pendingWidgetDeletions) {
-        if (!widgetId.startsWith('temp-')) {
-          batchReq.delete!.push(widgetId)
+      // Phase 4.2: Only save pending changes if they exist
+      if (isDraft) {
+        // Build batch request for atomic update
+        const batchReq: import('@/types').BatchWidgetUpdateRequest = {
+          create: [],
+          update: {},
+          delete: [],
         }
-      }
 
-      // 2. Collect widgets to create (with responsive_positions if available)
-      for (const req of pendingWidgetCreations) {
-        const tempWidget = dashboard.widgets?.find(w => w.id === req.tempId)
-        const responsivePos = tempWidget?.responsive_positions || pendingResponsivePositions[req.tempId]
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { tempId: _tempId, ...createReqBase } = req
-        const createReq = responsivePos
-          ? { ...createReqBase, responsive_positions: responsivePos }
-          : createReqBase
-        batchReq.create!.push(createReq)
-      }
-
-      // 3. Collect widgets to update (including responsive_positions)
-      for (const [widgetId, updates] of Object.entries(pendingWidgetUpdates)) {
-        if (!widgetId.startsWith('temp-') && !pendingWidgetDeletions.includes(widgetId)) {
-          const responsivePos = pendingResponsivePositions[widgetId]
-          const updateWithResponsive = responsivePos
-            ? { ...updates, responsive_positions: responsivePos }
-            : updates
-          batchReq.update![widgetId] = updateWithResponsive
+        // 1. Collect widgets to delete (exclude temp widgets)
+        for (const widgetId of pendingWidgetDeletions) {
+          if (!widgetId.startsWith('temp-')) {
+            batchReq.delete!.push(widgetId)
+          }
         }
-      }
 
-      // 4. Collect widgets that only have responsive_positions changes
-      for (const [widgetId, responsivePos] of Object.entries(pendingResponsivePositions)) {
-        if (!widgetId.startsWith('temp-') &&
-            !pendingWidgetDeletions.includes(widgetId) &&
-            !batchReq.update![widgetId]) {
-          batchReq.update![widgetId] = { responsive_positions: responsivePos }
+        // 2. Collect widgets to create (with responsive_positions if available)
+        for (const req of pendingWidgetCreations) {
+          const tempWidget = dashboard.widgets?.find(w => w.id === req.tempId)
+          const responsivePos = tempWidget?.responsive_positions || pendingResponsivePositions[req.tempId]
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { tempId: _tempId, ...createReqBase } = req
+          const createReq = responsivePos
+            ? { ...createReqBase, responsive_positions: responsivePos }
+            : createReqBase
+          batchReq.create!.push(createReq)
         }
-      }
 
-      // 5. Execute atomic batch update on the draft
-      await dashboardApi.batchUpdateWidgets(draftId, batchReq)
+        // 3. Collect widgets to update (including responsive_positions)
+        for (const [widgetId, updates] of Object.entries(pendingWidgetUpdates)) {
+          if (!widgetId.startsWith('temp-') && !pendingWidgetDeletions.includes(widgetId)) {
+            const responsivePos = pendingResponsivePositions[widgetId]
+            const updateWithResponsive = responsivePos
+              ? { ...updates, responsive_positions: responsivePos }
+              : updates
+            batchReq.update![widgetId] = updateWithResponsive
+          }
+        }
+
+        // 4. Collect widgets that only have responsive_positions changes
+        for (const [widgetId, responsivePos] of Object.entries(pendingResponsivePositions)) {
+          if (!widgetId.startsWith('temp-') &&
+              !pendingWidgetDeletions.includes(widgetId) &&
+              !batchReq.update![widgetId]) {
+            batchReq.update![widgetId] = { responsive_positions: responsivePos }
+          }
+        }
+
+        // 5. Execute atomic batch update on the draft
+        await dashboardApi.batchUpdateWidgets(draftId, batchReq)
+      }
 
       // 6. Publish: merge draft to original and delete draft
       const publishedDashboard = await dashboardApi.publishDraft(draftId)
@@ -562,7 +595,7 @@ export const DashboardDetail: React.FC = () => {
     } finally {
       setSavingChanges(false)
     }
-  }, [dashboard, originalDashboardId, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
+  }, [dashboard, originalDashboardId, isDraft, pendingWidgetCreations, pendingWidgetDeletions, pendingWidgetUpdates, pendingResponsivePositions, t])
 
   // Handle exit edit mode with confirmation if draft
   const handleExitEditMode = useCallback(() => {
@@ -1351,7 +1384,8 @@ export const DashboardDetail: React.FC = () => {
   }
 
   const handleApplyTemplate = async (replaceExisting: boolean) => {
-    if (!id || !selectedTemplate) return
+    // Phase 3.2: Use activeDashboardId (draft ID when editing) instead of URL id
+    if (!activeDashboardId || !selectedTemplate) return
     setApplyingTemplate(true)
 
     // Save current state for rollback
@@ -1361,7 +1395,7 @@ export const DashboardDetail: React.FC = () => {
       // Delete existing widgets if replaceExisting is true
       if (replaceExisting && previousWidgets.length > 0) {
         const deleteResults = await Promise.allSettled(
-          previousWidgets.map(w => dashboardApi.deleteWidget(id, w.id))
+          previousWidgets.map(w => dashboardApi.deleteWidget(activeDashboardId, w.id))
         )
         const deleteFailed = deleteResults.filter(r => r.status === 'rejected')
         if (deleteFailed.length > 0) {
@@ -1377,7 +1411,7 @@ export const DashboardDetail: React.FC = () => {
       // Create new widgets in parallel
       if (selectedTemplate.layout.length > 0) {
         const widgetPromises = selectedTemplate.layout.map((pos, i) =>
-          dashboardApi.createWidget(id, {
+          dashboardApi.createWidget(activeDashboardId, {
             name: `${t('dashboard.widget.title')} ${(replaceExisting ? 0 : previousWidgets.length) + i + 1}`,
             chart_type: 'bar',
             chart_config: {},
@@ -1512,6 +1546,13 @@ export const DashboardDetail: React.FC = () => {
                   {t('dashboard.permissions.public')}
                 </span>
               )}
+              {/* Phase 4.4: Draft badge - always show when viewing a draft (even outside edit mode) */}
+              {dashboard.is_draft && !editMode && (
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full bg-yellow-100 text-yellow-700 border border-yellow-300">
+                  <AlertTriangle className="h-3 w-3" />
+                  {t('dashboard.draft.draftPreview', 'Draft Preview')}
+                </span>
+              )}
             </div>
             {dashboard.description && (
               <p className="text-sm text-muted-foreground">{dashboard.description}</p>
@@ -1580,13 +1621,13 @@ export const DashboardDetail: React.FC = () => {
               {(dashboard.is_draft || isDraft) && (
                 <span className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full bg-yellow-100 text-yellow-700 border border-yellow-300">
                   <AlertTriangle className="h-3 w-3" />
-                  {dashboard.is_draft
-                    ? t('dashboard.draft.draftMode', 'Draft')
-                    : t('dashboard.draft.unsavedChanges', 'Unsaved changes')}
+                  {isDraft
+                    ? t('dashboard.draft.unsavedChanges', 'Unsaved changes')
+                    : t('dashboard.draft.draftMode', 'Draft')}
                 </span>
               )}
-              {/* Save Draft button - only show when there are unsaved changes */}
-              {isDraft && (
+              {/* Save Draft button - only show when there are local unsaved changes */}
+              {isDraft && dashboard.is_draft && (
                 <Button
                   variant="outline"
                   onClick={handleSaveDraft}
@@ -1596,8 +1637,8 @@ export const DashboardDetail: React.FC = () => {
                   {savingChanges ? t('common.saving', 'Saving...') : t('dashboard.draft.saveDraft', 'Save Draft')}
                 </Button>
               )}
-              {/* Publish button - save and publish */}
-              {isDraft && (
+              {/* Phase 4.1: Publish button - always show when dashboard.is_draft is true */}
+              {dashboard.is_draft && (
                 <Button
                   variant="default"
                   onClick={handlePublish}
@@ -1607,23 +1648,27 @@ export const DashboardDetail: React.FC = () => {
                   {savingChanges ? t('common.saving', 'Saving...') : t('dashboard.draft.publish', 'Publish')}
                 </Button>
               )}
-              {/* Done/Cancel button - exit edit mode */}
-              <Button
-                variant={isDraft ? 'outline' : 'default'}
-                onClick={handleExitEditMode}
-              >
-                {isDraft ? (
-                  <>
-                    <X className="h-4 w-4 mr-2" />
-                    {t('common.cancel', 'Cancel')}
-                  </>
-                ) : (
-                  <>
-                    <Save className="h-4 w-4 mr-2" />
-                    {t('common.done')}
-                  </>
-                )}
-              </Button>
+              {/* Phase 4.1: Discard button - always show when dashboard.is_draft is true */}
+              {dashboard.is_draft && (
+                <Button
+                  variant="outline"
+                  onClick={handleExitEditMode}
+                  disabled={savingChanges}
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  {t('dashboard.draft.discard', 'Discard')}
+                </Button>
+              )}
+              {/* Done button - only show when not a server-side draft (for quick edits without draft) */}
+              {!dashboard.is_draft && (
+                <Button
+                  variant="default"
+                  onClick={handleExitEditMode}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  {t('common.done')}
+                </Button>
+              )}
               {/* Undo/Redo buttons */}
               <div className="flex border rounded-md">
                 <Button
@@ -1664,8 +1709,9 @@ export const DashboardDetail: React.FC = () => {
         </div>
       </div>
 
+      {/* Phase 3.4: Use activeDashboardId for dynamic options fetch */}
       <DashboardParameters
-        dashboardId={id || ''}
+        dashboardId={activeDashboardId || ''}
         parameters={allParameters}
         definitions={dashboard.parameters}
         draftValues={draftValues}
@@ -1891,9 +1937,10 @@ export const DashboardDetail: React.FC = () => {
           discoveredParameters={allParameters}
           savedQueries={savedQueries}
           onSave={async (params: ParameterDefinition[]) => {
-            if (!id) return
+            // Phase 3.3: Use activeDashboardId to save parameters to draft when editing
+            if (!activeDashboardId) return
             try {
-              const updated = await dashboardApi.update(id, { parameters: params })
+              const updated = await dashboardApi.update(activeDashboardId, { parameters: params })
               setDashboard(updated)
               toast.success(t('dashboard.parameters.saved', 'Parameters saved'))
             } catch (err) {

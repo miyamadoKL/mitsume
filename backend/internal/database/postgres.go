@@ -288,6 +288,25 @@ func RunMigrations() error {
 		`ALTER TABLE dashboards ADD COLUMN IF NOT EXISTS is_draft BOOLEAN DEFAULT FALSE`,
 		`ALTER TABLE dashboards ADD COLUMN IF NOT EXISTS draft_of UUID REFERENCES dashboards(id) ON DELETE CASCADE`,
 		`CREATE INDEX IF NOT EXISTS idx_dashboards_draft_of ON dashboards(draft_of) WHERE draft_of IS NOT NULL`,
+
+		// Phase 0.1: Ensure all drafts are private (fix any existing public drafts)
+		`UPDATE dashboards SET is_public = false WHERE COALESCE(is_draft, false) = true`,
+
+		// Phase 0.2: Delete duplicate drafts (keep only the latest one per original dashboard)
+		// This must run before the unique index creation
+		`DELETE FROM dashboards d
+		 USING (
+		   SELECT id,
+		          ROW_NUMBER() OVER (PARTITION BY draft_of ORDER BY updated_at DESC, created_at DESC) AS rn
+		   FROM dashboards
+		   WHERE COALESCE(is_draft, false) = true AND draft_of IS NOT NULL
+		 ) x
+		 WHERE d.id = x.id AND x.rn > 1`,
+
+		// Phase 0.2: Add unique constraint to ensure only one draft per dashboard
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_dashboards_draft_of_unique
+		 ON dashboards(draft_of)
+		 WHERE COALESCE(is_draft, false) = true AND draft_of IS NOT NULL`,
 	}
 
 	for _, migration := range migrations {

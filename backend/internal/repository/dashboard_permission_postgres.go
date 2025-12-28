@@ -19,13 +19,19 @@ func NewPostgresDashboardPermissionRepository(pool *pgxpool.Pool) *PostgresDashb
 }
 
 // GetUserPermissionLevel returns the permission level for a user on a dashboard
+// For drafts (is_draft=true), permission is evaluated against the original dashboard (draft_of)
+// Drafts are never treated as public (even if the original is public)
 func (r *PostgresDashboardPermissionRepository) GetUserPermissionLevel(ctx context.Context, dashboardID, userID uuid.UUID) (models.PermissionLevel, error) {
-	// Check if user is owner
+	// First, check if dashboard exists and get draft info
 	var ownerID uuid.UUID
+	var isDraft bool
+	var draftOf *uuid.UUID
+	var isPublic bool
 	err := r.pool.QueryRow(ctx,
-		`SELECT user_id FROM dashboards WHERE id = $1`,
+		`SELECT user_id, COALESCE(is_draft, false), draft_of, COALESCE(is_public, false)
+		 FROM dashboards WHERE id = $1`,
 		dashboardID,
-	).Scan(&ownerID)
+	).Scan(&ownerID, &isDraft, &draftOf, &isPublic)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return models.PermissionNone, ErrNotFound
@@ -33,26 +39,41 @@ func (r *PostgresDashboardPermissionRepository) GetUserPermissionLevel(ctx conte
 		return models.PermissionNone, err
 	}
 
-	if ownerID == userID {
+	// Determine which dashboard ID to use for permission evaluation
+	// For drafts, use the original dashboard (draft_of)
+	permDashboardID := dashboardID
+	permOwnerID := ownerID
+	permIsPublic := isPublic
+
+	if isDraft && draftOf != nil {
+		permDashboardID = *draftOf
+		// Get original dashboard's owner and public status
+		err = r.pool.QueryRow(ctx,
+			`SELECT user_id, COALESCE(is_public, false) FROM dashboards WHERE id = $1`,
+			permDashboardID,
+		).Scan(&permOwnerID, &permIsPublic)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				// Original dashboard doesn't exist (orphaned draft)
+				return models.PermissionNone, ErrNotFound
+			}
+			return models.PermissionNone, err
+		}
+		// Drafts are NEVER treated as public (even if original is public)
+		permIsPublic = false
+	}
+
+	// Check if user is owner of the original dashboard
+	if permOwnerID == userID {
 		return models.PermissionOwner, nil
 	}
 
-	// Check if dashboard is public
-	var isPublic bool
-	err = r.pool.QueryRow(ctx,
-		`SELECT COALESCE(is_public, false) FROM dashboards WHERE id = $1`,
-		dashboardID,
-	).Scan(&isPublic)
-	if err != nil {
-		return models.PermissionNone, err
-	}
-
-	// Check explicit user permission
+	// Check explicit user permission (against original dashboard)
 	var userPermLevel string
 	err = r.pool.QueryRow(ctx,
 		`SELECT permission_level FROM dashboard_permissions
 		 WHERE dashboard_id = $1 AND user_id = $2`,
-		dashboardID, userID,
+		permDashboardID, userID,
 	).Scan(&userPermLevel)
 	if err == nil {
 		return models.PermissionLevel(userPermLevel), nil
@@ -61,7 +82,7 @@ func (r *PostgresDashboardPermissionRepository) GetUserPermissionLevel(ctx conte
 		return models.PermissionNone, err
 	}
 
-	// Check role-based permission (get highest permission level from user's roles)
+	// Check role-based permission (against original dashboard)
 	var rolePermLevel string
 	err = r.pool.QueryRow(ctx,
 		`SELECT dp.permission_level FROM dashboard_permissions dp
@@ -69,7 +90,7 @@ func (r *PostgresDashboardPermissionRepository) GetUserPermissionLevel(ctx conte
 		 WHERE dp.dashboard_id = $1 AND ur.user_id = $2
 		 ORDER BY CASE dp.permission_level WHEN 'edit' THEN 1 WHEN 'view' THEN 2 END
 		 LIMIT 1`,
-		dashboardID, userID,
+		permDashboardID, userID,
 	).Scan(&rolePermLevel)
 	if err == nil {
 		return models.PermissionLevel(rolePermLevel), nil
@@ -78,8 +99,8 @@ func (r *PostgresDashboardPermissionRepository) GetUserPermissionLevel(ctx conte
 		return models.PermissionNone, err
 	}
 
-	// If public, return view permission
-	if isPublic {
+	// If public (and not a draft), return view permission
+	if permIsPublic {
 		return models.PermissionView, nil
 	}
 
