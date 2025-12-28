@@ -209,6 +209,33 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
 
       if (!expandedCatalogs.has(catalogId)) continue
 
+      // Show placeholder if catalog is expanded but loading or has no schemas
+      if (loadingNodes.has(catalogId)) {
+        result.push({
+          id: `${catalogId}.__loading__`,
+          type: 'placeholder',
+          depth: 1,
+          name: t('editor.schemaBrowser.loadingColumns', 'Loading...'),
+          isExpanded: false,
+          isLoading: true,
+          isAccessDenied: false,
+          hasChildren: false,
+          parentId: catalogId,
+        })
+      } else if (filteredSchemas.length === 0 && schemasMap.has(catalogId)) {
+        result.push({
+          id: `${catalogId}.__empty__`,
+          type: 'placeholder',
+          depth: 1,
+          name: t('editor.schemaBrowser.noSchemas', 'No schemas'),
+          isExpanded: false,
+          isLoading: false,
+          isAccessDenied: false,
+          hasChildren: false,
+          parentId: catalogId,
+        })
+      }
+
       for (const schema of filteredSchemas) {
         const schemaId = `${catalog}.${schema}`
         const tables = tablesMap.get(schemaId) || []
@@ -232,6 +259,33 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
           ? tables.filter(t => t.toLowerCase().includes(searchLower))
           : tables
 
+        // Show placeholder if schema is expanded but loading or has no tables
+        if (loadingNodes.has(schemaId)) {
+          result.push({
+            id: `${schemaId}.__loading__`,
+            type: 'placeholder',
+            depth: 2,
+            name: t('editor.schemaBrowser.loadingColumns', 'Loading...'),
+            isExpanded: false,
+            isLoading: true,
+            isAccessDenied: false,
+            hasChildren: false,
+            parentId: schemaId,
+          })
+        } else if (filteredTables.length === 0 && tablesMap.has(schemaId)) {
+          result.push({
+            id: `${schemaId}.__empty__`,
+            type: 'placeholder',
+            depth: 2,
+            name: t('editor.schemaBrowser.noTables', 'No tables'),
+            isExpanded: false,
+            isLoading: false,
+            isAccessDenied: false,
+            hasChildren: false,
+            parentId: schemaId,
+          })
+        }
+
         for (const table of filteredTables) {
           const tableId = `${catalog}.${schema}.${table}`
           const columns = columnsMap.get(tableId) || []
@@ -250,6 +304,33 @@ export function SchemaBrowser({ onInsert }: SchemaBrowserProps) {
           })
 
           if (!expandedTables.has(tableId)) continue
+
+          // Show placeholder if table is expanded but loading or has no columns
+          if (loadingNodes.has(tableId)) {
+            result.push({
+              id: `${tableId}.__loading__`,
+              type: 'placeholder',
+              depth: 3,
+              name: t('editor.schemaBrowser.loadingColumns', 'Loading columns...'),
+              isExpanded: false,
+              isLoading: true,
+              isAccessDenied: false,
+              hasChildren: false,
+              parentId: tableId,
+            })
+          } else if (columns.length === 0 && columnsMap.has(tableId)) {
+            result.push({
+              id: `${tableId}.__empty__`,
+              type: 'placeholder',
+              depth: 3,
+              name: t('editor.schemaBrowser.noColumns', 'No columns'),
+              isExpanded: false,
+              isLoading: false,
+              isAccessDenied: false,
+              hasChildren: false,
+              parentId: tableId,
+            })
+          }
 
           for (const col of columns) {
             result.push({

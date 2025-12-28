@@ -45,10 +45,14 @@ func TestValidateIdentifier(t *testing.T) {
 	}{
 		{"valid_alnum", "catalog1", false},
 		{"valid_with_underscore", "schema_name", false},
+		{"valid_with_dash", "my-catalog", false},
+		{"valid_with_dollar", "table$name", false},
+		{"valid_mixed", "my-catalog_name$1", false},
 		{"empty", "", true},
-		{"has_dash", "bad-name", true},
 		{"has_space", "bad name", true},
-		{"has_symbol", "bad$name", true},
+		{"has_dot", "bad.name", true},
+		{"has_semicolon", "bad;name", true},
+		{"starts_with_dash", "-leading-dash", false}, // Valid when properly quoted
 	}
 
 	for _, tt := range cases {
@@ -59,6 +63,53 @@ func TestValidateIdentifier(t *testing.T) {
 			}
 			if !tt.wantError && err != nil {
 				t.Fatalf("validateIdentifier(%q) unexpected error: %v", tt.value, err)
+			}
+		})
+	}
+}
+
+func TestQuoteIdentifier(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"simple", "catalog", `"catalog"`},
+		{"with_dash", "my-catalog", `"my-catalog"`},
+		{"with_dollar", "table$name", `"table$name"`},
+		{"with_underscore", "schema_name", `"schema_name"`},
+		{"with_double_quote", `has"quote`, `"has""quote"`},
+		{"multiple_quotes", `a"b"c`, `"a""b""c"`},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			got := quoteIdentifier(tt.input)
+			if got != tt.want {
+				t.Fatalf("quoteIdentifier(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestEscapeStringLiteral(t *testing.T) {
+	cases := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"simple", "hello", "hello"},
+		{"with_single_quote", "it's", "it''s"},
+		{"multiple_quotes", "it's user's", "it''s user''s"},
+		{"no_escape_needed", "hello world", "hello world"},
+		{"empty", "", ""},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			got := escapeStringLiteral(tt.input)
+			if got != tt.want {
+				t.Fatalf("escapeStringLiteral(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}

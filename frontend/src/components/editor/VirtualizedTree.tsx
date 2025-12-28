@@ -14,7 +14,7 @@ import {
 import { cn } from '@/lib/utils'
 
 // Node types for the tree
-export type NodeType = 'catalog' | 'schema' | 'table' | 'column'
+export type NodeType = 'catalog' | 'schema' | 'table' | 'column' | 'placeholder'
 
 // Flattened node for virtualized list
 export interface FlatNode {
@@ -49,6 +49,9 @@ interface VirtualizedTreeProps {
 // Row height in pixels
 const ROW_HEIGHT = 28
 
+// Double-click delay in ms
+const DOUBLE_CLICK_DELAY = 200
+
 export function VirtualizedTree({
   nodes,
   searchQuery,
@@ -59,6 +62,16 @@ export function VirtualizedTree({
 }: VirtualizedTreeProps) {
   const parentRef = useRef<HTMLDivElement>(null)
   const [focusedIndex, setFocusedIndex] = useState(0)
+  const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Virtual list setup
   const virtualizer = useVirtualizer({
@@ -198,14 +211,24 @@ export function VirtualizedTree({
     )
   }
 
-  // Handle row click
+  // Handle row click with double-click detection
   const handleRowClick = (node: FlatNode) => {
     const index = nodes.findIndex((n) => n.id === node.id)
     setFocusedIndex(index)
 
-    if (node.type === 'column') {
-      onNodeClick(node)
-    } else if (node.type === 'table') {
+    // For table nodes, delay click to detect double-click
+    if (node.type === 'table') {
+      // Clear any pending click timeout
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current)
+        clickTimeoutRef.current = null
+      }
+      // Set timeout for single click action
+      clickTimeoutRef.current = setTimeout(() => {
+        clickTimeoutRef.current = null
+        onNodeClick(node)
+      }, DOUBLE_CLICK_DELAY)
+    } else if (node.type === 'column') {
       onNodeClick(node)
     }
   }
@@ -213,6 +236,11 @@ export function VirtualizedTree({
   // Handle row double click
   const handleRowDoubleClick = (node: FlatNode) => {
     if (node.type === 'table') {
+      // Cancel pending single click
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current)
+        clickTimeoutRef.current = null
+      }
       onNodeDoubleClick(node)
     }
   }
@@ -253,6 +281,33 @@ export function VirtualizedTree({
         {virtualizer.getVirtualItems().map((virtualRow) => {
           const node = nodes[virtualRow.index]
           const isFocused = virtualRow.index === focusedIndex
+
+          // Placeholder nodes render differently
+          if (node.type === 'placeholder') {
+            return (
+              <div
+                key={node.id}
+                id={node.id}
+                role="treeitem"
+                aria-level={node.depth + 1}
+                className="flex items-center gap-1 px-2 text-sm text-muted-foreground italic absolute top-0 left-0 w-full"
+                style={{
+                  height: `${ROW_HEIGHT}px`,
+                  transform: `translateY(${virtualRow.start}px)`,
+                  paddingLeft: `${8 + node.depth * 16}px`,
+                }}
+              >
+                {node.isLoading ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                    <span>{node.name}</span>
+                  </>
+                ) : (
+                  <span>{node.name}</span>
+                )}
+              </div>
+            )
+          }
 
           return (
             <div
