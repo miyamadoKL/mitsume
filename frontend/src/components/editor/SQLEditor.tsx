@@ -1,10 +1,12 @@
 import React, { useCallback, useMemo } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
+import type { editor } from 'monaco-editor'
 
 interface SQLEditorProps {
   value: string
   onChange: (value: string) => void
   onExecute?: () => void
+  onEditorReady?: (editor: editor.IStandaloneCodeEditor) => void
   height?: string
 }
 
@@ -12,6 +14,7 @@ export const SQLEditor: React.FC<SQLEditorProps> = ({
   value,
   onChange,
   onExecute,
+  onEditorReady,
   height = '300px',
 }) => {
   const handleEditorMount: OnMount = useCallback((editor, monaco) => {
@@ -22,7 +25,10 @@ export const SQLEditor: React.FC<SQLEditorProps> = ({
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.NumpadEnter, () => {
       onExecute?.()
     })
-  }, [onExecute])
+
+    // Pass editor instance to parent
+    onEditorReady?.(editor)
+  }, [onExecute, onEditorReady])
 
   const options = useMemo(() => ({
     minimap: { enabled: false },

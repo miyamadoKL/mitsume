@@ -76,3 +76,28 @@ type WidgetDataResponse struct {
 type ParameterOptionsRequest struct {
 	Parameters map[string]interface{} `json:"parameters"`
 }
+
+// ColumnInfo represents column metadata from information_schema
+type ColumnInfo struct {
+	Name            string  `json:"name"`
+	Type            string  `json:"type"`
+	Nullable        bool    `json:"nullable"`
+	Comment         *string `json:"comment,omitempty"`
+	OrdinalPosition int     `json:"ordinal_position"`
+}
+
+// MetadataSearchResult represents a single search result from metadata search
+type MetadataSearchResult struct {
+	Catalog string `json:"catalog"`
+	Schema  string `json:"schema"`
+	Table   string `json:"table"`
+	Column  string `json:"column,omitempty"`
+	Type    string `json:"type"` // "table" or "column"
+}
+
+// MetadataSearchRequest represents a request to search metadata
+type MetadataSearchRequest struct {
+	Query      string `json:"query" binding:"required"`
+	SearchType string `json:"search_type"` // "table", "column", or "all"
+	Limit      int    `json:"limit"`
+}

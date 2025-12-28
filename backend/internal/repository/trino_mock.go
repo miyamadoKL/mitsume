@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/mitsume/backend/internal/models"
@@ -11,8 +12,9 @@ import (
 type MockTrinoExecutor struct {
 	// Predefined responses
 	Catalogs []string
-	Schemas  map[string][]string          // catalog -> schemas
-	Tables   map[string]map[string][]string // catalog -> schema -> tables
+	Schemas  map[string][]string                               // catalog -> schemas
+	Tables   map[string]map[string][]string                    // catalog -> schema -> tables
+	Columns  map[string]map[string]map[string][]models.ColumnInfo // catalog -> schema -> table -> columns
 
 	// Query results
 	QueryResults map[string]*models.QueryResult // query -> result
@@ -22,12 +24,14 @@ type MockTrinoExecutor struct {
 	GetCatalogsError  error
 	GetSchemasError   error
 	GetTablesError    error
+	GetColumnsError   error
 
 	// Function hooks for custom behavior
 	ExecuteQueryFunc func(ctx context.Context, query, catalog, schema string) (*models.QueryResult, error)
 	GetCatalogsFunc  func(ctx context.Context) ([]string, error)
 	GetSchemasFunc   func(ctx context.Context, catalog string) ([]string, error)
 	GetTablesFunc    func(ctx context.Context, catalog, schema string) ([]string, error)
+	GetColumnsFunc   func(ctx context.Context, catalog, schema, table string) ([]models.ColumnInfo, error)
 
 	// Call tracking
 	ExecuteQueryCalls []ExecuteQueryCall
@@ -46,6 +50,7 @@ func NewMockTrinoExecutor() *MockTrinoExecutor {
 		Catalogs:     []string{},
 		Schemas:      make(map[string][]string),
 		Tables:       make(map[string]map[string][]string),
+		Columns:      make(map[string]map[string]map[string][]models.ColumnInfo),
 		QueryResults: make(map[string]*models.QueryResult),
 	}
 }
@@ -125,6 +130,26 @@ func (m *MockTrinoExecutor) GetTables(ctx context.Context, catalog, schema strin
 	return []string{}, nil
 }
 
+func (m *MockTrinoExecutor) GetColumns(ctx context.Context, catalog, schema, table string) ([]models.ColumnInfo, error) {
+	if m.GetColumnsFunc != nil {
+		return m.GetColumnsFunc(ctx, catalog, schema, table)
+	}
+
+	if m.GetColumnsError != nil {
+		return nil, m.GetColumnsError
+	}
+
+	if catalogSchemas, ok := m.Columns[catalog]; ok {
+		if schemaTables, ok := catalogSchemas[schema]; ok {
+			if columns, ok := schemaTables[table]; ok {
+				return columns, nil
+			}
+		}
+	}
+
+	return []models.ColumnInfo{}, nil
+}
+
 // SetupCatalog adds a catalog with schemas and tables for testing
 func (m *MockTrinoExecutor) SetupCatalog(catalog string, schemas map[string][]string) {
 	m.Catalogs = append(m.Catalogs, catalog)
@@ -142,8 +167,86 @@ func (m *MockTrinoExecutor) SetQueryResult(query string, result *models.QueryRes
 	m.QueryResults[query] = result
 }
 
+// SetColumns sets predefined columns for a specific table
+func (m *MockTrinoExecutor) SetColumns(catalog, schema, table string, columns []models.ColumnInfo) {
+	if m.Columns[catalog] == nil {
+		m.Columns[catalog] = make(map[string]map[string][]models.ColumnInfo)
+	}
+	if m.Columns[catalog][schema] == nil {
+		m.Columns[catalog][schema] = make(map[string][]models.ColumnInfo)
+	}
+	m.Columns[catalog][schema][table] = columns
+}
+
 // ExecuteQueryWithCache implements CachedTrinoExecutor interface
 // In mock, it simply delegates to ExecuteQuery (no actual caching)
 func (m *MockTrinoExecutor) ExecuteQueryWithCache(ctx context.Context, query, catalog, schema string, priority int, savedQueryID *uuid.UUID) (*models.QueryResult, error) {
 	return m.ExecuteQuery(ctx, query, catalog, schema)
+}
+
+// SearchMetadata implements TrinoExecutor interface
+// Returns mock search results matching the query string
+func (m *MockTrinoExecutor) SearchMetadata(ctx context.Context, query, searchType string, catalogs []string, limit int) ([]models.MetadataSearchResult, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+
+	var results []models.MetadataSearchResult
+	queryLower := strings.ToLower(query)
+
+	// Filter catalogs to only those we have data for
+	allowedCatalogs := make(map[string]bool)
+	for _, c := range catalogs {
+		allowedCatalogs[c] = true
+	}
+
+	for _, catalog := range m.Catalogs {
+		if !allowedCatalogs[catalog] {
+			continue
+		}
+
+		for schema, tables := range m.Tables[catalog] {
+			// Skip system schemas
+			if schema == "information_schema" || schema == "sys" || schema == "pg_catalog" {
+				continue
+			}
+
+			for _, table := range tables {
+				// Search tables
+				if (searchType == "table" || searchType == "all") && strings.Contains(strings.ToLower(table), queryLower) {
+					results = append(results, models.MetadataSearchResult{
+						Catalog: catalog,
+						Schema:  schema,
+						Table:   table,
+						Type:    "table",
+					})
+					if len(results) >= limit {
+						return results, nil
+					}
+				}
+
+				// Search columns
+				if searchType == "column" || searchType == "all" {
+					if columns, ok := m.Columns[catalog][schema][table]; ok {
+						for _, col := range columns {
+							if strings.Contains(strings.ToLower(col.Name), queryLower) {
+								results = append(results, models.MetadataSearchResult{
+									Catalog: catalog,
+									Schema:  schema,
+									Table:   table,
+									Column:  col.Name,
+									Type:    "column",
+								})
+								if len(results) >= limit {
+									return results, nil
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return results, nil
 }

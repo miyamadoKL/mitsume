@@ -13,6 +13,7 @@
   "dependencies": {
     "@monaco-editor/react": "^4.6.0",
     "@tailwindcss/typography": "^0.5.19",
+    "@tanstack/react-virtual": "^3.13.13",
     "axios": "^1.6.2",
     "clsx": "^2.0.0",
     "echarts": "^5.4.3",

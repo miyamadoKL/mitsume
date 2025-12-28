@@ -191,3 +191,102 @@ func (h *QueryHandler) GetTables(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"tables": tables})
 }
+
+func (h *QueryHandler) GetColumns(c *gin.Context) {
+	userID := c.MustGet("userID").(uuid.UUID)
+	catalog := c.Param("catalog")
+	schema := c.Param("schema")
+	table := c.Param("table")
+	if catalog == "" || schema == "" || table == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "catalog, schema, and table are required"})
+		return
+	}
+
+	// Check catalog access permission
+	if h.roleService != nil {
+		hasAccess, err := h.roleService.CanUserAccessCatalog(c.Request.Context(), userID, catalog)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		if !hasAccess {
+			c.JSON(http.StatusForbidden, gin.H{"error": "access denied to catalog"})
+			return
+		}
+	}
+
+	columns, err := h.trinoExecutor.GetColumns(c.Request.Context(), catalog, schema, table)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"columns": columns})
+}
+
+func (h *QueryHandler) SearchMetadata(c *gin.Context) {
+	userID := c.MustGet("userID").(uuid.UUID)
+
+	var req models.MetadataSearchRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Default search type
+	if req.SearchType == "" {
+		req.SearchType = "all"
+	}
+
+	// Validate search type
+	if req.SearchType != "table" && req.SearchType != "column" && req.SearchType != "all" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "search_type must be 'table', 'column', or 'all'"})
+		return
+	}
+
+	// Default limit
+	if req.Limit <= 0 {
+		req.Limit = 50
+	}
+	if req.Limit > 100 {
+		req.Limit = 100
+	}
+
+	// Get user's allowed catalogs
+	var allowedCatalogs []string
+	if h.roleService != nil {
+		catalogs, err := h.roleService.GetUserAllowedCatalogs(c.Request.Context(), userID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+
+		if catalogs == nil {
+			// Admin user - get all catalogs
+			allCatalogs, err := h.trinoExecutor.GetCatalogs(c.Request.Context())
+			if err != nil {
+				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				return
+			}
+			allowedCatalogs = allCatalogs
+		} else {
+			allowedCatalogs = catalogs
+		}
+	} else {
+		// No role service - get all catalogs
+		allCatalogs, err := h.trinoExecutor.GetCatalogs(c.Request.Context())
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
+		allowedCatalogs = allCatalogs
+	}
+
+	results, err := h.trinoExecutor.SearchMetadata(c.Request.Context(), req.Query, req.SearchType, allowedCatalogs, req.Limit)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"results": results})
+}

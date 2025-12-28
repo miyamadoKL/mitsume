@@ -41,6 +41,14 @@ type TrinoExecutor interface {
 
 	// GetTables returns a list of tables in the specified catalog and schema
 	GetTables(ctx context.Context, catalog, schema string) ([]string, error)
+
+	// GetColumns returns a list of columns in the specified table
+	GetColumns(ctx context.Context, catalog, schema, table string) ([]models.ColumnInfo, error)
+
+	// SearchMetadata searches for tables and columns across catalogs
+	// searchType: "table", "column", or "all"
+	// catalogs: list of catalogs to search in (for permission filtering)
+	SearchMetadata(ctx context.Context, query, searchType string, catalogs []string, limit int) ([]models.MetadataSearchResult, error)
 }
 
 // CachedTrinoExecutor extends TrinoExecutor with caching capability

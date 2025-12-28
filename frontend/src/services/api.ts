@@ -4,6 +4,7 @@ import type {
   SavedQuery,
   QueryHistory,
   QueryResult,
+  ColumnInfo,
   Dashboard,
   Widget,
   CreateDashboardRequest,
@@ -33,6 +34,7 @@ import type {
   WidgetDataResponse,
   BatchWidgetUpdateRequest,
   BatchWidgetUpdateResponse,
+  MetadataSearchResult,
 } from '@/types'
 
 const api = axios.create({
@@ -165,6 +167,26 @@ export const catalogApi = {
       `/catalogs/${catalog}/schemas/${schema}/tables`
     )
     return data.tables
+  },
+
+  getColumns: async (catalog: string, schema: string, table: string): Promise<ColumnInfo[]> => {
+    const { data } = await api.get<{ columns: ColumnInfo[] }>(
+      `/catalogs/${catalog}/schemas/${schema}/tables/${table}/columns`
+    )
+    return data.columns
+  },
+
+  searchMetadata: async (
+    query: string,
+    searchType: 'table' | 'column' | 'all' = 'all',
+    limit = 50
+  ): Promise<MetadataSearchResult[]> => {
+    const { data } = await api.post<{ results: MetadataSearchResult[] }>('/search/metadata', {
+      query,
+      search_type: searchType,
+      limit,
+    })
+    return data.results || []
   },
 }
 

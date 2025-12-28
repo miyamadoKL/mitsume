@@ -40,6 +40,14 @@ export interface QueryResult {
   execution_time_ms: number
 }
 
+export interface ColumnInfo {
+  name: string
+  type: string
+  nullable: boolean
+  comment?: string
+  ordinal_position: number
+}
+
 export type PermissionLevel = 'view' | 'edit' | 'owner' | ''
 
 // Parameter Definition Types for Dashboard Filters
@@ -686,4 +694,19 @@ export interface WidgetDataResponse {
   error?: string
   required_parameters?: string[]
   missing_parameters?: string[]
+}
+
+// Metadata Search Types
+export interface MetadataSearchResult {
+  catalog: string
+  schema: string
+  table: string
+  column?: string
+  type: 'table' | 'column'
+}
+
+export interface MetadataSearchRequest {
+  query: string
+  search_type?: 'table' | 'column' | 'all'
+  limit?: number
 }

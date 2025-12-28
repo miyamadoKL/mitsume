@@ -228,6 +228,16 @@ export const handlers = [
     return HttpResponse.json({ tables: ['users', 'orders', 'products'] })
   }),
 
+  http.get('/api/catalogs/:catalog/schemas/:schema/tables/:table/columns', () => {
+    return HttpResponse.json({
+      columns: [
+        { name: 'id', type: 'integer', nullable: false, comment: 'Primary key', ordinal_position: 1 },
+        { name: 'name', type: 'varchar', nullable: true, comment: null, ordinal_position: 2 },
+        { name: 'created_at', type: 'timestamp', nullable: false, comment: 'Creation time', ordinal_position: 3 },
+      ],
+    })
+  }),
+
   // Dashboard handlers
   http.get('/api/dashboards', () => {
     return HttpResponse.json<Dashboard[]>(mockDashboards)
@@ -471,6 +481,24 @@ export const errorHandlers = {
   catalogs: http.get('/api/catalogs', () => HttpResponse.json({ catalogs: ['memory'] })),
   schemas: http.get('/api/catalogs/:catalog/schemas', () => HttpResponse.json({ schemas: ['default'] })),
   tables: http.get('/api/catalogs/:catalog/schemas/:schema/tables', () => HttpResponse.json({ tables: ['sample_table'] })),
+  columns: http.get('/api/catalogs/:catalog/schemas/:schema/tables/:table/columns', () =>
+    HttpResponse.json({ columns: [{ name: 'id', type: 'integer', nullable: false }] })
+  ),
+  catalogsForbidden: http.get('/api/catalogs', () =>
+    HttpResponse.json({ error: 'Access denied' }, { status: 403 })
+  ),
+  schemasForbidden: http.get('/api/catalogs/:catalog/schemas', () =>
+    HttpResponse.json({ error: 'Access denied' }, { status: 403 })
+  ),
+  tablesForbidden: http.get('/api/catalogs/:catalog/schemas/:schema/tables', () =>
+    HttpResponse.json({ error: 'Access denied' }, { status: 403 })
+  ),
+  columnsForbidden: http.get('/api/catalogs/:catalog/schemas/:schema/tables/:table/columns', () =>
+    HttpResponse.json({ error: 'Access denied' }, { status: 403 })
+  ),
+  columnsError: http.get('/api/catalogs/:catalog/schemas/:schema/tables/:table/columns', () =>
+    HttpResponse.json({ error: 'Server error' }, { status: 500 })
+  ),
   // Token expiry (401) for authenticated endpoints
   tokenExpired: http.get('/api/auth/me', () => {
     return HttpResponse.json({ error: 'Token expired' }, { status: 401 })
@@ -506,6 +534,12 @@ export const emptyHandlers = {
   emptyQueries: http.get('/api/queries/saved', () => HttpResponse.json([])),
   emptyHistory: http.get('/api/queries/history', () => HttpResponse.json([])),
   emptyDashboards: http.get('/api/dashboards', () => HttpResponse.json([])),
+  emptyCatalogs: http.get('/api/catalogs', () => HttpResponse.json({ catalogs: [] })),
+  emptySchemas: http.get('/api/catalogs/:catalog/schemas', () => HttpResponse.json({ schemas: [] })),
+  emptyTables: http.get('/api/catalogs/:catalog/schemas/:schema/tables', () => HttpResponse.json({ tables: [] })),
+  emptyColumns: http.get('/api/catalogs/:catalog/schemas/:schema/tables/:table/columns', () =>
+    HttpResponse.json({ columns: [] })
+  ),
 }
 
 // Slow handlers for loading state tests

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -130,8 +131,8 @@ func (s *TrinoService) GetSchemas(ctx context.Context, catalog string) ([]string
 		return nil, err
 	}
 
-	query := fmt.Sprintf("SHOW SCHEMAS FROM %s", catalog)
-	result, err := s.ExecuteQuery(ctx, query, catalog, "")
+	query := fmt.Sprintf("SHOW SCHEMAS FROM %s", quoteIdentifier(catalog))
+	result, err := s.ExecuteQuery(ctx, query, catalog, "information_schema")
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +157,7 @@ func (s *TrinoService) GetTables(ctx context.Context, catalog, schema string) ([
 		return nil, err
 	}
 
-	query := fmt.Sprintf("SHOW TABLES FROM %s.%s", catalog, schema)
+	query := fmt.Sprintf("SHOW TABLES FROM %s.%s", quoteIdentifier(catalog), quoteIdentifier(schema))
 	result, err := s.ExecuteQuery(ctx, query, catalog, schema)
 	if err != nil {
 		return nil, err
@@ -172,6 +173,206 @@ func (s *TrinoService) GetTables(ctx context.Context, catalog, schema string) ([
 	}
 
 	return tables, nil
+}
+
+func (s *TrinoService) GetColumns(ctx context.Context, catalog, schema, table string) ([]models.ColumnInfo, error) {
+	if err := validateIdentifier(catalog); err != nil {
+		return nil, err
+	}
+	if err := validateIdentifier(schema); err != nil {
+		return nil, err
+	}
+	if err := validateIdentifier(table); err != nil {
+		return nil, err
+	}
+
+	// Query information_schema for column metadata
+	// is_nullable returns 'YES' or 'NO' as string in Trino
+	query := fmt.Sprintf(`
+		SELECT
+			column_name,
+			data_type,
+			is_nullable,
+			comment,
+			ordinal_position
+		FROM %s.information_schema.columns
+		WHERE table_schema = '%s'
+		  AND table_name = '%s'
+		ORDER BY ordinal_position
+	`, quoteIdentifier(catalog), escapeStringLiteral(schema), escapeStringLiteral(table))
+
+	result, err := s.ExecuteQuery(ctx, query, catalog, "information_schema")
+	if err != nil {
+		return nil, err
+	}
+
+	columns := make([]models.ColumnInfo, 0, len(result.Rows))
+	for _, row := range result.Rows {
+		if len(row) < 5 {
+			continue
+		}
+
+		col := models.ColumnInfo{}
+
+		// column_name
+		if name, ok := row[0].(string); ok {
+			col.Name = name
+		}
+
+		// data_type
+		if dataType, ok := row[1].(string); ok {
+			col.Type = dataType
+		}
+
+		// is_nullable ('YES' or 'NO')
+		if isNullable, ok := row[2].(string); ok {
+			col.Nullable = (isNullable == "YES")
+		}
+
+		// comment (may be nil)
+		if row[3] != nil {
+			if comment, ok := row[3].(string); ok {
+				col.Comment = &comment
+			}
+		}
+
+		// ordinal_position
+		if pos, ok := row[4].(int64); ok {
+			col.OrdinalPosition = int(pos)
+		} else if pos, ok := row[4].(int); ok {
+			col.OrdinalPosition = pos
+		}
+
+		columns = append(columns, col)
+	}
+
+	return columns, nil
+}
+
+func (s *TrinoService) SearchMetadata(ctx context.Context, query, searchType string, catalogs []string, limit int) ([]models.MetadataSearchResult, error) {
+	if query == "" {
+		return []models.MetadataSearchResult{}, nil
+	}
+
+	if limit <= 0 || limit > 100 {
+		limit = 50 // Default limit
+	}
+
+	// Escape single quotes for SQL and create search pattern
+	escapedQuery := escapeSearchQuery(query)
+	searchPattern := "%" + escapedQuery + "%"
+
+	var results []models.MetadataSearchResult
+
+	// Search through each allowed catalog
+	for _, catalog := range catalogs {
+		if err := validateIdentifier(catalog); err != nil {
+			continue
+		}
+
+		// Search tables
+		if searchType == "table" || searchType == "all" {
+			tableQuery := fmt.Sprintf(`
+				SELECT
+					table_catalog,
+					table_schema,
+					table_name
+				FROM %s.information_schema.tables
+				WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'sys')
+				  AND LOWER(table_name) LIKE LOWER('%s')
+				ORDER BY table_name
+				LIMIT %d
+			`, quoteIdentifier(catalog), searchPattern, limit)
+
+			result, err := s.ExecuteQuery(ctx, tableQuery, catalog, "information_schema")
+			if err != nil {
+				continue // Skip catalogs with errors
+			}
+
+			for _, row := range result.Rows {
+				if len(row) < 3 {
+					continue
+				}
+				tableCatalog, _ := row[0].(string)
+				tableSchema, _ := row[1].(string)
+				tableName, _ := row[2].(string)
+
+				results = append(results, models.MetadataSearchResult{
+					Catalog: tableCatalog,
+					Schema:  tableSchema,
+					Table:   tableName,
+					Type:    "table",
+				})
+			}
+		}
+
+		// Search columns
+		if searchType == "column" || searchType == "all" {
+			columnQuery := fmt.Sprintf(`
+				SELECT
+					table_catalog,
+					table_schema,
+					table_name,
+					column_name
+				FROM %s.information_schema.columns
+				WHERE table_schema NOT IN ('information_schema', 'pg_catalog', 'sys')
+				  AND LOWER(column_name) LIKE LOWER('%s')
+				ORDER BY column_name
+				LIMIT %d
+			`, quoteIdentifier(catalog), searchPattern, limit)
+
+			result, err := s.ExecuteQuery(ctx, columnQuery, catalog, "information_schema")
+			if err != nil {
+				continue // Skip catalogs with errors
+			}
+
+			for _, row := range result.Rows {
+				if len(row) < 4 {
+					continue
+				}
+				tableCatalog, _ := row[0].(string)
+				tableSchema, _ := row[1].(string)
+				tableName, _ := row[2].(string)
+				columnName, _ := row[3].(string)
+
+				results = append(results, models.MetadataSearchResult{
+					Catalog: tableCatalog,
+					Schema:  tableSchema,
+					Table:   tableName,
+					Column:  columnName,
+					Type:    "column",
+				})
+			}
+		}
+
+		// Stop if we have enough results
+		if len(results) >= limit {
+			results = results[:limit]
+			break
+		}
+	}
+
+	return results, nil
+}
+
+// escapeSearchQuery escapes special characters in search query to prevent SQL injection
+func escapeSearchQuery(query string) string {
+	// Escape single quotes by doubling them
+	result := ""
+	for _, c := range query {
+		if c == '\'' {
+			result += "''"
+		} else if c == '%' {
+			// Escape % in LIKE pattern
+			result += "\\%"
+		} else if c == '_' {
+			// Escape _ in LIKE pattern
+			result += "\\_"
+		} else {
+			result += string(c)
+		}
+	}
+	return result
 }
 
 func (s *TrinoService) getDB(dsn string) (*sql.DB, error) {
@@ -196,7 +397,10 @@ func (s *TrinoService) getDB(dsn string) (*sql.DB, error) {
 	return db, nil
 }
 
-var identifierPattern = regexp.MustCompile(`^[a-zA-Z0-9_]+$`)
+// identifierPattern allows common characters in Trino identifiers
+// Includes letters, digits, underscores, hyphens, and dollar signs
+// More exotic characters will be handled by quoting in SQL
+var identifierPattern = regexp.MustCompile(`^[a-zA-Z0-9_\-\$][a-zA-Z0-9_\-\$]*$`)
 
 func validateIdentifier(identifier string) error {
 	if identifier == "" {
@@ -206,4 +410,17 @@ func validateIdentifier(identifier string) error {
 		return errors.New("invalid identifier")
 	}
 	return nil
+}
+
+// quoteIdentifier wraps an identifier in double quotes and escapes internal quotes
+// This is necessary for identifiers containing special characters in Trino SQL
+func quoteIdentifier(identifier string) string {
+	// Escape any double quotes by doubling them
+	escaped := strings.ReplaceAll(identifier, `"`, `""`)
+	return `"` + escaped + `"`
+}
+
+// escapeStringLiteral escapes a string for use in SQL single-quoted literals
+func escapeStringLiteral(s string) string {
+	return strings.ReplaceAll(s, `'`, `''`)
 }
