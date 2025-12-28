@@ -153,26 +153,18 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     }
   }
 
-  // Helper to build responsive positions from current layouts
-  const buildResponsivePositions = useCallback((widgetId: string): ResponsivePositions => {
-    const result: ResponsivePositions = {}
-    const allBreakpoints: Breakpoint[] = ['lg', 'md', 'sm', 'xs']
-
-    allBreakpoints.forEach(bp => {
-      const layout = layoutsRef.current[bp]
-      if (layout) {
-        const item = layout.find(l => l.i === widgetId)
-        if (item) {
-          result[bp] = { x: item.x, y: item.y, w: item.w, h: item.h }
-        }
-      }
-    })
-
+  const buildBreakpointPositions = useCallback((layout: Layout[], breakpoint: Breakpoint) => {
+    const result: Record<string, ResponsivePositions> = {}
+    for (const item of layout) {
+      const positions: ResponsivePositions = {}
+      positions[breakpoint] = { x: item.x, y: item.y, w: item.w, h: item.h }
+      result[item.i] = positions
+    }
     return result
   }, [])
 
   // Called when drag or resize operation is complete
-  const handleDragStop = (layout: Layout[], _oldItem: Layout, newItem: Layout, _placeholder: Layout, _e: MouseEvent, _element: HTMLElement) => {
+  const handleDragStop = (layout: Layout[], _oldItem: Layout, _newItem: Layout, _placeholder: Layout, _e: MouseEvent, _element: HTMLElement) => {
     if (!editable) return
 
     // Update the layouts ref with the new layout for current breakpoint
@@ -183,23 +175,14 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
       onLayoutChangeComplete(layout, bp)
     }
 
-    // Report only the changed widget's responsive positions (performance optimization)
+    // Report responsive positions for all widgets in the current breakpoint.
+    // Dragging one widget can move other widgets due to collision/compaction.
     if (onAllLayoutsChange) {
-      // Build responsive positions only for the moved widget
-      const changedWidgetPositions = buildResponsivePositions(newItem.i)
-      // Ensure the current breakpoint has the latest position
-      changedWidgetPositions[bp] = {
-        x: newItem.x,
-        y: newItem.y,
-        w: newItem.w,
-        h: newItem.h,
-      }
-      // Send only the changed widget's data
-      onAllLayoutsChange({ [newItem.i]: changedWidgetPositions })
+      onAllLayoutsChange(buildBreakpointPositions(layout, bp))
     }
   }
 
-  const handleResizeStop = (layout: Layout[], _oldItem: Layout, newItem: Layout, _placeholder: Layout, _e: MouseEvent, _element: HTMLElement) => {
+  const handleResizeStop = (layout: Layout[], _oldItem: Layout, _newItem: Layout, _placeholder: Layout, _e: MouseEvent, _element: HTMLElement) => {
     if (!editable) return
 
     // Update the layouts ref with the new layout for current breakpoint
@@ -210,19 +193,10 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
       onLayoutChangeComplete(layout, bp)
     }
 
-    // Report only the changed widget's responsive positions (performance optimization)
+    // Report responsive positions for all widgets in the current breakpoint.
+    // Resizing one widget can move other widgets due to collision/compaction.
     if (onAllLayoutsChange) {
-      // Build responsive positions only for the resized widget
-      const changedWidgetPositions = buildResponsivePositions(newItem.i)
-      // Ensure the current breakpoint has the latest position
-      changedWidgetPositions[bp] = {
-        x: newItem.x,
-        y: newItem.y,
-        w: newItem.w,
-        h: newItem.h,
-      }
-      // Send only the changed widget's data
-      onAllLayoutsChange({ [newItem.i]: changedWidgetPositions })
+      onAllLayoutsChange(buildBreakpointPositions(layout, bp))
     }
   }
 
@@ -262,7 +236,8 @@ export const DashboardGrid: React.FC<DashboardGridProps> = ({
     )
   }
 
-  const previewWidth = previewWidths[previewMode]
+  // Preview width should only apply while editing. In view mode, keep the grid at full width.
+  const previewWidth = editable ? previewWidths[previewMode] : undefined
 
   return (
     <div>

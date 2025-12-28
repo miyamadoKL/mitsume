@@ -247,6 +247,7 @@ export const DashboardDetail: React.FC = () => {
             chart_type: w.chart_type,
             chart_config: w.chart_config,
             position: w.position,
+            responsive_positions: w.responsive_positions as Record<string, { x: number; y: number; w: number; h: number }> | undefined,
           })),
         }
         historyActions.set(snapshot, true)
