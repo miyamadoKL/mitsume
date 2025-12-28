@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useMemo, useRef, useEffect } from 'react'
 import Editor, { type OnMount } from '@monaco-editor/react'
 import type { editor } from 'monaco-editor'
 
@@ -17,18 +17,25 @@ export const SQLEditor: React.FC<SQLEditorProps> = ({
   onEditorReady,
   height = '300px',
 }) => {
+  // Use ref to always reference the latest onExecute callback
+  // This avoids stale closure issues with Monaco's addCommand
+  const onExecuteRef = useRef(onExecute)
+  useEffect(() => {
+    onExecuteRef.current = onExecute
+  }, [onExecute])
+
   const handleEditorMount: OnMount = useCallback((editor, monaco) => {
     // Ctrl+Enter / Cmd+Enter to execute
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
-      onExecute?.()
+      onExecuteRef.current?.()
     })
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.NumpadEnter, () => {
-      onExecute?.()
+      onExecuteRef.current?.()
     })
 
     // Pass editor instance to parent
     onEditorReady?.(editor)
-  }, [onExecute, onEditorReady])
+  }, [onEditorReady])
 
   const options = useMemo(() => ({
     minimap: { enabled: false },
