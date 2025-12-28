@@ -8,6 +8,7 @@ import (
 	"github.com/mitsume/backend/internal/config"
 	"github.com/mitsume/backend/internal/models"
 	"github.com/mitsume/backend/internal/repository"
+	"golang.org/x/crypto/bcrypt"
 )
 
 // mockRoleRepository is a minimal mock for testing admin bootstrap
@@ -184,29 +185,72 @@ func TestEnsureAdminUser_CreatesNewUser(t *testing.T) {
 	}
 }
 
-func TestEnsureAdminUser_ExistingUser_Skips(t *testing.T) {
+func TestEnsureAdminUser_ExistingUser_MatchingPassword_Skips(t *testing.T) {
 	userRepo := repository.NewMockUserRepository()
 	roleRepo := newMockRoleRepository()
 
-	// Pre-create admin user with username
+	// Pre-create admin user with username and matching password hash
 	username := "admin"
+	password := "testpassword123"
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	existingUser := &models.User{
-		ID:       uuid.New(),
-		Username: &username,
-		Name:     "admin",
+		ID:           uuid.New(),
+		Username:     &username,
+		Name:         "admin",
+		PasswordHash: string(hashedPassword),
 	}
 	userRepo.AddUser(existingUser)
 
 	cfg := &config.AdminConfig{
 		Username: "admin",
-		Password: "testpassword123",
+		Password: password,
 	}
 
 	svc := NewAdminBootstrapService(cfg, userRepo, roleRepo)
 	err := svc.EnsureAdminUser(context.Background())
 
 	if err != nil {
-		t.Errorf("Expected no error, got: %v", err)
+		t.Errorf("Expected no error when password matches, got: %v", err)
+	}
+
+	// Should not create additional users
+	if len(userRepo.Users) != 1 {
+		t.Errorf("Expected 1 user (existing only), got: %d", len(userRepo.Users))
+	}
+}
+
+func TestEnsureAdminUser_ExistingUser_MismatchedPassword_FailsStartup(t *testing.T) {
+	userRepo := repository.NewMockUserRepository()
+	roleRepo := newMockRoleRepository()
+
+	// Pre-create admin user with different password
+	username := "admin"
+	oldPassword := "oldpassword123"
+	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(oldPassword), bcrypt.DefaultCost)
+	existingUser := &models.User{
+		ID:           uuid.New(),
+		Username:     &username,
+		Name:         "admin",
+		PasswordHash: string(hashedPassword),
+	}
+	userRepo.AddUser(existingUser)
+
+	cfg := &config.AdminConfig{
+		Username: "admin",
+		Password: "newpassword456", // Different from stored password
+	}
+
+	svc := NewAdminBootstrapService(cfg, userRepo, roleRepo)
+	err := svc.EnsureAdminUser(context.Background())
+
+	if err == nil {
+		t.Error("Expected error when password does not match, got nil")
+	}
+
+	// Check error message contains useful information
+	expectedSubstr := "does not match"
+	if err != nil && !contains(err.Error(), expectedSubstr) {
+		t.Errorf("Expected error message to contain '%s', got: %v", expectedSubstr, err)
 	}
 
 	// Should not create additional users
@@ -235,4 +279,140 @@ func TestEnsureAdminUser_DefaultUsername(t *testing.T) {
 	if _, exists := userRepo.UsersByUsername["admin"]; !exists {
 		t.Error("Expected user with username 'admin' to exist")
 	}
+}
+
+func TestEnsureAdminUser_PasswordTooShort_FailsStartup(t *testing.T) {
+	userRepo := repository.NewMockUserRepository()
+	roleRepo := newMockRoleRepository()
+
+	cfg := &config.AdminConfig{
+		Username:          "admin",
+		Password:          "test", // Only 4 characters
+		PasswordMinLength: 6,      // Requires 6
+	}
+
+	svc := NewAdminBootstrapService(cfg, userRepo, roleRepo)
+	err := svc.EnsureAdminUser(context.Background())
+
+	if err == nil {
+		t.Error("Expected error when password is too short, got nil")
+	}
+
+	// Check error message contains useful information
+	expectedSubstr := "too short"
+	if err != nil && !contains(err.Error(), expectedSubstr) {
+		t.Errorf("Expected error message to contain '%s', got: %v", expectedSubstr, err)
+	}
+
+	// Should not create any user
+	if len(userRepo.Users) != 0 {
+		t.Errorf("Expected 0 users when password too short, got: %d", len(userRepo.Users))
+	}
+}
+
+func TestEnsureAdminUser_PasswordMinLengthZero_AllowsShortPassword(t *testing.T) {
+	userRepo := repository.NewMockUserRepository()
+	roleRepo := newMockRoleRepository()
+
+	cfg := &config.AdminConfig{
+		Username:          "admin",
+		Password:          "test", // Only 4 characters
+		PasswordMinLength: 0,      // No minimum
+	}
+
+	svc := NewAdminBootstrapService(cfg, userRepo, roleRepo)
+	err := svc.EnsureAdminUser(context.Background())
+
+	if err != nil {
+		t.Errorf("Expected no error when min length is 0, got: %v", err)
+	}
+
+	// Should create user
+	if len(userRepo.Users) != 1 {
+		t.Errorf("Expected 1 user, got: %d", len(userRepo.Users))
+	}
+}
+
+func TestEnsureAdminUser_PasswordExactlyMinLength_Succeeds(t *testing.T) {
+	userRepo := repository.NewMockUserRepository()
+	roleRepo := newMockRoleRepository()
+
+	cfg := &config.AdminConfig{
+		Username:          "admin",
+		Password:          "123456", // Exactly 6 characters
+		PasswordMinLength: 6,        // Requires 6
+	}
+
+	svc := NewAdminBootstrapService(cfg, userRepo, roleRepo)
+	err := svc.EnsureAdminUser(context.Background())
+
+	if err != nil {
+		t.Errorf("Expected no error when password is exactly min length, got: %v", err)
+	}
+
+	// Should create user
+	if len(userRepo.Users) != 1 {
+		t.Errorf("Expected 1 user, got: %d", len(userRepo.Users))
+	}
+}
+
+func TestEnsureAdminUser_MultiByte_CountsCharactersNotBytes(t *testing.T) {
+	userRepo := repository.NewMockUserRepository()
+	roleRepo := newMockRoleRepository()
+
+	// "パスワード" is 5 characters but 15 bytes in UTF-8
+	cfg := &config.AdminConfig{
+		Username:          "admin",
+		Password:          "パスワード", // 5 characters (15 bytes)
+		PasswordMinLength: 5,          // Requires 5 characters
+	}
+
+	svc := NewAdminBootstrapService(cfg, userRepo, roleRepo)
+	err := svc.EnsureAdminUser(context.Background())
+
+	if err != nil {
+		t.Errorf("Expected no error for 5-character multi-byte password, got: %v", err)
+	}
+
+	// Should create user
+	if len(userRepo.Users) != 1 {
+		t.Errorf("Expected 1 user, got: %d", len(userRepo.Users))
+	}
+}
+
+func TestEnsureAdminUser_MultiByte_TooShort_Fails(t *testing.T) {
+	userRepo := repository.NewMockUserRepository()
+	roleRepo := newMockRoleRepository()
+
+	// "パス" is 2 characters but 6 bytes in UTF-8
+	cfg := &config.AdminConfig{
+		Username:          "admin",
+		Password:          "パス", // 2 characters (6 bytes)
+		PasswordMinLength: 3,     // Requires 3 characters
+	}
+
+	svc := NewAdminBootstrapService(cfg, userRepo, roleRepo)
+	err := svc.EnsureAdminUser(context.Background())
+
+	if err == nil {
+		t.Error("Expected error for 2-character password with min 3, got nil")
+	}
+
+	// Should not create user
+	if len(userRepo.Users) != 0 {
+		t.Errorf("Expected 0 users, got: %d", len(userRepo.Users))
+	}
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
+}
+
+func containsHelper(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
