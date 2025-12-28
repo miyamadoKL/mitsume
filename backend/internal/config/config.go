@@ -88,6 +88,12 @@ func Load() (*Config, error) {
 		return nil, errors.New("JWT_SECRET environment variable is required but not set")
 	}
 
+	// Validate MITSUME_ADMIN_PASSWORD_MIN_LENGTH
+	adminPasswordMinLength, err := getEnvIntValidated("MITSUME_ADMIN_PASSWORD_MIN_LENGTH", 0)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		Server: ServerConfig{
 			Port:        getEnv("SERVER_PORT", "8080"),
@@ -142,7 +148,7 @@ func Load() (*Config, error) {
 		Admin: AdminConfig{
 			Username:          getEnv("MITSUME_ADMIN_USERNAME", "admin"),
 			Password:          os.Getenv("MITSUME_ADMIN_PASSWORD"), // No default - empty means skip
-			PasswordMinLength: getEnvInt("MITSUME_ADMIN_PASSWORD_MIN_LENGTH", 0),
+			PasswordMinLength: adminPasswordMinLength,
 		},
 	}, nil
 }
@@ -170,4 +176,24 @@ func getEnvBool(key string, defaultValue bool) bool {
 		}
 	}
 	return defaultValue
+}
+
+// getEnvIntValidated gets an integer from environment variable with validation.
+// Returns an error if the value is not a valid non-negative integer.
+func getEnvIntValidated(key string, defaultValue int) (int, error) {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue, nil
+	}
+
+	intVal, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, errors.New(key + " must be a valid integer, got: " + value)
+	}
+
+	if intVal < 0 {
+		return 0, errors.New(key + " must be a non-negative integer, got: " + value)
+	}
+
+	return intVal, nil
 }

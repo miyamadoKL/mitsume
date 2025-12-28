@@ -19,7 +19,7 @@ type User struct {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email"`                     // Email or username for admin users
+	Email    string `json:"email" binding:"required"`    // Email or username for admin users
 	Password string `json:"password" binding:"required"` // No min length for admin flexibility
 }
 

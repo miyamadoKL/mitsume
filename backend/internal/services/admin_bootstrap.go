@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"unicode/utf8"
 
 	"github.com/mitsume/backend/internal/config"
 	"github.com/mitsume/backend/internal/repository"
@@ -34,20 +35,25 @@ func (s *AdminBootstrapService) EnsureAdminUser(ctx context.Context) error {
 		return nil
 	}
 
-	// Validate password length
-	if s.cfg.PasswordMinLength > 0 && len(s.cfg.Password) < s.cfg.PasswordMinLength {
+	// Validate password length (use rune count for proper multi-byte character handling)
+	passwordLength := utf8.RuneCountInString(s.cfg.Password)
+	if s.cfg.PasswordMinLength > 0 && passwordLength < s.cfg.PasswordMinLength {
 		return fmt.Errorf("MITSUME_ADMIN_PASSWORD is too short: got %d characters, minimum required is %d (set by MITSUME_ADMIN_PASSWORD_MIN_LENGTH)",
-			len(s.cfg.Password), s.cfg.PasswordMinLength)
+			passwordLength, s.cfg.PasswordMinLength)
 	}
 
 	// Check if user already exists by username
-	exists, err := s.userRepo.ExistsByUsername(ctx, s.cfg.Username)
-	if err != nil {
+	existingUser, err := s.userRepo.FindByUsername(ctx, s.cfg.Username)
+	if err != nil && err != repository.ErrNotFound {
 		return fmt.Errorf("failed to check if admin user exists: %w", err)
 	}
 
-	if exists {
-		log.Printf("[INFO] Admin user '%s' already exists, skipping creation", s.cfg.Username)
+	if existingUser != nil {
+		// Verify that env password matches the stored hash
+		if err := bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(s.cfg.Password)); err != nil {
+			return fmt.Errorf("MITSUME_ADMIN_PASSWORD does not match the existing admin user's password: update the environment variable or delete the existing admin user")
+		}
+		log.Printf("[INFO] Admin user '%s' already exists with matching password, skipping creation", s.cfg.Username)
 		return nil
 	}
 
