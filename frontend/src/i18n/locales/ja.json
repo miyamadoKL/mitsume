@@ -111,7 +111,12 @@
       "searching": "検索中...",
       "noSearchResults": "検索結果がありません",
       "useLocalSearch": "ローカル検索に切り替え",
-      "useServerSearch": "カタログ横断検索に切り替え"
+      "useServerSearch": "カタログ横断検索に切り替え",
+      "accessDenied": "アクセス拒否",
+      "nullable": "(null許容)",
+      "expand": "展開",
+      "collapse": "折りたたむ",
+      "collapseAll": "すべて折りたたむ"
     }
   },
   "export": {

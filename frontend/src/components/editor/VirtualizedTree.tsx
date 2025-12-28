@@ -1,4 +1,5 @@
 import { useRef, useState, useCallback, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   Database,
@@ -50,6 +51,9 @@ interface VirtualizedTreeProps {
 const ROW_HEIGHT = 28
 
 // Double-click delay in ms
+// Trade-off: This delay is necessary to distinguish single-click (insert table name)
+// from double-click (insert SELECT * FROM). Without this delay, both handlers would fire.
+// 200ms is the standard threshold for double-click detection.
 const DOUBLE_CLICK_DELAY = 200
 
 export function VirtualizedTree({
@@ -60,6 +64,7 @@ export function VirtualizedTree({
   onNodeDoubleClick,
   emptyMessage = 'No items found',
 }: VirtualizedTreeProps) {
+  const { t } = useTranslation()
   const parentRef = useRef<HTMLDivElement>(null)
   const [focusedIndex, setFocusedIndex] = useState(0)
   const clickTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -333,9 +338,9 @@ export function VirtualizedTree({
               onDoubleClick={() => handleRowDoubleClick(node)}
               title={
                 node.isAccessDenied
-                  ? 'Access denied'
+                  ? t('editor.schemaBrowser.accessDenied', 'Access denied')
                   : node.columnInfo
-                    ? `${node.name}: ${node.columnInfo.type}${node.columnInfo.nullable ? ' (nullable)' : ''}${node.columnInfo.comment ? ` - ${node.columnInfo.comment}` : ''}`
+                    ? `${node.name}: ${node.columnInfo.type}${node.columnInfo.nullable ? ` ${t('editor.schemaBrowser.nullable', '(nullable)')}` : ''}${node.columnInfo.comment ? ` - ${node.columnInfo.comment}` : ''}`
                     : undefined
               }
             >
@@ -343,7 +348,7 @@ export function VirtualizedTree({
               <button
                 onClick={(e) => handleChevronClick(node, e)}
                 className="p-0.5 hover:bg-accent-foreground/10 rounded shrink-0"
-                aria-label={node.isExpanded ? 'Collapse' : 'Expand'}
+                aria-label={node.isExpanded ? t('editor.schemaBrowser.collapse', 'Collapse') : t('editor.schemaBrowser.expand', 'Expand')}
                 tabIndex={-1}
               >
                 {getChevron(node)}

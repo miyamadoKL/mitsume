@@ -111,7 +111,12 @@
       "searching": "Searching...",
       "noSearchResults": "No results found",
       "useLocalSearch": "Switch to local search",
-      "useServerSearch": "Switch to cross-catalog search"
+      "useServerSearch": "Switch to cross-catalog search",
+      "accessDenied": "Access denied",
+      "nullable": "(nullable)",
+      "expand": "Expand",
+      "collapse": "Collapse",
+      "collapseAll": "Collapse all"
     }
   },
   "export": {
