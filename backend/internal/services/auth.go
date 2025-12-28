@@ -70,17 +70,22 @@ func (s *AuthService) Register(ctx context.Context, req *models.RegisterRequest)
 }
 
 func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest) (*models.AuthResponse, error) {
-	user, err := s.userRepo.FindByEmail(ctx, req.Email)
+	if req.Email == "" {
+		return nil, errors.New("email or username is required")
+	}
+
+	// Try to find user by email or username
+	user, err := s.userRepo.FindByEmailOrUsername(ctx, req.Email)
 	if err != nil {
 		if errors.Is(err, repository.ErrNotFound) {
-			return nil, errors.New("invalid email or password")
+			return nil, errors.New("invalid credentials")
 		}
-		return nil, errors.New("invalid email or password")
+		return nil, errors.New("invalid credentials")
 	}
 
 	// Verify password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		return nil, errors.New("invalid email or password")
+		return nil, errors.New("invalid credentials")
 	}
 
 	// Generate token

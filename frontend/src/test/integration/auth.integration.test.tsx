@@ -74,7 +74,7 @@ describe.sequential('認証フロー統合テスト', () => {
   it('ログイン成功後にクエリページへ遷移する', async () => {
     renderApp({ initialEntries: ['/login'] })
 
-    await userEvent.type(await screen.findByPlaceholderText('Email'), 'test@example.com')
+    await userEvent.type(await screen.findByPlaceholderText('Email or Username'), 'test@example.com')
     await userEvent.type(screen.getByPlaceholderText('Password'), 'password123')
     const loginButton = screen.getAllByRole('button', { name: /^Login$/i })
       .find((btn) => btn.getAttribute('type') === 'submit')
@@ -89,14 +89,14 @@ describe.sequential('認証フロー統合テスト', () => {
     server.use(errorHandlers.loginFailure)
     renderApp({ initialEntries: ['/login'] })
 
-    await userEvent.type(await screen.findByPlaceholderText('Email'), 'bad@example.com')
+    await userEvent.type(await screen.findByPlaceholderText('Email or Username'), 'bad@example.com')
     await userEvent.type(screen.getByPlaceholderText('Password'), 'wrong')
     const loginButton = screen.getAllByRole('button', { name: /^Login$/i })
       .find((btn) => btn.getAttribute('type') === 'submit')
     await userEvent.click(loginButton!)
 
     await waitFor(() => {
-      expect(screen.getByText(/invalid email or password/i)).toBeInTheDocument()
+      expect(screen.getByText(/invalid credentials/i)).toBeInTheDocument()
     })
   })
 
@@ -136,7 +136,7 @@ describe.sequential('認証フロー統合テスト', () => {
 
     await waitFor(() => {
       expect(screen.getByText('Mitsume')).toBeInTheDocument()
-      expect(screen.getByPlaceholderText('Email')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('Email or Username')).toBeInTheDocument()
     })
 
     // Verify token is cleared
@@ -171,7 +171,7 @@ describe.sequential('認証フロー統合テスト', () => {
     // Should redirect to login due to 401 from /api/auth/me
     await waitFor(() => {
       expect(screen.getByText('Mitsume')).toBeInTheDocument()
-      expect(screen.getByPlaceholderText('Email')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('Email or Username')).toBeInTheDocument()
     })
   })
 })

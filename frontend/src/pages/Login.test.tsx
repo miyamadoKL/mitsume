@@ -47,7 +47,7 @@ describe('Login Component', () => {
 
       expect(screen.getByText('Mitsume')).toBeInTheDocument()
       expect(screen.getByText('Trino SQL Client')).toBeInTheDocument()
-      expect(screen.getByPlaceholderText('Email')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('Email or Username')).toBeInTheDocument()
       expect(screen.getByPlaceholderText('Password')).toBeInTheDocument()
       // Should have Login tab and Login submit button
       expect(screen.getAllByRole('button', { name: /^Login$/ }).length).toBeGreaterThanOrEqual(1)
@@ -74,7 +74,7 @@ describe('Login Component', () => {
     it('should update input fields', () => {
       renderLogin()
 
-      const emailInput = screen.getByPlaceholderText('Email')
+      const emailInput = screen.getByPlaceholderText('Email or Username')
       const passwordInput = screen.getByPlaceholderText('Password')
 
       fireEvent.change(emailInput, { target: { value: 'test@example.com' } })
@@ -94,7 +94,7 @@ describe('Login Component', () => {
 
       renderLogin()
 
-      fireEvent.change(screen.getByPlaceholderText('Email'), {
+      fireEvent.change(screen.getByPlaceholderText('Email or Username'), {
         target: { value: 'test@example.com' },
       })
       fireEvent.change(screen.getByPlaceholderText('Password'), {
@@ -120,7 +120,7 @@ describe('Login Component', () => {
 
       renderLogin()
 
-      fireEvent.change(screen.getByPlaceholderText('Email'), {
+      fireEvent.change(screen.getByPlaceholderText('Email or Username'), {
         target: { value: 'test@example.com' },
       })
       fireEvent.change(screen.getByPlaceholderText('Password'), {
@@ -130,7 +130,7 @@ describe('Login Component', () => {
       fireEvent.click(loginButtons[loginButtons.length - 1])
 
       await waitFor(() => {
-        expect(screen.getByText('Invalid email or password')).toBeInTheDocument()
+        expect(screen.getByText('Invalid credentials')).toBeInTheDocument()
       })
     })
 
@@ -146,7 +146,7 @@ describe('Login Component', () => {
 
       renderLogin()
 
-      fireEvent.change(screen.getByPlaceholderText('Email'), {
+      fireEvent.change(screen.getByPlaceholderText('Email or Username'), {
         target: { value: 'test@example.com' },
       })
       fireEvent.change(screen.getByPlaceholderText('Password'), {

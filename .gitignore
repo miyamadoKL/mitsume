@@ -20,6 +20,7 @@ main
 .codex/
 todo.md
 plan*.md
+plans/
 issues/
 
 # Environment

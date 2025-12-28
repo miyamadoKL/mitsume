@@ -15,14 +15,26 @@ type UserRepository interface {
 	// FindByEmail retrieves a user by their email address
 	FindByEmail(ctx context.Context, email string) (*models.User, error)
 
+	// FindByUsername retrieves a user by their username (for admin users)
+	FindByUsername(ctx context.Context, username string) (*models.User, error)
+
+	// FindByEmailOrUsername retrieves a user by email or username
+	FindByEmailOrUsername(ctx context.Context, identifier string) (*models.User, error)
+
 	// FindByGoogleID retrieves a user by their Google ID
 	FindByGoogleID(ctx context.Context, googleID string) (*models.User, error)
 
 	// ExistsByEmail checks if a user with the given email exists
 	ExistsByEmail(ctx context.Context, email string) (bool, error)
 
+	// ExistsByUsername checks if a user with the given username exists
+	ExistsByUsername(ctx context.Context, username string) (bool, error)
+
 	// Create creates a new local user with email/password
 	Create(ctx context.Context, email, passwordHash, name string) (*models.User, error)
+
+	// CreateAdminUser creates a new admin user with username (no email)
+	CreateAdminUser(ctx context.Context, username, passwordHash, name string) (*models.User, error)
 
 	// CreateGoogleUser creates a new user authenticated via Google
 	CreateGoogleUser(ctx context.Context, email, name, googleID string) (*models.User, error)

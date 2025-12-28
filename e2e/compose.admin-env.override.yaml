@@ -1,0 +1,5 @@
+services:
+  backend:
+    environment:
+      MITSUME_ADMIN_USERNAME: ${MITSUME_ADMIN_USERNAME:-admin}
+      MITSUME_ADMIN_PASSWORD: ${MITSUME_ADMIN_PASSWORD:-}
