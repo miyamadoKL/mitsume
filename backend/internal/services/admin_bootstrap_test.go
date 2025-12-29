@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mitsume/backend/internal/config"
+	"github.com/mitsume/backend/internal/crypto"
 	"github.com/mitsume/backend/internal/models"
 	"github.com/mitsume/backend/internal/repository"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // mockRoleRepository is a minimal mock for testing admin bootstrap
@@ -192,12 +192,12 @@ func TestEnsureAdminUser_ExistingUser_MatchingPassword_Skips(t *testing.T) {
 	// Pre-create admin user with username and matching password hash
 	username := "admin"
 	password := "testpassword123"
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, _ := crypto.HashPassword(password)
 	existingUser := &models.User{
 		ID:           uuid.New(),
 		Username:     &username,
 		Name:         "admin",
-		PasswordHash: string(hashedPassword),
+		PasswordHash: hashedPassword,
 	}
 	userRepo.AddUser(existingUser)
 
@@ -226,12 +226,12 @@ func TestEnsureAdminUser_ExistingUser_MismatchedPassword_FailsStartup(t *testing
 	// Pre-create admin user with different password
 	username := "admin"
 	oldPassword := "oldpassword123"
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(oldPassword), bcrypt.DefaultCost)
+	hashedPassword, _ := crypto.HashPassword(oldPassword)
 	existingUser := &models.User{
 		ID:           uuid.New(),
 		Username:     &username,
 		Name:         "admin",
-		PasswordHash: string(hashedPassword),
+		PasswordHash: hashedPassword,
 	}
 	userRepo.AddUser(existingUser)
 

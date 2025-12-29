@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mitsume/backend/internal/config"
+	"github.com/mitsume/backend/internal/crypto"
 	"github.com/mitsume/backend/internal/models"
 	"github.com/mitsume/backend/internal/repository"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func newTestConfig() *config.Config {
@@ -136,14 +136,14 @@ func TestLogin_Success(t *testing.T) {
 
 	// Create hashed password
 	password := "password123"
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, _ := crypto.HashPassword(password)
 
 	// Add user with hashed password and active status
 	email := "test@example.com"
 	user := &models.User{
 		ID:           uuid.New(),
 		Email:        &email,
-		PasswordHash: string(hashedPassword),
+		PasswordHash: hashedPassword,
 		Name:         "Test User",
 		AuthProvider: "local",
 		Status:       models.UserStatusActive,
@@ -175,14 +175,14 @@ func TestLogin_PendingUser(t *testing.T) {
 
 	// Create hashed password
 	password := "password123"
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, _ := crypto.HashPassword(password)
 
 	// Add user with pending status
 	email := "pending@example.com"
 	user := &models.User{
 		ID:           uuid.New(),
 		Email:        &email,
-		PasswordHash: string(hashedPassword),
+		PasswordHash: hashedPassword,
 		Name:         "Pending User",
 		AuthProvider: "local",
 		Status:       models.UserStatusPending,
@@ -207,14 +207,14 @@ func TestLogin_DisabledUser(t *testing.T) {
 
 	// Create hashed password
 	password := "password123"
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, _ := crypto.HashPassword(password)
 
 	// Add user with disabled status
 	email := "disabled@example.com"
 	user := &models.User{
 		ID:           uuid.New(),
 		Email:        &email,
-		PasswordHash: string(hashedPassword),
+		PasswordHash: hashedPassword,
 		Name:         "Disabled User",
 		AuthProvider: "local",
 		Status:       models.UserStatusDisabled,
@@ -257,13 +257,13 @@ func TestLogin_InvalidPassword(t *testing.T) {
 	service := NewAuthService(cfg, mockRepo, nil)
 
 	// Create hashed password
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
+	hashedPassword, _ := crypto.HashPassword("correctpassword")
 
 	email := "test@example.com"
 	user := &models.User{
 		ID:           uuid.New(),
 		Email:        &email,
-		PasswordHash: string(hashedPassword),
+		PasswordHash: hashedPassword,
 		Name:         "Test User",
 		AuthProvider: "local",
 	}

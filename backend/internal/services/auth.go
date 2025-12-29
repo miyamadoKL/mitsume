@@ -9,9 +9,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/mitsume/backend/internal/config"
+	"github.com/mitsume/backend/internal/crypto"
 	"github.com/mitsume/backend/internal/models"
 	"github.com/mitsume/backend/internal/repository"
-	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthService struct {
@@ -45,13 +45,13 @@ func (s *AuthService) Register(ctx context.Context, req *models.RegisterRequest)
 	}
 
 	// Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+	hashedPassword, err := crypto.HashPassword(req.Password)
 	if err != nil {
 		return nil, err
 	}
 
 	// Create user with pending status
-	_, err = s.userRepo.Create(ctx, req.Email, string(hashedPassword), req.Name)
+	_, err = s.userRepo.Create(ctx, req.Email, hashedPassword, req.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +77,7 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest) (*mod
 	}
 
 	// Verify password
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
+	if err := crypto.VerifyPassword(req.Password, user.PasswordHash); err != nil {
 		return nil, errors.New("invalid credentials")
 	}
 

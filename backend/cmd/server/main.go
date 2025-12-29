@@ -11,7 +11,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mitsume/backend/internal/api"
-	"github.com/mitsume/backend/internal/api/validators"
 	"github.com/mitsume/backend/internal/config"
 	"github.com/mitsume/backend/internal/database"
 	"github.com/mitsume/backend/internal/repository"
@@ -23,11 +22,6 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
-	}
-
-	// Register custom validators
-	if err := validators.RegisterCustomValidators(); err != nil {
-		log.Fatalf("Failed to register custom validators: %v", err)
 	}
 
 	// Set Gin mode
