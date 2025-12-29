@@ -60,6 +60,7 @@ type ServerConfig struct {
 	Port        string
 	Mode        string
 	FrontendURL string
+	MaxBodySize int64 // Maximum request body size in bytes (default: 1MB)
 }
 
 type DatabaseConfig struct {
@@ -107,6 +108,7 @@ func Load() (*Config, error) {
 			Port:        getEnv("SERVER_PORT", "8080"),
 			Mode:        getEnv("GIN_MODE", "debug"),
 			FrontendURL: getEnv("FRONTEND_URL", "http://localhost:5173"),
+			MaxBodySize: getEnvInt64("MAX_BODY_SIZE", 1<<20), // Default: 1MB
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
@@ -177,6 +179,15 @@ func getEnv(key, defaultValue string) string {
 func getEnvInt(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
 		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
+	}
+	return defaultValue
+}
+
+func getEnvInt64(key string, defaultValue int64) int64 {
+	if value := os.Getenv(key); value != "" {
+		if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
 			return intVal
 		}
 	}

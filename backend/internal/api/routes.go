@@ -45,6 +45,7 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 
 	// Middleware
 	r.Use(middleware.CORSMiddleware(cfg.Server.FrontendURL))
+	r.Use(middleware.BodyLimitMiddleware(cfg.Server.MaxBodySize))
 	r.Use(middleware.RateLimitMiddleware(rateLimiter))
 
 	// API routes
