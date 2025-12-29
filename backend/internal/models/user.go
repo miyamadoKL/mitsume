@@ -31,13 +31,13 @@ type User struct {
 }
 
 type LoginRequest struct {
-	Email    string `json:"email" binding:"required"`           // Email or username for admin users
-	Password string `json:"password" binding:"required,max=72"` // max=72 for bcrypt limit
+	Email    string `json:"email" binding:"required"`               // Email or username for admin users
+	Password string `json:"password" binding:"required,maxbytes=72"` // maxbytes=72 for bcrypt byte limit
 }
 
 type RegisterRequest struct {
 	Email    string `json:"email" binding:"required,email"`
-	Password string `json:"password" binding:"required,min=6,max=72"` // max=72 for bcrypt limit
+	Password string `json:"password" binding:"required,min=6,maxbytes=72"` // maxbytes=72 for bcrypt byte limit
 	Name     string `json:"name" binding:"required"`
 }
 

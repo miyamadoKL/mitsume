@@ -76,7 +76,10 @@
     "loginWithGoogle": "Googleでログイン",
     "orContinueWith": "または",
     "passwordHint": "パスワード（6文字以上）",
-    "subtitle": "Trino SQLクライアント"
+    "subtitle": "Trino SQLクライアント",
+    "pendingApproval": "アカウントは承認待ちです。管理者の承認をお待ちください。",
+    "pendingApprovalTitle": "登録保留中",
+    "accountDisabled": "アカウントが無効化されています。管理者にお問い合わせください。"
   },
   "query": {
     "pageTitle": "クエリエディタ",

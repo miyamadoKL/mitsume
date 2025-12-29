@@ -310,18 +310,6 @@ func RunMigrations() error {
 		 ON dashboards(draft_of)
 		 WHERE COALESCE(is_draft, false) = true AND draft_of IS NOT NULL`,
 
-		// Ensure first user has admin role (safety net if auto-assign failed)
-		// Only runs if there are users but no admin assignments
-		`INSERT INTO user_roles (user_id, role_id, assigned_at)
-		 SELECT u.id, r.id, NOW()
-		 FROM users u
-		 CROSS JOIN roles r
-		 WHERE r.name = 'admin'
-		   AND NOT EXISTS (SELECT 1 FROM user_roles ur INNER JOIN roles r2 ON ur.role_id = r2.id WHERE r2.name = 'admin')
-		 ORDER BY u.created_at ASC
-		 LIMIT 1
-		 ON CONFLICT (user_id, role_id) DO NOTHING`,
-
 		// Add username column for admin users (who don't have email)
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(255) UNIQUE`,
 

@@ -1,6 +1,7 @@
 import axios, { AxiosError } from 'axios'
 import type {
   AuthResponse,
+  User,
   SavedQuery,
   QueryHistory,
   QueryResult,
@@ -44,6 +45,15 @@ const api = axios.create({
   },
 })
 
+// Separate instance for cookie-based auth (OAuth callback)
+const apiWithCredentials = axios.create({
+  baseURL: '/api',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+  withCredentials: true,
+})
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) {
@@ -66,8 +76,12 @@ api.interceptors.response.use(
 // Auth
 export const authApi = {
   register: async (email: string, password: string, name: string): Promise<AuthResponse> => {
-    const { data } = await api.post<AuthResponse>('/auth/register', { email, password, name })
-    return data
+    const response = await api.post('/auth/register', { email, password, name }, {
+      // Allow 202 status to pass through without error
+      validateStatus: (status) => (status >= 200 && status < 300) || status === 202,
+    })
+    // For 202 (pending), return the response data which has message/status
+    return response.data
   },
 
   login: async (email: string, password: string): Promise<AuthResponse> => {
@@ -82,6 +96,12 @@ export const authApi = {
 
   me: async (): Promise<AuthResponse['user']> => {
     const { data } = await api.get<AuthResponse['user']>('/auth/me')
+    return data
+  },
+
+  // Used for OAuth callback where token is in HTTP-only cookie
+  meWithCredentials: async (): Promise<AuthResponse['user']> => {
+    const { data } = await apiWithCredentials.get<AuthResponse['user']>('/auth/me')
     return data
   },
 }
@@ -511,7 +531,7 @@ export const adminApi = {
     return data.catalogs
   },
 
-  // Users
+  // Users - Role Management
   getUsersWithRoles: async (): Promise<UserWithRoles[]> => {
     const { data } = await api.get<UserWithRoles[]>('/admin/users')
     return data
@@ -523,6 +543,30 @@ export const adminApi = {
 
   unassignRole: async (userId: string, roleId: string): Promise<void> => {
     await api.delete(`/admin/users/${userId}/roles/${roleId}`)
+  },
+
+  // Users - Approval Management
+  getPendingUsers: async (): Promise<User[]> => {
+    const { data } = await api.get<User[]>('/admin/users/pending')
+    return data
+  },
+
+  getAllUsers: async (status?: string): Promise<User[]> => {
+    const params = status ? { status } : {}
+    const { data } = await api.get<User[]>('/admin/users/all', { params })
+    return data
+  },
+
+  approveUser: async (userId: string): Promise<void> => {
+    await api.post(`/admin/users/${userId}/approve`)
+  },
+
+  disableUser: async (userId: string): Promise<void> => {
+    await api.post(`/admin/users/${userId}/disable`)
+  },
+
+  enableUser: async (userId: string): Promise<void> => {
+    await api.post(`/admin/users/${userId}/enable`)
   },
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/mitsume/backend/internal/api"
+	"github.com/mitsume/backend/internal/api/validators"
 	"github.com/mitsume/backend/internal/config"
 	"github.com/mitsume/backend/internal/database"
 	"github.com/mitsume/backend/internal/repository"
@@ -22,6 +23,11 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load configuration: %v", err)
+	}
+
+	// Register custom validators
+	if err := validators.RegisterCustomValidators(); err != nil {
+		log.Fatalf("Failed to register custom validators: %v", err)
 	}
 
 	// Set Gin mode
@@ -64,6 +70,29 @@ func main() {
 
 	// Setup router
 	r := gin.Default()
+
+	// Configure trusted proxies for rate limiting
+	// Only trust localhost proxies by default to prevent X-Forwarded-For spoofing
+	// In production with a known proxy, set TRUSTED_PROXIES env var
+	trustedProxies := os.Getenv("TRUSTED_PROXIES")
+	if trustedProxies != "" {
+		// Parse comma-separated list of trusted proxies
+		var proxies []string
+		for _, p := range splitAndTrim(trustedProxies, ",") {
+			if p != "" {
+				proxies = append(proxies, p)
+			}
+		}
+		if err := r.SetTrustedProxies(proxies); err != nil {
+			log.Printf("Warning: failed to set trusted proxies: %v", err)
+		}
+	} else {
+		// Trust no proxies by default - use RemoteAddr directly
+		if err := r.SetTrustedProxies(nil); err != nil {
+			log.Printf("Warning: failed to set trusted proxies: %v", err)
+		}
+	}
+
 	api.SetupRoutes(r, cfg, cacheService)
 
 	// Initialize services for scheduler
@@ -118,4 +147,37 @@ func main() {
 	}
 
 	log.Println("Server exited gracefully")
+}
+
+// splitAndTrim splits a string by separator and trims whitespace from each part
+func splitAndTrim(s, sep string) []string {
+	var result []string
+	start := 0
+	for i := 0; i < len(s); i++ {
+		if i+len(sep) <= len(s) && s[i:i+len(sep)] == sep {
+			part := trimSpace(s[start:i])
+			if part != "" {
+				result = append(result, part)
+			}
+			start = i + len(sep)
+		}
+	}
+	// Add the last part
+	part := trimSpace(s[start:])
+	if part != "" {
+		result = append(result, part)
+	}
+	return result
+}
+
+func trimSpace(s string) string {
+	start := 0
+	end := len(s)
+	for start < end && (s[start] == ' ' || s[start] == '\t') {
+		start++
+	}
+	for end > start && (s[end-1] == ' ' || s[end-1] == '\t') {
+		end--
+	}
+	return s[start:end]
 }

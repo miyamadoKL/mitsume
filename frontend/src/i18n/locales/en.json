@@ -76,7 +76,10 @@
     "loginWithGoogle": "Login with Google",
     "orContinueWith": "Or continue with",
     "passwordHint": "Password (min 6 characters)",
-    "subtitle": "Trino SQL Client"
+    "subtitle": "Trino SQL Client",
+    "pendingApproval": "Your account is pending approval. Please wait for an administrator to activate your account.",
+    "pendingApprovalTitle": "Registration Pending",
+    "accountDisabled": "Your account has been disabled. Please contact an administrator."
   },
   "query": {
     "pageTitle": "Query Editor",
