@@ -1,12 +1,15 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore, PendingApprovalError } from '@/stores/authStore'
 import { authApi } from '@/services/api'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Clock } from 'lucide-react'
+import { AxiosError } from 'axios'
 
 export const Login: React.FC = () => {
   const navigate = useNavigate()
@@ -18,15 +21,28 @@ export const Login: React.FC = () => {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [pendingMessage, setPendingMessage] = useState('')
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setPendingMessage('')
     setLoading(true)
     try {
       await login(email, password)
       navigate('/query')
     } catch (err) {
+      // Check for pending/disabled status from backend
+      if (err instanceof AxiosError && err.response?.status === 403) {
+        const status = err.response.data?.status
+        if (status === 'pending') {
+          setPendingMessage(t('auth.pendingApproval'))
+          return
+        } else if (status === 'disabled') {
+          setError(t('auth.accountDisabled'))
+          return
+        }
+      }
       setError(t('errors.loginFailed'))
     } finally {
       setLoading(false)
@@ -36,11 +52,17 @@ export const Login: React.FC = () => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setPendingMessage('')
     setLoading(true)
     try {
       await register(email, password, name)
       navigate('/query')
     } catch (err) {
+      // Handle pending approval
+      if (err instanceof PendingApprovalError) {
+        setPendingMessage(err.message)
+        return
+      }
       setError(t('errors.registerFailed'))
     } finally {
       setLoading(false)
@@ -64,6 +86,15 @@ export const Login: React.FC = () => {
           <CardDescription>{t('auth.subtitle')}</CardDescription>
         </CardHeader>
         <CardContent>
+          {pendingMessage && (
+            <Alert className="mb-4 border-amber-500 bg-amber-50 dark:bg-amber-950">
+              <Clock className="h-4 w-4 text-amber-600" />
+              <AlertTitle className="text-amber-800 dark:text-amber-200">{t('auth.pendingApprovalTitle')}</AlertTitle>
+              <AlertDescription className="text-amber-700 dark:text-amber-300">
+                {pendingMessage}
+              </AlertDescription>
+            </Alert>
+          )}
           <Tabs value={tab} onValueChange={setTab}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="login">{t('auth.login')}</TabsTrigger>

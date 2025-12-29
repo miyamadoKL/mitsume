@@ -7,8 +7,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/mitsume/backend/internal/config"
+	"github.com/mitsume/backend/internal/crypto"
 	"github.com/mitsume/backend/internal/repository"
-	"golang.org/x/crypto/bcrypt"
 )
 
 // AdminBootstrapService handles initial admin user creation from environment variables
@@ -50,7 +50,7 @@ func (s *AdminBootstrapService) EnsureAdminUser(ctx context.Context) error {
 
 	if existingUser != nil {
 		// Verify that env password matches the stored hash
-		if err := bcrypt.CompareHashAndPassword([]byte(existingUser.PasswordHash), []byte(s.cfg.Password)); err != nil {
+		if err := crypto.VerifyPassword(s.cfg.Password, existingUser.PasswordHash); err != nil {
 			return fmt.Errorf("MITSUME_ADMIN_PASSWORD does not match the existing admin user's password: update the environment variable or delete the existing admin user")
 		}
 		log.Printf("[INFO] Admin user '%s' already exists with matching password, skipping creation", s.cfg.Username)
@@ -58,13 +58,13 @@ func (s *AdminBootstrapService) EnsureAdminUser(ctx context.Context) error {
 	}
 
 	// Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(s.cfg.Password), bcrypt.DefaultCost)
+	hashedPassword, err := crypto.HashPassword(s.cfg.Password)
 	if err != nil {
 		return fmt.Errorf("failed to hash admin password: %w", err)
 	}
 
 	// Create admin user (without email)
-	user, err := s.userRepo.CreateAdminUser(ctx, s.cfg.Username, string(hashedPassword), s.cfg.Username)
+	user, err := s.userRepo.CreateAdminUser(ctx, s.cfg.Username, hashedPassword, s.cfg.Username)
 	if err != nil {
 		return fmt.Errorf("failed to create admin user: %w", err)
 	}

@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mitsume/backend/internal/config"
+	"github.com/mitsume/backend/internal/crypto"
 	"github.com/mitsume/backend/internal/models"
 	"github.com/mitsume/backend/internal/repository"
-	"golang.org/x/crypto/bcrypt"
 )
 
 func newTestConfig() *config.Config {
@@ -69,7 +69,7 @@ func TestValidateToken_Invalid(t *testing.T) {
 	}
 }
 
-func TestRegister_Success(t *testing.T) {
+func TestRegister_PendingApproval(t *testing.T) {
 	cfg := newTestConfig()
 	mockRepo := repository.NewMockUserRepository()
 	service := NewAuthService(cfg, mockRepo, nil)
@@ -81,18 +81,22 @@ func TestRegister_Success(t *testing.T) {
 	}
 
 	resp, err := service.Register(context.Background(), req)
-	if err != nil {
-		t.Fatalf("Register() error = %v", err)
+
+	// Registration should return ErrUserPending and no token
+	if err != ErrUserPending {
+		t.Fatalf("Register() error = %v, want ErrUserPending", err)
+	}
+	if resp != nil {
+		t.Fatal("Register() should return nil response for pending users")
 	}
 
-	if resp.Token == "" {
-		t.Fatal("Register() returned empty token")
+	// Verify user was created with pending status
+	createdUser := mockRepo.UsersByEmail["test@example.com"]
+	if createdUser == nil {
+		t.Fatal("Register() did not create user in repository")
 	}
-	if resp.User.Email == nil || *resp.User.Email != req.Email {
-		t.Fatalf("Register() user email = %v, want %v", resp.User.Email, req.Email)
-	}
-	if resp.User.Name != req.Name {
-		t.Fatalf("Register() user name = %v, want %v", resp.User.Name, req.Name)
+	if createdUser.Status != models.UserStatusPending {
+		t.Fatalf("Register() user status = %v, want %v", createdUser.Status, models.UserStatusPending)
 	}
 }
 
@@ -132,16 +136,17 @@ func TestLogin_Success(t *testing.T) {
 
 	// Create hashed password
 	password := "password123"
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	hashedPassword, _ := crypto.HashPassword(password)
 
-	// Add user with hashed password
+	// Add user with hashed password and active status
 	email := "test@example.com"
 	user := &models.User{
 		ID:           uuid.New(),
 		Email:        &email,
-		PasswordHash: string(hashedPassword),
+		PasswordHash: hashedPassword,
 		Name:         "Test User",
 		AuthProvider: "local",
+		Status:       models.UserStatusActive,
 	}
 	mockRepo.AddUser(user)
 
@@ -160,6 +165,70 @@ func TestLogin_Success(t *testing.T) {
 	}
 	if resp.User.Email == nil || *resp.User.Email != *user.Email {
 		t.Fatalf("Login() user email = %v, want %v", resp.User.Email, user.Email)
+	}
+}
+
+func TestLogin_PendingUser(t *testing.T) {
+	cfg := newTestConfig()
+	mockRepo := repository.NewMockUserRepository()
+	service := NewAuthService(cfg, mockRepo, nil)
+
+	// Create hashed password
+	password := "password123"
+	hashedPassword, _ := crypto.HashPassword(password)
+
+	// Add user with pending status
+	email := "pending@example.com"
+	user := &models.User{
+		ID:           uuid.New(),
+		Email:        &email,
+		PasswordHash: hashedPassword,
+		Name:         "Pending User",
+		AuthProvider: "local",
+		Status:       models.UserStatusPending,
+	}
+	mockRepo.AddUser(user)
+
+	req := &models.LoginRequest{
+		Email:    "pending@example.com",
+		Password: password,
+	}
+
+	_, err := service.Login(context.Background(), req)
+	if err != ErrUserPending {
+		t.Fatalf("Login() error = %v, want ErrUserPending", err)
+	}
+}
+
+func TestLogin_DisabledUser(t *testing.T) {
+	cfg := newTestConfig()
+	mockRepo := repository.NewMockUserRepository()
+	service := NewAuthService(cfg, mockRepo, nil)
+
+	// Create hashed password
+	password := "password123"
+	hashedPassword, _ := crypto.HashPassword(password)
+
+	// Add user with disabled status
+	email := "disabled@example.com"
+	user := &models.User{
+		ID:           uuid.New(),
+		Email:        &email,
+		PasswordHash: hashedPassword,
+		Name:         "Disabled User",
+		AuthProvider: "local",
+		Status:       models.UserStatusDisabled,
+	}
+	mockRepo.AddUser(user)
+
+	req := &models.LoginRequest{
+		Email:    "disabled@example.com",
+		Password: password,
+	}
+
+	_, err := service.Login(context.Background(), req)
+	if err != ErrUserDisabled {
+		t.Fatalf("Login() error = %v, want ErrUserDisabled", err)
 	}
 }
 
@@ -188,13 +257,13 @@ func TestLogin_InvalidPassword(t *testing.T) {
 	service := NewAuthService(cfg, mockRepo, nil)
 
 	// Create hashed password
-	hashedPassword, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
+	hashedPassword, _ := crypto.HashPassword("correctpassword")
 
 	email := "test@example.com"
 	user := &models.User{
 		ID:           uuid.New(),
 		Email:        &email,
-		PasswordHash: string(hashedPassword),
+		PasswordHash: hashedPassword,
 		Name:         "Test User",
 		AuthProvider: "local",
 	}
@@ -247,7 +316,7 @@ func TestGetUserByID_NotFound(t *testing.T) {
 	}
 }
 
-func TestFindOrCreateGoogleUser_ExistingUser(t *testing.T) {
+func TestFindOrCreateGoogleUser_ExistingActiveUser(t *testing.T) {
 	cfg := newTestConfig()
 	mockRepo := repository.NewMockUserRepository()
 	service := NewAuthService(cfg, mockRepo, nil)
@@ -259,7 +328,9 @@ func TestFindOrCreateGoogleUser_ExistingUser(t *testing.T) {
 		Email:        &email,
 		Name:         "Test User",
 		AuthProvider: "google",
+		Status:       models.UserStatusActive,
 	}
+	mockRepo.Users[user.ID] = user
 	mockRepo.UsersByGoogle[googleID] = user
 
 	resp, err := service.FindOrCreateGoogleUser(context.Background(), googleID, "test@example.com", "Test User")
@@ -275,6 +346,29 @@ func TestFindOrCreateGoogleUser_ExistingUser(t *testing.T) {
 	}
 }
 
+func TestFindOrCreateGoogleUser_ExistingPendingUser(t *testing.T) {
+	cfg := newTestConfig()
+	mockRepo := repository.NewMockUserRepository()
+	service := NewAuthService(cfg, mockRepo, nil)
+
+	googleID := "google-pending-123"
+	email := "pending@example.com"
+	user := &models.User{
+		ID:           uuid.New(),
+		Email:        &email,
+		Name:         "Pending User",
+		AuthProvider: "google",
+		Status:       models.UserStatusPending,
+	}
+	mockRepo.Users[user.ID] = user
+	mockRepo.UsersByGoogle[googleID] = user
+
+	_, err := service.FindOrCreateGoogleUser(context.Background(), googleID, email, "Pending User")
+	if err != ErrUserPending {
+		t.Fatalf("FindOrCreateGoogleUser() error = %v, want ErrUserPending", err)
+	}
+}
+
 func TestFindOrCreateGoogleUser_NewUser(t *testing.T) {
 	cfg := newTestConfig()
 	mockRepo := repository.NewMockUserRepository()
@@ -284,18 +378,21 @@ func TestFindOrCreateGoogleUser_NewUser(t *testing.T) {
 	email := "newuser@example.com"
 	name := "New User"
 
+	// New user should return ErrUserPending (pending approval)
 	resp, err := service.FindOrCreateGoogleUser(context.Background(), googleID, email, name)
-	if err != nil {
-		t.Fatalf("FindOrCreateGoogleUser() error = %v", err)
+	if err != ErrUserPending {
+		t.Fatalf("FindOrCreateGoogleUser() error = %v, want ErrUserPending", err)
+	}
+	if resp != nil {
+		t.Fatal("FindOrCreateGoogleUser() should return nil response for new pending users")
 	}
 
-	if resp.Token == "" {
-		t.Fatal("FindOrCreateGoogleUser() returned empty token")
+	// Verify user was created with pending status
+	createdUser := mockRepo.UsersByGoogle[googleID]
+	if createdUser == nil {
+		t.Fatal("FindOrCreateGoogleUser() did not create user in repository")
 	}
-	if resp.User.Email == nil || *resp.User.Email != email {
-		t.Fatalf("FindOrCreateGoogleUser() email = %v, want %v", resp.User.Email, email)
-	}
-	if resp.User.Name != name {
-		t.Fatalf("FindOrCreateGoogleUser() name = %v, want %v", resp.User.Name, name)
+	if createdUser.Status != models.UserStatusPending {
+		t.Fatalf("FindOrCreateGoogleUser() user status = %v, want %v", createdUser.Status, models.UserStatusPending)
 	}
 }

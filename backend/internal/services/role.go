@@ -16,15 +16,19 @@ var (
 	ErrDuplicateRoleName  = errors.New("role with this name already exists")
 	ErrUnauthorized       = errors.New("unauthorized: admin access required")
 	ErrCannotSelfDemote   = errors.New("cannot remove your own admin role")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrCannotDisableSelf  = errors.New("cannot disable your own account")
 )
 
 type RoleService struct {
 	roleRepo repository.RoleRepository
+	userRepo repository.UserRepository
 }
 
-func NewRoleService(roleRepo repository.RoleRepository) *RoleService {
+func NewRoleService(roleRepo repository.RoleRepository, userRepo repository.UserRepository) *RoleService {
 	return &RoleService{
 		roleRepo: roleRepo,
+		userRepo: userRepo,
 	}
 }
 
@@ -285,21 +289,116 @@ func (s *RoleService) GetUserRoles(ctx context.Context, userID uuid.UUID) ([]mod
 	return s.roleRepo.GetUserRoles(ctx, userID)
 }
 
-// AutoAssignAdminToFirstUser checks if this is the first user and assigns admin role
-func (s *RoleService) AutoAssignAdminToFirstUser(ctx context.Context, userID uuid.UUID) error {
-	count, err := s.roleRepo.CountUsers(ctx)
+// User approval management
+
+// GetPendingUsers returns all users with pending status
+func (s *RoleService) GetPendingUsers(ctx context.Context, adminUserID uuid.UUID) ([]models.User, error) {
+	// Check if admin
+	isAdmin, err := s.roleRepo.IsUserAdmin(ctx, adminUserID)
+	if err != nil {
+		return nil, err
+	}
+	if !isAdmin {
+		return nil, ErrUnauthorized
+	}
+
+	return s.userRepo.GetAllByStatus(ctx, models.UserStatusPending)
+}
+
+// GetAllUsers returns all users
+func (s *RoleService) GetAllUsers(ctx context.Context, adminUserID uuid.UUID) ([]models.User, error) {
+	// Check if admin
+	isAdmin, err := s.roleRepo.IsUserAdmin(ctx, adminUserID)
+	if err != nil {
+		return nil, err
+	}
+	if !isAdmin {
+		return nil, ErrUnauthorized
+	}
+
+	return s.userRepo.GetAll(ctx)
+}
+
+// ApproveUser approves a pending user
+func (s *RoleService) ApproveUser(ctx context.Context, adminUserID, targetUserID uuid.UUID) error {
+	// Check if admin
+	isAdmin, err := s.roleRepo.IsUserAdmin(ctx, adminUserID)
 	if err != nil {
 		return err
 	}
-
-	// Only assign admin to the very first user
-	if count == 1 {
-		adminRole, err := s.roleRepo.GetAdminRole(ctx)
-		if err != nil {
-			return err
-		}
-		return s.roleRepo.AssignRole(ctx, userID, adminRole.ID, nil)
+	if !isAdmin {
+		return ErrUnauthorized
 	}
 
-	return nil
+	// Check if user exists
+	user, err := s.userRepo.FindByID(ctx, targetUserID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+
+	// Can only approve pending users
+	if user.Status != models.UserStatusPending {
+		return errors.New("user is not pending approval")
+	}
+
+	return s.userRepo.UpdateStatus(ctx, targetUserID, models.UserStatusActive, &adminUserID)
+}
+
+// DisableUser disables a user account
+func (s *RoleService) DisableUser(ctx context.Context, adminUserID, targetUserID uuid.UUID) error {
+	// Check if admin
+	isAdmin, err := s.roleRepo.IsUserAdmin(ctx, adminUserID)
+	if err != nil {
+		return err
+	}
+	if !isAdmin {
+		return ErrUnauthorized
+	}
+
+	// Cannot disable self
+	if adminUserID == targetUserID {
+		return ErrCannotDisableSelf
+	}
+
+	// Check if user exists
+	_, err = s.userRepo.FindByID(ctx, targetUserID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+
+	return s.userRepo.UpdateStatus(ctx, targetUserID, models.UserStatusDisabled, nil)
+}
+
+// EnableUser enables a disabled user account
+func (s *RoleService) EnableUser(ctx context.Context, adminUserID, targetUserID uuid.UUID) error {
+	// Check if admin
+	isAdmin, err := s.roleRepo.IsUserAdmin(ctx, adminUserID)
+	if err != nil {
+		return err
+	}
+	if !isAdmin {
+		return ErrUnauthorized
+	}
+
+	// Check if user exists
+	user, err := s.userRepo.FindByID(ctx, targetUserID)
+	if err != nil {
+		if errors.Is(err, repository.ErrNotFound) {
+			return ErrUserNotFound
+		}
+		return err
+	}
+
+	// Can only enable disabled users
+	if user.Status != models.UserStatusDisabled {
+		return errors.New("user is not disabled")
+	}
+
+	return s.userRepo.UpdateStatus(ctx, targetUserID, models.UserStatusActive, &adminUserID)
 }

@@ -15,16 +15,19 @@ type MockUserRepository struct {
 	UsersByGoogle   map[string]*models.User
 
 	// Function hooks for custom behavior
-	FindByIDFunc             func(ctx context.Context, id uuid.UUID) (*models.User, error)
-	FindByEmailFunc          func(ctx context.Context, email string) (*models.User, error)
-	FindByUsernameFunc       func(ctx context.Context, username string) (*models.User, error)
+	FindByIDFunc              func(ctx context.Context, id uuid.UUID) (*models.User, error)
+	FindByEmailFunc           func(ctx context.Context, email string) (*models.User, error)
+	FindByUsernameFunc        func(ctx context.Context, username string) (*models.User, error)
 	FindByEmailOrUsernameFunc func(ctx context.Context, identifier string) (*models.User, error)
-	FindByGoogleIDFunc       func(ctx context.Context, googleID string) (*models.User, error)
-	ExistsByEmailFunc        func(ctx context.Context, email string) (bool, error)
-	ExistsByUsernameFunc     func(ctx context.Context, username string) (bool, error)
-	CreateFunc               func(ctx context.Context, email, passwordHash, name string) (*models.User, error)
-	CreateAdminUserFunc      func(ctx context.Context, username, passwordHash, name string) (*models.User, error)
-	CreateGoogleUserFunc     func(ctx context.Context, email, name, googleID string) (*models.User, error)
+	FindByGoogleIDFunc        func(ctx context.Context, googleID string) (*models.User, error)
+	ExistsByEmailFunc         func(ctx context.Context, email string) (bool, error)
+	ExistsByUsernameFunc      func(ctx context.Context, username string) (bool, error)
+	CreateFunc                func(ctx context.Context, email, passwordHash, name string) (*models.User, error)
+	CreateAdminUserFunc       func(ctx context.Context, username, passwordHash, name string) (*models.User, error)
+	CreateGoogleUserFunc      func(ctx context.Context, email, name, googleID string) (*models.User, error)
+	UpdateStatusFunc          func(ctx context.Context, userID uuid.UUID, status models.UserStatus, approvedBy *uuid.UUID) error
+	GetAllByStatusFunc        func(ctx context.Context, status models.UserStatus) ([]models.User, error)
+	GetAllFunc                func(ctx context.Context) ([]models.User, error)
 }
 
 // NewMockUserRepository creates a new MockUserRepository
@@ -116,6 +119,7 @@ func (m *MockUserRepository) Create(ctx context.Context, email, passwordHash, na
 		PasswordHash: passwordHash,
 		Name:         name,
 		AuthProvider: "local",
+		Status:       models.UserStatusPending,
 	}
 	m.Users[user.ID] = user
 	m.UsersByEmail[email] = user
@@ -132,6 +136,7 @@ func (m *MockUserRepository) CreateAdminUser(ctx context.Context, username, pass
 		PasswordHash: passwordHash,
 		Name:         name,
 		AuthProvider: "local",
+		Status:       models.UserStatusActive,
 	}
 	m.Users[user.ID] = user
 	m.UsersByUsername[username] = user
@@ -147,11 +152,49 @@ func (m *MockUserRepository) CreateGoogleUser(ctx context.Context, email, name, 
 		Email:        &email,
 		Name:         name,
 		AuthProvider: "google",
+		Status:       models.UserStatusPending,
 	}
 	m.Users[user.ID] = user
 	m.UsersByEmail[email] = user
 	m.UsersByGoogle[googleID] = user
 	return user, nil
+}
+
+func (m *MockUserRepository) UpdateStatus(ctx context.Context, userID uuid.UUID, status models.UserStatus, approvedBy *uuid.UUID) error {
+	if m.UpdateStatusFunc != nil {
+		return m.UpdateStatusFunc(ctx, userID, status, approvedBy)
+	}
+	user, ok := m.Users[userID]
+	if !ok {
+		return ErrNotFound
+	}
+	user.Status = status
+	user.ApprovedBy = approvedBy
+	return nil
+}
+
+func (m *MockUserRepository) GetAllByStatus(ctx context.Context, status models.UserStatus) ([]models.User, error) {
+	if m.GetAllByStatusFunc != nil {
+		return m.GetAllByStatusFunc(ctx, status)
+	}
+	var users []models.User
+	for _, user := range m.Users {
+		if user.Status == status {
+			users = append(users, *user)
+		}
+	}
+	return users, nil
+}
+
+func (m *MockUserRepository) GetAll(ctx context.Context) ([]models.User, error) {
+	if m.GetAllFunc != nil {
+		return m.GetAllFunc(ctx)
+	}
+	var users []models.User
+	for _, user := range m.Users {
+		users = append(users, *user)
+	}
+	return users, nil
 }
 
 // AddUser adds a user to the mock repository (helper for tests)

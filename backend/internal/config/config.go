@@ -15,6 +15,14 @@ type Config struct {
 	Notification NotificationConfig
 	Cache        CacheConfig
 	Admin        AdminConfig
+	RateLimit    RateLimitConfig
+}
+
+type RateLimitConfig struct {
+	Enabled            bool
+	RequestsPerMinute  int
+	BurstSize          int
+	CleanupIntervalSec int
 }
 
 type AdminConfig struct {
@@ -52,6 +60,7 @@ type ServerConfig struct {
 	Port        string
 	Mode        string
 	FrontendURL string
+	MaxBodySize int64 // Maximum request body size in bytes (default: 1MB)
 }
 
 type DatabaseConfig struct {
@@ -99,6 +108,7 @@ func Load() (*Config, error) {
 			Port:        getEnv("SERVER_PORT", "8080"),
 			Mode:        getEnv("GIN_MODE", "debug"),
 			FrontendURL: getEnv("FRONTEND_URL", "http://localhost:5173"),
+			MaxBodySize: getEnvInt64("MAX_BODY_SIZE", 1<<20), // Default: 1MB
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),
@@ -150,6 +160,12 @@ func Load() (*Config, error) {
 			Password:          os.Getenv("MITSUME_ADMIN_PASSWORD"), // No default - empty means skip
 			PasswordMinLength: adminPasswordMinLength,
 		},
+		RateLimit: RateLimitConfig{
+			Enabled:            getEnvBool("RATE_LIMIT_ENABLED", true),
+			RequestsPerMinute:  getEnvInt("RATE_LIMIT_REQUESTS_PER_MINUTE", 60),
+			BurstSize:          getEnvInt("RATE_LIMIT_BURST_SIZE", 10),
+			CleanupIntervalSec: getEnvInt("RATE_LIMIT_CLEANUP_INTERVAL_SEC", 60),
+		},
 	}, nil
 }
 
@@ -163,6 +179,15 @@ func getEnv(key, defaultValue string) string {
 func getEnvInt(key string, defaultValue int) int {
 	if value := os.Getenv(key); value != "" {
 		if intVal, err := strconv.Atoi(value); err == nil {
+			return intVal
+		}
+	}
+	return defaultValue
+}
+
+func getEnvInt64(key string, defaultValue int64) int64 {
+	if value := os.Getenv(key); value != "" {
+		if intVal, err := strconv.ParseInt(value, 10, 64); err == nil {
 			return intVal
 		}
 	}

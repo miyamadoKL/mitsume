@@ -14,6 +14,7 @@ export const mockUser = {
   email: 'test@example.com',
   name: 'Test User',
   auth_provider: 'local',
+  status: 'active' as const,
   created_at: '2024-01-01T00:00:00Z',
   updated_at: '2024-01-01T00:00:00Z',
 }

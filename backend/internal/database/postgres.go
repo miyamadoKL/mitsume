@@ -310,23 +310,23 @@ func RunMigrations() error {
 		 ON dashboards(draft_of)
 		 WHERE COALESCE(is_draft, false) = true AND draft_of IS NOT NULL`,
 
-		// Ensure first user has admin role (safety net if auto-assign failed)
-		// Only runs if there are users but no admin assignments
-		`INSERT INTO user_roles (user_id, role_id, assigned_at)
-		 SELECT u.id, r.id, NOW()
-		 FROM users u
-		 CROSS JOIN roles r
-		 WHERE r.name = 'admin'
-		   AND NOT EXISTS (SELECT 1 FROM user_roles ur INNER JOIN roles r2 ON ur.role_id = r2.id WHERE r2.name = 'admin')
-		 ORDER BY u.created_at ASC
-		 LIMIT 1
-		 ON CONFLICT (user_id, role_id) DO NOTHING`,
-
 		// Add username column for admin users (who don't have email)
 		`ALTER TABLE users ADD COLUMN IF NOT EXISTS username VARCHAR(255) UNIQUE`,
 
 		// Make email nullable for admin users
 		`ALTER TABLE users ALTER COLUMN email DROP NOT NULL`,
+
+		// User status for admin approval system
+		// status: 'pending' (waiting for approval), 'active' (approved), 'disabled' (deactivated)
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP`,
+		`ALTER TABLE users ADD COLUMN IF NOT EXISTS approved_by UUID REFERENCES users(id) ON DELETE SET NULL`,
+
+		// Set existing users to 'active' status (migration safety)
+		`UPDATE users SET status = 'active' WHERE status IS NULL`,
+
+		// Add index for status queries
+		`CREATE INDEX IF NOT EXISTS idx_users_status ON users(status)`,
 	}
 
 	for _, migration := range migrations {

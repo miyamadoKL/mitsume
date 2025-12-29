@@ -30,14 +30,23 @@ type UserRepository interface {
 	// ExistsByUsername checks if a user with the given username exists
 	ExistsByUsername(ctx context.Context, username string) (bool, error)
 
-	// Create creates a new local user with email/password
+	// Create creates a new local user with email/password (status=pending)
 	Create(ctx context.Context, email, passwordHash, name string) (*models.User, error)
 
-	// CreateAdminUser creates a new admin user with username (no email)
+	// CreateAdminUser creates a new admin user with username (no email, status=active)
 	CreateAdminUser(ctx context.Context, username, passwordHash, name string) (*models.User, error)
 
-	// CreateGoogleUser creates a new user authenticated via Google
+	// CreateGoogleUser creates a new user authenticated via Google (status=pending)
 	CreateGoogleUser(ctx context.Context, email, name, googleID string) (*models.User, error)
+
+	// UpdateStatus updates a user's status (pending/active/disabled)
+	UpdateStatus(ctx context.Context, userID uuid.UUID, status models.UserStatus, approvedBy *uuid.UUID) error
+
+	// GetAllByStatus returns all users with a specific status
+	GetAllByStatus(ctx context.Context, status models.UserStatus) ([]models.User, error)
+
+	// GetAll returns all users
+	GetAll(ctx context.Context) ([]models.User, error)
 }
 
 // TrinoExecutor defines the interface for Trino query execution

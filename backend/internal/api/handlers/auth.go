@@ -48,6 +48,14 @@ func (h *AuthHandler) Register(c *gin.Context) {
 
 	resp, err := h.authService.Register(c.Request.Context(), &req)
 	if err != nil {
+		if err == services.ErrUserPending {
+			// Registration successful, pending approval
+			c.JSON(http.StatusAccepted, models.PendingAuthResponse{
+				Message: "Registration successful. Your account is pending admin approval.",
+				Status:  "pending",
+			})
+			return
+		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -64,7 +72,20 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	resp, err := h.authService.Login(c.Request.Context(), &req)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		switch err {
+		case services.ErrUserPending:
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":  "Your account is pending admin approval",
+				"status": "pending",
+			})
+		case services.ErrUserDisabled:
+			c.JSON(http.StatusForbidden, gin.H{
+				"error":  "Your account has been disabled",
+				"status": "disabled",
+			})
+		default:
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		}
 		return
 	}
 
@@ -167,11 +188,35 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 
 	authResp, err := h.authService.FindOrCreateGoogleUser(c.Request.Context(), userInfo.ID, userInfo.Email, userInfo.Name)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create or find user"})
+		switch err {
+		case services.ErrUserPending:
+			// Redirect to frontend with pending status (no token)
+			frontendURL := h.cfg.Server.FrontendURL + "/auth/callback?status=pending"
+			c.Redirect(http.StatusTemporaryRedirect, frontendURL)
+		case services.ErrUserDisabled:
+			// Redirect to frontend with disabled status (no token)
+			frontendURL := h.cfg.Server.FrontendURL + "/auth/callback?status=disabled"
+			c.Redirect(http.StatusTemporaryRedirect, frontendURL)
+		default:
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create or find user"})
+		}
 		return
 	}
 
-	// Redirect to frontend with token
-	frontendURL := h.cfg.Server.FrontendURL + "/auth/callback?token=" + authResp.Token
+	// Set JWT as HTTP-only cookie instead of URL query parameter
+	// Cookie is secure in production (when not localhost)
+	isSecure := h.cfg.Server.Mode != "debug"
+	c.SetCookie(
+		"auth_token",           // name
+		authResp.Token,         // value
+		3600*h.cfg.JWT.ExpireHour, // maxAge in seconds
+		"/",                    // path
+		"",                     // domain (empty = current domain)
+		isSecure,               // secure
+		true,                   // httpOnly
+	)
+
+	// Redirect to frontend callback (frontend will read token from cookie)
+	frontendURL := h.cfg.Server.FrontendURL + "/auth/callback?status=success"
 	c.Redirect(http.StatusTemporaryRedirect, frontendURL)
 }

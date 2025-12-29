@@ -1,8 +1,14 @@
+export type UserStatus = 'pending' | 'active' | 'disabled'
+
 export interface User {
   id: string
-  email: string
+  email?: string
+  username?: string
   name: string
   auth_provider: string
+  status: UserStatus
+  approved_at?: string
+  approved_by?: string
   created_at: string
   updated_at: string
 }
@@ -10,6 +16,14 @@ export interface User {
 export interface AuthResponse {
   token: string
   user: User
+  // For pending registration
+  message?: string
+  status?: string
+}
+
+export interface PendingAuthResponse {
+  message: string
+  status: 'pending'
 }
 
 export interface SavedQuery {
