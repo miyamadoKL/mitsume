@@ -7,9 +7,13 @@ export interface User {
   updated_at: string
 }
 
+export type AuthStatus = 'success' | 'pending_approval'
+
 export interface AuthResponse {
-  token: string
-  user: User
+  status: AuthStatus
+  token?: string   // Present only when status is 'success'
+  user?: User      // Present only when status is 'success'
+  message?: string // Optional message (e.g., 'Awaiting admin approval')
 }
 
 export interface SavedQuery {

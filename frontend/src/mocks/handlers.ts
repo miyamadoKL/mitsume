@@ -111,6 +111,7 @@ export const handlers = [
     const body = await request.json() as { email: string; password: string }
     if (body.email === 'test@example.com' && body.password === 'password123') {
       return HttpResponse.json<AuthResponse>({
+        status: 'success',
         token: mockToken,
         user: mockUser,
       })
@@ -121,6 +122,7 @@ export const handlers = [
   http.post('/api/auth/register', async ({ request }) => {
     const body = await request.json() as { email: string; password: string; name: string }
     return HttpResponse.json<AuthResponse>({
+      status: 'success',
       token: mockToken,
       user: { ...mockUser, email: body.email, name: body.name },
     })

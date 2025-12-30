@@ -15,7 +15,7 @@ interface AuthState {
   isAdmin: boolean
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, name: string) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
   setToken: (token: string) => Promise<void>
   checkAuth: () => Promise<void>
 }
@@ -30,6 +30,12 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   login: async (email: string, password: string) => {
     const response = await authApi.login(email, password)
+    if (response.status === 'pending_approval') {
+      throw new Error(response.message || 'Your account is pending admin approval')
+    }
+    if (!response.token || !response.user) {
+      throw new Error('Invalid response from server')
+    }
     localStorage.setItem('token', response.token)
     // Fetch user with roles after login
     try {
@@ -44,6 +50,13 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   register: async (email: string, password: string, name: string) => {
     const response = await authApi.register(email, password, name)
+    if (response.status === 'pending_approval') {
+      // Registration successful but pending approval - don't authenticate
+      throw new Error(response.message || 'Registration successful. Awaiting admin approval.')
+    }
+    if (!response.token || !response.user) {
+      throw new Error('Invalid response from server')
+    }
     localStorage.setItem('token', response.token)
     // First user gets admin role automatically
     try {
@@ -56,7 +69,13 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  logout: () => {
+  logout: async () => {
+    // Call backend logout to clear HTTP-only cookie
+    try {
+      await authApi.logout()
+    } catch {
+      // Ignore errors - we still want to clear local state
+    }
     localStorage.removeItem('token')
     set({ user: null, roles: [], token: null, isAuthenticated: false, isAdmin: false })
   },
@@ -77,18 +96,19 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   checkAuth: async () => {
     const token = localStorage.getItem('token')
-    if (!token) {
-      set({ isLoading: false, isAuthenticated: false })
-      return
-    }
 
+    // Try to authenticate even without localStorage token
+    // This supports cookie-based authentication (e.g., after OAuth login with page refresh)
     try {
       const userWithRoles = await authApi.me() as UserWithRolesResponse
       const roles = userWithRoles.roles || []
       const isAdmin = roles.some(r => r.name === 'admin')
-      set({ user: userWithRoles, roles, isAuthenticated: true, isLoading: false, isAdmin })
+      set({ user: userWithRoles, roles, token: token, isAuthenticated: true, isLoading: false, isAdmin })
     } catch {
-      localStorage.removeItem('token')
+      // Only clear localStorage token if we had one and it failed
+      if (token) {
+        localStorage.removeItem('token')
+      }
       set({ user: null, roles: [], token: null, isAuthenticated: false, isLoading: false, isAdmin: false })
     }
   },

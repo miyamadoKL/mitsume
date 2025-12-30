@@ -64,8 +64,9 @@ func (s *AuthService) Register(ctx context.Context, req *models.RegisterRequest)
 	}
 
 	return &models.AuthResponse{
-		Token: token,
-		User:  *user,
+		Status: models.AuthStatusSuccess,
+		Token:  token,
+		User:   user,
 	}, nil
 }
 
@@ -95,8 +96,9 @@ func (s *AuthService) Login(ctx context.Context, req *models.LoginRequest) (*mod
 	}
 
 	return &models.AuthResponse{
-		Token: token,
-		User:  *user,
+		Status: models.AuthStatusSuccess,
+		Token:  token,
+		User:   user,
 	}, nil
 }
 
@@ -134,8 +136,9 @@ func (s *AuthService) FindOrCreateGoogleUser(ctx context.Context, googleID, emai
 	}
 
 	return &models.AuthResponse{
-		Token: token,
-		User:  *user,
+		Status: models.AuthStatusSuccess,
+		Token:  token,
+		User:   user,
 	}, nil
 }
 
