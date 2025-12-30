@@ -49,9 +49,11 @@ type SMTPConfig struct {
 }
 
 type ServerConfig struct {
-	Port        string
-	Mode        string
-	FrontendURL string
+	Port         string
+	Mode         string
+	FrontendURL  string
+	CookieSecure bool   // COOKIE_SECURE: true for HTTPS, false for HTTP (e.g., local development)
+	CookieDomain string // COOKIE_DOMAIN: domain for cookies (empty = default)
 }
 
 type DatabaseConfig struct {
@@ -96,9 +98,11 @@ func Load() (*Config, error) {
 
 	return &Config{
 		Server: ServerConfig{
-			Port:        getEnv("SERVER_PORT", "8080"),
-			Mode:        getEnv("GIN_MODE", "debug"),
-			FrontendURL: getEnv("FRONTEND_URL", "http://localhost:5173"),
+			Port:         getEnv("SERVER_PORT", "8080"),
+			Mode:         getEnv("GIN_MODE", "debug"),
+			FrontendURL:  getEnv("FRONTEND_URL", "http://localhost:5173"),
+			CookieSecure: getEnvBool("COOKIE_SECURE", false), // Set to true in production with HTTPS
+			CookieDomain: getEnv("COOKIE_DOMAIN", ""),
 		},
 		Database: DatabaseConfig{
 			Host:     getEnv("DB_HOST", "localhost"),

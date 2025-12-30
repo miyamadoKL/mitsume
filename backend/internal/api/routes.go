@@ -60,6 +60,7 @@ func SetupRoutes(r *gin.Engine, cfg *config.Config, cacheService *services.Query
 		{
 			// User
 			protected.GET("/auth/me", authHandler.Me)
+			protected.POST("/auth/logout", authHandler.Logout)
 
 			// Query execution
 			protected.POST("/queries/execute", queryHandler.ExecuteQuery)

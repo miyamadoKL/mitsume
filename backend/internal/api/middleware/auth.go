@@ -8,23 +8,34 @@ import (
 	"github.com/mitsume/backend/internal/services"
 )
 
+const AuthCookieName = "auth_token"
+
 func AuthMiddleware(authService *services.AuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		var token string
+
+		// Try Authorization header first
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "authorization header required"})
+		if authHeader != "" {
+			parts := strings.Split(authHeader, " ")
+			if len(parts) == 2 && parts[0] == "Bearer" {
+				token = parts[1]
+			}
+		}
+
+		// Fall back to cookie if no Authorization header
+		if token == "" {
+			if cookieToken, err := c.Cookie(AuthCookieName); err == nil && cookieToken != "" {
+				token = cookieToken
+			}
+		}
+
+		if token == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "authorization required"})
 			c.Abort()
 			return
 		}
 
-		parts := strings.Split(authHeader, " ")
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid authorization header format"})
-			c.Abort()
-			return
-		}
-
-		token := parts[1]
 		userID, err := authService.ValidateToken(token)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})

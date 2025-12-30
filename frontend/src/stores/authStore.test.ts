@@ -14,6 +14,7 @@ vi.mock('../services/api', async () => {
       register: vi.fn(),
       me: vi.fn(),
       getGoogleLoginUrl: vi.fn(),
+      logout: vi.fn().mockResolvedValue(undefined),
     },
   }
 })
@@ -34,6 +35,7 @@ describe('authStore', () => {
   describe('login', () => {
     it('should login successfully with valid credentials', async () => {
       vi.mocked(authApi.login).mockResolvedValue({
+        status: 'success',
         token: mockToken,
         user: mockUser,
       })
@@ -63,6 +65,7 @@ describe('authStore', () => {
   describe('register', () => {
     it('should register successfully', async () => {
       vi.mocked(authApi.register).mockResolvedValue({
+        status: 'success',
         token: mockToken,
         user: { ...mockUser, email: 'new@example.com', name: 'New User' },
       })
@@ -89,7 +92,7 @@ describe('authStore', () => {
       })
 
       const { logout } = useAuthStore.getState()
-      logout()
+      await logout()
 
       const state = useAuthStore.getState()
       expect(state.user).toBeNull()
@@ -141,7 +144,10 @@ describe('authStore', () => {
       expect(state.isLoading).toBe(false)
     })
 
-    it('should not authenticate if no token', async () => {
+    it('should not authenticate if no token and cookie auth fails', async () => {
+      // When there's no localStorage token, checkAuth still tries API (for cookie auth)
+      // If API fails (no cookie either), it should not authenticate
+      vi.mocked(authApi.me).mockRejectedValue(new Error('Unauthorized'))
       const { checkAuth } = useAuthStore.getState()
 
       await checkAuth()

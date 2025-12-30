@@ -7,12 +7,15 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/mitsume/backend/internal/api/middleware"
 	"github.com/mitsume/backend/internal/config"
 	"github.com/mitsume/backend/internal/models"
 	"github.com/mitsume/backend/internal/services"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 )
+
+const authCookieMaxAge = 86400 * 7 // 7 days in seconds
 
 type AuthHandler struct {
 	authService *services.AuthService
@@ -114,7 +117,8 @@ func (h *AuthHandler) GoogleLogin(c *gin.Context) {
 	url := h.oauthConfig.AuthCodeURL(state, oauth2.AccessTypeOffline)
 
 	// Save state in a short-lived cookie to validate on callback
-	c.SetCookie("oauth_state", state, 300, "/", "", false, true)
+	// Use COOKIE_SECURE environment variable instead of GIN_MODE to control Secure flag
+	c.SetCookie("oauth_state", state, 300, "/", h.cfg.Server.CookieDomain, h.cfg.Server.CookieSecure, true)
 
 	c.JSON(http.StatusOK, gin.H{"url": url})
 }
@@ -138,7 +142,7 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 	// Invalidate state cookie
-	c.SetCookie("oauth_state", "", -1, "/", "", false, true)
+	c.SetCookie("oauth_state", "", -1, "/", h.cfg.Server.CookieDomain, h.cfg.Server.CookieSecure, true)
 
 	token, err := h.oauthConfig.Exchange(context.Background(), code)
 	if err != nil {
@@ -171,7 +175,35 @@ func (h *AuthHandler) GoogleCallback(c *gin.Context) {
 		return
 	}
 
-	// Redirect to frontend with token
+	// Set HTTP-only cookie with auth token for cookie-based authentication
+	// This allows the frontend to maintain auth state across page refreshes without localStorage
+	c.SetCookie(
+		middleware.AuthCookieName,
+		authResp.Token,
+		authCookieMaxAge,
+		"/",
+		h.cfg.Server.CookieDomain,
+		h.cfg.Server.CookieSecure,
+		true, // HttpOnly - prevents JavaScript access
+	)
+
+	// Redirect to frontend with token (for backward compatibility with localStorage-based auth)
 	frontendURL := h.cfg.Server.FrontendURL + "/auth/callback?token=" + authResp.Token
 	c.Redirect(http.StatusTemporaryRedirect, frontendURL)
+}
+
+// Logout clears the auth cookie
+func (h *AuthHandler) Logout(c *gin.Context) {
+	// Clear the auth cookie by setting it with a negative max age
+	c.SetCookie(
+		middleware.AuthCookieName,
+		"",
+		-1,
+		"/",
+		h.cfg.Server.CookieDomain,
+		h.cfg.Server.CookieSecure,
+		true,
+	)
+
+	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
 }

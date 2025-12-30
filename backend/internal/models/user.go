@@ -29,7 +29,20 @@ type RegisterRequest struct {
 	Name     string `json:"name" binding:"required"`
 }
 
+// AuthStatus represents the status of authentication/registration
+type AuthStatus string
+
+const (
+	AuthStatusSuccess         AuthStatus = "success"
+	AuthStatusPendingApproval AuthStatus = "pending_approval"
+)
+
 type AuthResponse struct {
-	Token string `json:"token"`
-	User  User   `json:"user"`
+	// Status indicates the result of authentication/registration
+	// "success" = fully authenticated, token and user are present
+	// "pending_approval" = registration successful but awaiting admin approval, no token/user
+	Status  AuthStatus `json:"status"`
+	Token   string     `json:"token,omitempty"`   // Present only when status is "success"
+	User    *User      `json:"user,omitempty"`    // Present only when status is "success"
+	Message string     `json:"message,omitempty"` // Optional message (e.g., "Awaiting admin approval")
 }
